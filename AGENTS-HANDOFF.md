@@ -65,11 +65,11 @@ Sleek, minimal, **dark-only** UI. No gradients, no glassmorphism. Windows 11 **M
 - [x] Migrations mirrored to `supabase/migrations/`
 
 ### Phase 2 — Scaffold
-- [ ] Vite + React + TS scaffold (in repo root)
-- [ ] Tailwind v4 + shadcn init (zinc, dark-only) + components added
-- [ ] Tauri init: window config (undecorated, transparent, mica, shadow), CSP, capabilities
-- [ ] Rust: window-vibrancy mica + `is_mica_supported` command
-- [ ] git init + .gitignore + initial commit
+- [x] Vite + React + TS scaffold (hand-written, in repo root; create-vite refused non-empty dir)
+- [x] Tailwind v4 + shadcn init (radix base, **nova preset**, Geist font bundled via @fontsource) + 19 components in `src/components/ui/`
+- [x] Tauri init: undecorated/transparent/shadow/dark window, strict prod CSP (devCsp null for HMR), window-control capabilities
+- [x] Rust: window-vibrancy `apply_mica` in setup + `is_mica_supported` command (cargo check passes)
+- [x] git init + .gitignore + initial commit
 
 ### Phase 3 — Window shell
 - [ ] `components/titlebar.tsx` (drag region, min/max/close, hides outside Tauri)
@@ -109,6 +109,11 @@ Sleek, minimal, **dark-only** UI. No gradients, no glassmorphism. Windows 11 **M
 - **Decline/cancel/unfriend = DELETE on friendships** (no 'declined' status). Accept = addressee updates status pending→accepted.
 - **`reactions` + `friendships` have `replica identity full`** so realtime DELETE events pass RLS authorization.
 - Supabase key used is the modern `sb_publishable_...` key (works with supabase-js v2), stored under the `VITE_SUPABASE_ANON_KEY` env name.
+- **RPCs for the client:** `public.username_available(text)` (anon-callable SECURITY DEFINER — intentional, signup-time check; the security advisor will WARN about it, that's accepted) and `public.conversation_overview()` (SECURITY INVOKER, sidebar previews + unread counts in one call).
+- **Known realtime caveat:** postgres_changes DELETE events are not RLS-filtered by Supabase; with replica identity full the old row (uuids + emoji only, never message content) is visible to any authenticated subscriber of that table. Accepted for reactions/friendships.
+- **Unfriending keeps the conversation + history** (Discord-like). Messages can still be sent after unfriend (participants keep insert rights).
+- shadcn CLI is now v4-era: `init -b radix -p nova`; no `--base-color` flag anymore.
+- `sonner.tsx` was edited to hardcode `theme="dark"` (next-themes removed).
 
 ## How to run
 
