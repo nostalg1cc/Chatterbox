@@ -11,7 +11,7 @@ interface AuthState {
   profile: Profile | null;
   init: () => void;
   updateGeneralSettings: (name: string, nameColor: NameColor, decoration: string | null, nameDecoration: string | null) => Promise<void>;
-  updateAvatar: (path: string) => Promise<void>;
+  updateAvatar: (path: string, animatedPath?: string | null) => Promise<void>;
   applyProfile: (profile: Profile) => void;
   signOut: () => Promise<void>;
 }
@@ -69,13 +69,14 @@ export const useAuth = create<AuthState>()((set, get) => ({
     set({ profile: data as Profile });
   },
 
-  updateAvatar: async (path) => {
+  updateAvatar: async (path, animatedPath = null) => {
     const { userId } = get();
     if (!userId) return;
     const { data, error } = await supabase
       .from("profiles")
       .update({
         avatar_path: path,
+        avatar_animated_path: animatedPath,
         avatar_updated_at: new Date().toISOString(),
       })
       .eq("id", userId)

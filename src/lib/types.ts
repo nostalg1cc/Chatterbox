@@ -16,6 +16,7 @@ export interface Profile {
   display_name: string;
   created_at: string;
   avatar_path: string | null;
+  avatar_animated_path: string | null;
   avatar_updated_at: string | null;
   avatar_decoration: string | null;
   name_decoration: string | null;

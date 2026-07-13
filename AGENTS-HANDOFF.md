@@ -245,3 +245,5 @@ npx tsc --noEmit      # typecheck
 - [x] Vercel ignore rule scoped to root `Decorations/`; public decoration PNGs are included in web deployments and verified at `/decorations/bubble-still.png` (HTTP 200)
 
 - **Soundboard latency (July 13):** Source change pending Edge Function deployment: opening the shared soundboard obtains 60-second signed preview URLs and warms the max-32 MiB in-memory clip cache; playback reuses any in-flight download, and the synchronized lead is 200 ms rather than 350 ms. This removes the first-download wait from normal click-to-play without persisting clips or widening storage access.
+
+- **GIF avatars (July 13):** avatar uploads now retain a static WebP cover plus, for GIFs, a capped 1 MiB vatar.gif original. GIFs only render when an avatar would already animate (header/user panel, message hover, or each sender's latest message group); every other instance uses the cover frame.

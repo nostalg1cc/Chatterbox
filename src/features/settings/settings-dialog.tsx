@@ -118,18 +118,33 @@ export function SettingsDialog() {
     if (!file || !userId) return;
     setAvatarBusy(true);
     try {
-      const blob = await prepareAvatar(file);
+      const isGif = file.type === "image/gif";
+      if (isGif && file.size > 1024 * 1024) {
+        throw new Error("Animated avatars can be up to 1 MiB.");
+      }
+      const cover = await prepareAvatar(file);
       const path = userId + "/avatar.webp";
-      const { error } = await supabase.storage.from("avatars").upload(path, blob, {
+      const animatedPath = userId + "/avatar.gif";
+      const { error: coverError } = await supabase.storage.from("avatars").upload(path, cover, {
         upsert: true,
         contentType: "image/webp",
         cacheControl: "3600",
       });
-      if (error) throw new Error(error.message);
-      await useAuth.getState().updateAvatar(path);
+      if (coverError) throw new Error(coverError.message);
+      if (isGif) {
+        const { error: gifError } = await supabase.storage.from("avatars").upload(animatedPath, file, {
+          upsert: true,
+          contentType: "image/gif",
+          cacheControl: "3600",
+        });
+        if (gifError) throw new Error(gifError.message);
+      } else {
+        await supabase.storage.from("avatars").remove([animatedPath]);
+      }
+      await useAuth.getState().updateAvatar(path, isGif ? animatedPath : null);
       const updated = useAuth.getState().profile;
       if (updated) useProfiles.getState().put([updated]);
-      toast.success("Avatar updated.");
+      toast.success(isGif ? "Animated avatar updated." : "Avatar updated.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't update your avatar.");
     } finally {
@@ -590,7 +605,7 @@ export function SettingsDialog() {
                       Add sound
                     </Button>
                   </div>
-                  <p className="mt-2 text-[11px] text-muted-foreground">15 seconds max ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 512 KiB prepared max ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 24 clips ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 16 MiB per account</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">15 seconds max ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 512 KiB prepared max ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 24 clips ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 16 MiB per account</p>
                 </div>
                 <div className="space-y-2">
                   {sounds.map((sound) => (
@@ -598,7 +613,7 @@ export function SettingsDialog() {
                       <Music2Icon className="size-4 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{sound.name}</p>
-                        <p className="text-[11px] text-muted-foreground">{(sound.duration_ms / 1000).toFixed(1)}s ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {formattedBytes(sound.size_bytes)}</p>
+                        <p className="text-[11px] text-muted-foreground">{(sound.duration_ms / 1000).toFixed(1)}s ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {formattedBytes(sound.size_bytes)}</p>
                       </div>
                       <Button variant="ghost" size="icon-sm" aria-label={"Delete " + sound.name} className="text-muted-foreground hover:text-destructive" onClick={() => void useSoundboard.getState().remove(sound.id)}>
                         <Trash2Icon />
@@ -681,7 +696,7 @@ function KeybindRow({
         className="min-w-40 font-normal"
         onClick={() => setRecording(true)}
       >
-        {recording ? "Press a combinationÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦" : value ? keybindLabel(value) : "Not set"}
+        {recording ? "Press a combinationÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦" : value ? keybindLabel(value) : "Not set"}
       </Button>
     </div>
   );
