@@ -2,5 +2,5 @@ node_modules
 .git
 src-tauri
 stuff
-Decorations
+/Decorations/
 AGENTS-HANDOFF.md
