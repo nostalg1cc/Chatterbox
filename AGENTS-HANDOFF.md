@@ -242,3 +242,4 @@ npx tsc --noEmit      # typecheck
 - [x] GitHub source published to `nostalg1cc/Chatterbox` on `main`
 - [x] Vercel Production deployed successfully from Chatterbox commit `36c9188`; `https://dislight.vercel.app` returns HTTP 200
 - [x] Final Windows RC1 installers built: MSI and NSIS
+- [x] Vercel ignore rule scoped to root `Decorations/`; public decoration PNGs are included in web deployments and verified at `/decorations/bubble-still.png` (HTTP 200)
