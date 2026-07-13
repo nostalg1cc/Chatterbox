@@ -43,7 +43,7 @@ import {
 } from "@/lib/media-cache";
 import { playAppSound } from "@/lib/app-sounds";
 import { eventKeybind, keybindLabel } from "@/lib/keybinds";
-import { formattedBytes, prepareAvatar } from "@/lib/media";
+import { formattedBytes, prepareAnimatedAvatar, prepareAvatar } from "@/lib/media";
 import { NAME_COLOR_OPTIONS, nameColorClass } from "@/lib/name-colors";
 import { AVATAR_DECORATIONS } from "@/lib/avatar-decorations";
 import { supabase } from "@/lib/supabase";
@@ -119,9 +119,7 @@ export function SettingsDialog() {
     setAvatarBusy(true);
     try {
       const isGif = file.type === "image/gif";
-      if (isGif && file.size > 1024 * 1024) {
-        throw new Error("Animated avatars can be up to 1 MiB.");
-      }
+      const animatedGif = isGif ? await prepareAnimatedAvatar(file) : null;
       const cover = await prepareAvatar(file);
       const path = userId + "/avatar.webp";
       const animatedPath = userId + "/avatar.gif";
@@ -132,7 +130,7 @@ export function SettingsDialog() {
       });
       if (coverError) throw new Error(coverError.message);
       if (isGif) {
-        const { error: gifError } = await supabase.storage.from("avatars").upload(animatedPath, file, {
+        const { error: gifError } = await supabase.storage.from("avatars").upload(animatedPath, animatedGif!, {
           upsert: true,
           contentType: "image/gif",
           cacheControl: "3600",

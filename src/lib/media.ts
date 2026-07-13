@@ -1,5 +1,6 @@
 import type { MediaKind } from "@/lib/types";
-
+import { decompressFrames, parseGIF, type ParsedFrame } from "gifuct-js";
+import { GIFEncoder, applyPalette, quantize } from "gifenc";
 const MEBIBYTE = 1024 * 1024;
 const CHAT_IMAGE_TARGET_BYTES = 3 * MEBIBYTE;
 const AVATAR_TARGET_BYTES = 512 * 1024;
@@ -103,6 +104,182 @@ export async function prepareChatImage(file: File): Promise<PreparedMedia> {
   }
 }
 
+const ANIMATED_AVATAR_MAX_BYTES = MEBIBYTE;
+const ANIMATED_AVATAR_MAX_SOURCE_BYTES = 25 * MEBIBYTE;
+
+interface GifCompressionPlan {
+  maxSide: number;
+  maxFrames: number;
+  colors: number;
+}
+
+const GIF_COMPRESSION_PLANS: GifCompressionPlan[] = [
+  { maxSide: 320, maxFrames: 90, colors: 128 },
+  { maxSide: 256, maxFrames: 60, colors: 96 },
+  { maxSide: 192, maxFrames: 45, colors: 64 },
+  { maxSide: 128, maxFrames: 30, colors: 48 },
+];
+
+interface GifRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+function scaledGifRect(frame: ParsedFrame, scale: number): GifRect {
+  return {
+    left: Math.round(frame.dims.left * scale),
+    top: Math.round(frame.dims.top * scale),
+    width: Math.max(1, Math.round(frame.dims.width * scale)),
+    height: Math.max(1, Math.round(frame.dims.height * scale)),
+  };
+}
+
+function gifDimensions(width: number, height: number, maxSide: number) {
+  const scale = Math.min(1, maxSide / Math.max(width, height));
+  return {
+    width: Math.max(2, Math.round(width * scale)),
+    height: Math.max(2, Math.round(height * scale)),
+    scale,
+  };
+}
+
+function paletteForGif(data: Uint8ClampedArray, colors: number) {
+  const palette = quantize(data, colors, {
+    format: "rgba4444",
+    oneBitAlpha: true,
+  });
+  const transparentIndex = palette.findIndex((color) => color[3] === 0);
+  if (transparentIndex > 0) {
+    [palette[0], palette[transparentIndex]] = [palette[transparentIndex], palette[0]];
+  }
+  return {
+    palette,
+    transparent: transparentIndex >= 0,
+    transparentIndex: transparentIndex > 0 ? 0 : transparentIndex,
+  };
+}
+
+function drawGifPatch(
+  context: CanvasRenderingContext2D,
+  frame: ParsedFrame,
+  rect: GifRect
+) {
+  const patch = document.createElement("canvas");
+  patch.width = frame.dims.width;
+  patch.height = frame.dims.height;
+  const patchContext = patch.getContext("2d");
+  if (!patchContext) throw new Error("GIF compression is unavailable.");
+  const patchData = new Uint8ClampedArray(frame.patch.length);
+  patchData.set(frame.patch);
+  patchContext.putImageData(
+    new ImageData(patchData, frame.dims.width, frame.dims.height),
+    0,
+    0
+  );
+  context.drawImage(patch, rect.left, rect.top, rect.width, rect.height);
+}
+
+function encodeAnimatedGif(
+  frames: ParsedFrame[],
+  sourceWidth: number,
+  sourceHeight: number,
+  plan: GifCompressionPlan
+): Blob {
+  const dimensions = gifDimensions(sourceWidth, sourceHeight, plan.maxSide);
+  const composite = document.createElement("canvas");
+  composite.width = dimensions.width;
+  composite.height = dimensions.height;
+  const compositeContext = composite.getContext("2d");
+  if (!compositeContext) throw new Error("GIF compression is unavailable.");
+
+  const output = document.createElement("canvas");
+  output.width = dimensions.width;
+  output.height = dimensions.height;
+  const outputContext = output.getContext("2d", { willReadFrequently: true });
+  if (!outputContext) throw new Error("GIF compression is unavailable.");
+
+  const encoder = GIFEncoder();
+  const stride = Math.max(1, Math.ceil(frames.length / plan.maxFrames));
+  let previousDisposal = 0;
+  let previousRect: GifRect | null = null;
+  let restorePoint: ImageData | null = null;
+  let pendingDelay = 0;
+
+  frames.forEach((frame, index) => {
+    if (previousDisposal === 2 && previousRect) {
+      compositeContext.clearRect(
+        previousRect.left,
+        previousRect.top,
+        previousRect.width,
+        previousRect.height
+      );
+    } else if (previousDisposal === 3 && restorePoint) {
+      compositeContext.putImageData(restorePoint, 0, 0);
+    }
+
+    const rect = scaledGifRect(frame, dimensions.scale);
+    restorePoint = frame.disposalType === 3
+      ? compositeContext.getImageData(0, 0, dimensions.width, dimensions.height)
+      : null;
+    drawGifPatch(compositeContext, frame, rect);
+
+    pendingDelay += Math.max(20, frame.delay || 100);
+    const shouldEncode = index % stride === 0 || index === frames.length - 1;
+    if (shouldEncode) {
+      outputContext.clearRect(0, 0, dimensions.width, dimensions.height);
+      outputContext.drawImage(composite, 0, 0);
+      const image = outputContext.getImageData(0, 0, dimensions.width, dimensions.height);
+      const paletteInfo = paletteForGif(image.data, plan.colors);
+      const indexed = applyPalette(image.data, paletteInfo.palette, "rgba4444");
+      encoder.writeFrame(indexed, dimensions.width, dimensions.height, {
+        palette: paletteInfo.palette,
+        delay: Math.min(pendingDelay, 655_350),
+        repeat: 0,
+        transparent: paletteInfo.transparent,
+        transparentIndex: paletteInfo.transparentIndex,
+        dispose: 2,
+      });
+      pendingDelay = 0;
+    }
+
+    previousDisposal = frame.disposalType;
+    previousRect = rect;
+  });
+
+  encoder.finish();
+  const bytes = encoder.bytes();
+  const copiedBytes = new Uint8Array(bytes.length);
+  copiedBytes.set(bytes);
+  return new Blob([copiedBytes.buffer], { type: "image/gif" });
+}
+
+export async function prepareAnimatedAvatar(file: File): Promise<Blob> {
+  if (file.type !== "image/gif") throw new Error("Choose a GIF avatar.");
+  if (file.size <= ANIMATED_AVATAR_MAX_BYTES) return file;
+  if (file.size > ANIMATED_AVATAR_MAX_SOURCE_BYTES) {
+    throw new Error("GIF source files can be up to 25 MiB for local optimization.");
+  }
+
+  let parsed;
+  let frames: ParsedFrame[];
+  try {
+    parsed = parseGIF(await file.arrayBuffer());
+    frames = decompressFrames(parsed, true);
+  } catch {
+    throw new Error("This GIF could not be decoded for local optimization.");
+  }
+  if (!frames.length) throw new Error("This GIF has no animation frames.");
+
+  for (const plan of GIF_COMPRESSION_PLANS) {
+    const compressed = encodeAnimatedGif(frames, parsed.lsd.width, parsed.lsd.height, plan);
+    if (compressed.size <= ANIMATED_AVATAR_MAX_BYTES) return compressed;
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+  }
+
+  throw new Error("This GIF is too complex to fit the 1 MiB animated-avatar limit after local optimization.");
+}
 export async function prepareAvatar(file: File): Promise<Blob> {
   if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
   const bitmap = await imageBitmap(file);

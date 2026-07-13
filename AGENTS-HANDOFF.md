@@ -253,3 +253,5 @@ npx tsc --noEmit      # typecheck
 - **Soundboard local playback (July 13):** sender and partner both play the same synchronized clip locally; playback now also honors the selected output device (with a Windows-default fallback).
 
 - **Last chat restoration (July 13):** the last opened conversation is persisted locally per signed-in account and automatically restored after conversations load; invalid or removed conversations safely fall back to the normal empty state.
+
+- **Animated GIF avatar optimization (July 13):** GIFs over the 1 MiB Storage cap are decoded and recompressed locally with progressively lower dimensions, frame sampling, and palette depth while retaining animation; only source files over 25 MiB or GIFs that still exceed the cap after every pass are rejected.
