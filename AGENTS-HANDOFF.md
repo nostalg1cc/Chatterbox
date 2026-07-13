@@ -236,3 +236,9 @@ npx tsc --noEmit      # typecheck
 - [x] Composer overlay now has a higher stacking layer than avatar decorations, preventing decorations from rendering over the message input and its gradient
 - [x] Consecutive messages now group only when they are from the same sender and less than one minute apart
 - [x] Chat input surface now uses a subtle translucent card background with backdrop blur while retaining its existing border and focus treatment
+
+### Release Candidate 1 (July 13)
+- [x] RC1 is identified by Git tag `v0.1.0-rc.1`; Windows MSI packaging retains compatible product version `0.1.0` because WiX allows numeric-only prerelease identifiers
+- [x] GitHub source published to `nostalg1cc/Chatterbox` on `main`
+- [x] Vercel Production deployed successfully from Chatterbox commit `36c9188`; `https://dislight.vercel.app` returns HTTP 200
+- [x] Final Windows RC1 installers built: MSI and NSIS
