@@ -1,0 +1,11 @@
+﻿{
+    "version":  "0.1.1",
+    "notes":  "Motion-first streaming: 720p60, 8 Mbps, and frame-rate preserving adaptation. Adds signed in-app update checks for future releases.",
+    "pub_date":  "2026-07-13T23:16:49.3858463Z",
+    "platforms":  {
+                      "windows-x86_64":  {
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRa0RLazZwdmlJd3UxWjl3ZThkSGpTWDB1RnJEQThmcDNiRzh0ZjUydldweTRlN2NjWE8rekl3dzQxL2czSDhjTnhwNndQQjJWWHVwdVRNSHVENTNlSmdhWUY2SXhTdVFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzOTg0NTY1CWZpbGU6RGlzbGlnaHRfMC4xLjFfeDY0LXNldHVwLmV4ZQpKVnlmUFVMUWFpazVNRWdIbVF2bDlBWEdYZ2RXbjFXRnVjQVg3UDBpTjZFRmNwcXRuZnNUTno3WFBEU2NZeUd4SG12Wms5anBsU1RtOEIzOXBjSk1Edz09Cg==",
+                                             "url":  "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.1/Dislight_0.1.1_x64-setup.exe"
+                                         }
+                  }
+}

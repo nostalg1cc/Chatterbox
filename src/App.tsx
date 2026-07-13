@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { toast } from "sonner";
 import { Titlebar } from "@/components/titlebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -26,6 +27,38 @@ export default function App() {
   useEffect(() => {
     void applyWindowMaterial(windowMaterial, acrylicDim);
   }, [windowMaterial, acrylicDim]);
+  useEffect(() => {
+    if (!isTauri) return;
+    let disposed = false;
+
+    void (async () => {
+      try {
+        const { check } = await import("@tauri-apps/plugin-updater");
+        const update = await check();
+        if (!update || disposed) return;
+
+        toast("Dislight " + update.version + " is ready", {
+          description: "Download and install the signed update now.",
+          duration: Infinity,
+          action: {
+            label: "Install now",
+            onClick: () => {
+              void update.downloadAndInstall().catch((error) => {
+                console.warn("Update installation failed", error);
+                toast.error("Couldn't install the update. Please try again later.");
+              });
+            },
+          },
+        });
+      } catch (error) {
+        console.warn("Update check failed", error);
+      }
+    })();
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
 
   return (
     <TooltipProvider delayDuration={300}>

@@ -252,7 +252,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
         throw new Error("The selected source did not provide a video track.");
       }
 
-      track.contentHint = "detail";
+      track.contentHint = "motion";
       localScreenStream = stream;
       localScreenTrack = track;
       track.onended = () => {
@@ -1019,7 +1019,9 @@ async function addScreenTrack(
   const sender = connection.addTrack(track, stream);
   const parameters = sender.getParameters();
   if (parameters.encodings.length > 0) {
-    parameters.encodings[0].maxBitrate = 3_000_000;
+    parameters.degradationPreference = "maintain-framerate";
+    parameters.encodings[0].maxBitrate = 8_000_000;
+    parameters.encodings[0].maxFramerate = 60;
     await sender.setParameters(parameters).catch(() => undefined);
   }
 }

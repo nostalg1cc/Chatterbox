@@ -255,3 +255,5 @@ npx tsc --noEmit      # typecheck
 - **Last chat restoration (July 13):** the last opened conversation is persisted locally per signed-in account and automatically restored after conversations load; invalid or removed conversations safely fall back to the normal empty state.
 
 - **Animated GIF avatar optimization (July 13):** GIFs over the 1 MiB Storage cap are decoded and recompressed locally with progressively lower dimensions, frame sampling, and palette depth while retaining animation; only source files over 25 MiB or GIFs that still exceed the cap after every pass are rejected.
+
+- **Motion stream + updater (July 14):** streams now target 1280x720 at 60 fps with an 8 Mbps ceiling, motion content hint, and frame-rate-first adaptation. Version 0.1.1 installs Tauri's signed updater; future desktop releases publish a signed NSIS EXE, its .sig, and updates/latest.json as the GitHub latest.json asset. The private signing key remains only at %USERPROFILE%\.tauri\dislight-updater.key and must never be committed or lost.

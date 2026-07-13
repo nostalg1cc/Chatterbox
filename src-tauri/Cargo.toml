@@ -1,6 +1,6 @@
 [package]
 name = "dislight"
-version = "0.1.0"
+version = "0.1.1"
 description = "Dislight - minimal 1:1 chat"
 authors = ["Dislight"]
 edition = "2021"
@@ -25,3 +25,4 @@ window-vibrancy = "0.6"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-updater = "2"

@@ -1,4 +1,4 @@
-﻿export interface MicrophonePipeline {
+export interface MicrophonePipeline {
   rawStream: MediaStream;
   outputStream: MediaStream;
   context: AudioContext | null;
@@ -204,9 +204,9 @@ export async function captureScreen(): Promise<MediaStream> {
 
   return navigator.mediaDevices.getDisplayMedia({
     video: {
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
-      frameRate: { ideal: 30, max: 30 },
+      width: { ideal: 1280, max: 1280 },
+      height: { ideal: 720, max: 720 },
+      frameRate: { ideal: 60, max: 60 },
     },
     audio: false,
   });
