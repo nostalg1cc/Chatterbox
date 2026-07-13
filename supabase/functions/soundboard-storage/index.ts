@@ -4,6 +4,7 @@ import { withSupabase } from "@supabase/server";
 const BUCKET = "soundboard";
 const MAX_BYTES = 512 * 1024;
 const MAX_DURATION_MS = 15_000;
+const PLAYBACK_SYNC_LEAD_MS = 200;
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
@@ -73,10 +74,25 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
       if (!memberIds) return json({ error: "Join voice to open the shared soundboard." }, 403);
       const { data, error } = await admin
         .from("soundboard_sounds")
-        .select("id,owner_id,name,size_bytes,duration_ms,created_at")
+        .select("id,owner_id,name,storage_path,size_bytes,duration_ms,created_at")
         .in("owner_id", memberIds)
         .order("created_at", { ascending: false });
-      return error ? json({ error: error.message }, 500) : json({ sounds: data ?? [] });
+      if (error) return json({ error: error.message }, 500);
+      const sounds = data ?? [];
+      const { data: signedUrls, error: signedUrlError } = await admin.storage
+        .from(BUCKET)
+        .createSignedUrls(sounds.map((sound) => sound.storage_path), 60);
+      if (signedUrlError) return json({ error: signedUrlError.message }, 500);
+      const idByPath = new Map(sounds.map((sound) => [sound.storage_path, sound.id]));
+      const preloadUrls: Record<string, string> = {};
+      for (const entry of signedUrls ?? []) {
+        const soundId = entry.path ? idByPath.get(entry.path) : undefined;
+        if (soundId && entry.signedUrl) preloadUrls[soundId] = entry.signedUrl;
+      }
+      return json({
+        sounds: sounds.map(({ storage_path: _storagePath, ...sound }) => sound),
+        preloadUrls,
+      });
     }
 
     const { data, error } = await ctx.supabase
@@ -148,7 +164,7 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
         duration_ms: sound.duration_ms,
       },
       signedUrl: data.signedUrl,
-      playAt: Date.now() + 350,
+      playAt: Date.now() + PLAYBACK_SYNC_LEAD_MS,
     });
   }
 

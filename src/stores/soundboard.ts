@@ -1,6 +1,6 @@
 ﻿import { toast } from "sonner";
 import { create } from "zustand";
-import { prepareSoundboardAudio, playSoundboardUrl } from "@/lib/soundboard-audio";
+import { prepareSoundboardAudio, playSoundboardUrl, preloadSoundboardClips } from "@/lib/soundboard-audio";
 import { supabase } from "@/lib/supabase";
 import { usePreferences } from "./preferences";
 import { broadcastVoiceSoundboard, useVoice } from "./voice";
@@ -57,11 +57,16 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   loadAvailable: async (conversationId) => {
     set({ loading: true });
     try {
-      const data = await invoke<{ sounds: SoundboardSound[] }>({
+      const data = await invoke<{ sounds: SoundboardSound[]; preloadUrls?: Record<string, string> }>({
         mode: "list",
         conversationId,
       });
       set({ availableSounds: data.sounds });
+      if (data.preloadUrls) {
+        preloadSoundboardClips(
+          Object.entries(data.preloadUrls).map(([id, signedUrl]) => ({ id, signedUrl }))
+        );
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Shared soundboard could not load.");
     } finally {

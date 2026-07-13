@@ -108,7 +108,65 @@ async function encodeOpus(buffer: AudioBuffer): Promise<Blob> {
   }
 }
 
-const playbackCache = new Map<string, Blob>();
+const MAX_PLAYBACK_CACHE_BYTES = 32 * 1024 * 1024;
+
+interface CachedClip {
+  blob: Blob;
+  lastUsedAt: number;
+}
+
+const playbackCache = new Map<string, CachedClip>();
+const pendingDownloads = new Map<string, Promise<Blob>>();
+let playbackCacheBytes = 0;
+
+function cacheClip(cacheKey: string, blob: Blob): Blob {
+  const previous = playbackCache.get(cacheKey);
+  if (previous) playbackCacheBytes -= previous.blob.size;
+  playbackCache.set(cacheKey, { blob, lastUsedAt: Date.now() });
+  playbackCacheBytes += blob.size;
+
+  while (playbackCacheBytes > MAX_PLAYBACK_CACHE_BYTES && playbackCache.size > 1) {
+    const oldest = [...playbackCache.entries()].reduce((candidate, entry) =>
+      entry[1].lastUsedAt < candidate[1].lastUsedAt ? entry : candidate
+    );
+    playbackCache.delete(oldest[0]);
+    playbackCacheBytes -= oldest[1].blob.size;
+  }
+  return blob;
+}
+
+async function loadClip(cacheKey: string, signedUrl: string): Promise<Blob> {
+  const cached = playbackCache.get(cacheKey);
+  if (cached) {
+    cached.lastUsedAt = Date.now();
+    return cached.blob;
+  }
+
+  const pending = pendingDownloads.get(cacheKey);
+  if (pending) return pending;
+
+  const download = fetch(signedUrl)
+    .then(async (response) => {
+      if (!response.ok) throw new Error("Soundboard clip could not be downloaded.");
+      return cacheClip(cacheKey, await response.blob());
+    })
+    .finally(() => pendingDownloads.delete(cacheKey));
+  pendingDownloads.set(cacheKey, download);
+  return download;
+}
+
+export function preloadSoundboardClips(clips: Array<{ id: string; signedUrl: string }>): void {
+  // Clips are tiny (max 512 KiB) and retained only for this app session. Warming
+  // the shared library removes the download from the click-to-play path.
+  const queue = [...clips];
+  const worker = async () => {
+    while (queue.length) {
+      const clip = queue.shift();
+      if (clip) await loadClip(clip.id, clip.signedUrl).catch(() => undefined);
+    }
+  };
+  for (let index = 0; index < Math.min(4, queue.length); index += 1) void worker();
+}
 
 export async function playSoundboardUrl(
   cacheKey: string,
@@ -116,13 +174,7 @@ export async function playSoundboardUrl(
   playAt: number,
   volume: number
 ): Promise<void> {
-  let blob = playbackCache.get(cacheKey);
-  if (!blob) {
-    const response = await fetch(signedUrl);
-    if (!response.ok) throw new Error("Soundboard clip could not be downloaded.");
-    blob = await response.blob();
-    playbackCache.set(cacheKey, blob);
-  }
+  const blob = await loadClip(cacheKey, signedUrl);
   const url = URL.createObjectURL(blob);
   const audio = new Audio(url);
   audio.volume = Math.min(1, Math.max(0, volume / 100));
