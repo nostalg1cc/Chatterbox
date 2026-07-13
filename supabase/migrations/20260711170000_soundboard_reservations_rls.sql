@@ -1,0 +1,1 @@
+﻿alter table private.soundboard_reservations enable row level security;

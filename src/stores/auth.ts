@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
-import type { Profile } from "@/lib/types";
+import type { NameColor, Profile } from "@/lib/types";
 
 type AuthStatus = "booting" | "signedOut" | "signedIn";
 
@@ -10,7 +10,9 @@ interface AuthState {
   email: string | null;
   profile: Profile | null;
   init: () => void;
-  updateDisplayName: (name: string) => Promise<void>;
+  updateGeneralSettings: (name: string, nameColor: NameColor) => Promise<void>;
+  updateAvatar: (path: string) => Promise<void>;
+  applyProfile: (profile: Profile) => void;
   signOut: () => Promise<void>;
 }
 
@@ -36,7 +38,6 @@ export const useAuth = create<AuthState>()((set, get) => ({
         }
         const { userId, profile } = get();
         if (userId === session.user.id && profile) {
-          // Token refresh for the already-loaded user; nothing to do.
           set({ email: session.user.email ?? null });
           return;
         }
@@ -55,17 +56,37 @@ export const useAuth = create<AuthState>()((set, get) => ({
     });
   },
 
-  updateDisplayName: async (name) => {
+  updateGeneralSettings: async (name, nameColor) => {
     const { userId } = get();
     if (!userId) return;
     const { data, error } = await supabase
       .from("profiles")
-      .update({ display_name: name })
+      .update({ display_name: name, name_color: nameColor })
       .eq("id", userId)
       .select()
       .single();
-    if (error) throw new Error("Couldn't update your display name.");
+    if (error) throw new Error("Couldn't update your profile.");
     set({ profile: data as Profile });
+  },
+
+  updateAvatar: async (path) => {
+    const { userId } = get();
+    if (!userId) return;
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({
+        avatar_path: path,
+        avatar_updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
+      .select()
+      .single();
+    if (error) throw new Error("Couldn't update your avatar.");
+    set({ profile: data as Profile });
+  },
+
+  applyProfile: (profile) => {
+    if (profile.id === get().userId) set({ profile });
   },
 
   signOut: async () => {

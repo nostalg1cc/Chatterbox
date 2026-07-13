@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,8 +11,20 @@ import { MessageItem } from "./message-item";
 
 const GROUP_WINDOW_MS = 5 * 60_000;
 
-export function MessageList({ conversationId }: { conversationId: string }) {
-  const messages = useChat((s) => s.messages[conversationId]);
+export function MessageList({
+  conversationId,
+  bottomInset = 0,
+  mediaOnly = false,
+}: {
+  conversationId: string;
+  bottomInset?: number;
+  mediaOnly?: boolean;
+}) {
+  const allMessages = useChat((s) => s.messages[conversationId]);
+  const messages = useMemo(
+    () => mediaOnly ? allMessages?.filter((message) => Boolean(message.media_kind)) : allMessages,
+    [allMessages, mediaOnly]
+  );
   const hasMore = useChat((s) => s.hasMore[conversationId] ?? false);
   const loadingOlder = useChat((s) => s.loadingOlder);
   const myId = useAuth((s) => s.userId);
@@ -56,6 +68,13 @@ export function MessageList({ conversationId }: { conversationId: string }) {
       setNewBelow(true);
     }
   }, [messages, myId]);
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp || !atBottomRef.current) return;
+    requestAnimationFrame(() => {
+      vp.scrollTop = vp.scrollHeight;
+    });
+  }, [bottomInset]);
 
   const scrollToBottom = () => {
     const vp = viewportRef.current;
@@ -77,7 +96,10 @@ export function MessageList({ conversationId }: { conversationId: string }) {
 
   if (!messages) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col justify-end gap-4 px-4 pb-4">
+      <div
+        className="flex h-full min-h-0 flex-col justify-end gap-4 px-4"
+        style={{ paddingBottom: bottomInset + 16 }}
+      >
         {[56, 40, 72, 40].map((w, i) => (
           <div key={i} className="flex items-center gap-2.5">
             <Skeleton className="size-8 rounded-full" />
@@ -92,9 +114,12 @@ export function MessageList({ conversationId }: { conversationId: string }) {
   }
 
   return (
-    <div ref={rootRef} className="relative min-h-0 flex-1">
-      <ScrollArea className="h-full">
-        <div className="flex flex-col pt-3 pb-2">
+    <div ref={rootRef} className="relative h-full min-h-0">
+      <ScrollArea className="h-full [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden">
+        <div
+          className="flex w-full min-w-0 max-w-full flex-col overflow-x-hidden pt-3"
+          style={{ paddingBottom: bottomInset + 8 }}
+        >
           {hasMore && (
             <div className="flex justify-center pb-2">
               <Button
@@ -110,9 +135,16 @@ export function MessageList({ conversationId }: { conversationId: string }) {
             </div>
           )}
           {messages.length === 0 && (
-            <p className="px-4 py-10 text-center text-xs text-muted-foreground/70">
-              This is the very beginning of your conversation.
-            </p>
+            <div className="px-4 py-12 text-center">
+              <p className="text-sm font-medium text-muted-foreground">
+                {mediaOnly ? "No shared media yet" : "This is the beginning of your conversation"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground/65">
+                {mediaOnly
+                  ? "Images and videos from this DM will appear here."
+                  : "Send a message to get things started."}
+              </p>
+            </div>
           )}
           {messages.map((msg, i) => {
             const prev = messages[i - 1];
@@ -134,7 +166,10 @@ export function MessageList({ conversationId }: { conversationId: string }) {
       </ScrollArea>
 
       {newBelow && (
-        <div className="absolute inset-x-0 bottom-2 flex justify-center">
+        <div
+          className="absolute inset-x-0 flex justify-center"
+          style={{ bottom: bottomInset + 8 }}
+        >
           <Button size="sm" variant="secondary" className="shadow-md" onClick={scrollToBottom}>
             <ArrowDownIcon />
             New messages

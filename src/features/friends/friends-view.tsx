@@ -35,7 +35,7 @@ export function FriendsView() {
             <TabsTrigger value="pending">
               Pending
               {incoming.length > 0 && (
-                <Badge className="h-4 min-w-4 rounded-full px-1 text-[10px]">
+                <Badge className="h-[17px] min-w-[17px] rounded-full px-1 text-[10px]">
                   {incoming.length}
                 </Badge>
               )}
@@ -62,11 +62,11 @@ export function FriendsView() {
               {incoming.length === 0 && outgoing.length === 0 && (
                 <EmptyHint text="Nothing pending." />
               )}
-              {incoming.length > 0 && <SectionLabel text={`Incoming — ${incoming.length}`} />}
+              {incoming.length > 0 && <SectionLabel text={`Incoming - ${incoming.length}`} />}
               {incoming.map((f) => (
                 <FriendRow key={f.id} friendship={f} myId={myId} kind="incoming" />
               ))}
-              {outgoing.length > 0 && <SectionLabel text={`Outgoing — ${outgoing.length}`} />}
+              {outgoing.length > 0 && <SectionLabel text={`Outgoing - ${outgoing.length}`} />}
               {outgoing.map((f) => (
                 <FriendRow key={f.id} friendship={f} myId={myId} kind="outgoing" />
               ))}
@@ -108,7 +108,7 @@ function FriendRow({
     <div className="flex items-center gap-2.5 rounded-md px-2 py-2 hover:bg-muted/40">
       <UserAvatar profile={profile} online={kind === "accepted" ? online : undefined} />
       <div className="min-w-0 flex-1 leading-tight">
-        <p className="truncate text-sm font-medium">{profile?.display_name ?? "…"}</p>
+        <p className="truncate text-sm font-medium">{profile?.display_name ?? "..."}</p>
         <p className="truncate text-xs text-muted-foreground">@{profile?.username ?? ""}</p>
       </div>
       <div className="flex gap-1">
@@ -210,3 +210,4 @@ async function openConversationWith(friendId: string, myId: string) {
     toast.error("Couldn't find that conversation yet. Try again in a moment.");
   }
 }
+

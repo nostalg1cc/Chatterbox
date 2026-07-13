@@ -1,25 +1,25 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { WindowMaterial } from "@/stores/preferences";
 
-/** True when running inside the Tauri shell (false in a plain browser tab). */
 export const isTauri = "__TAURI_INTERNALS__" in window;
 
 export function appWindow() {
   return getCurrentWindow();
 }
 
-/**
- * Applies the .no-mica class when the native Mica material is unavailable
- * (browser, or Windows 10 and earlier) so the app gets a solid background.
- */
-export async function applyMicaClass(): Promise<void> {
-  let mica = false;
+export async function applyWindowMaterial(
+  material: WindowMaterial,
+  acrylicDim: number
+): Promise<void> {
+  let applied = false;
   if (isTauri) {
     try {
-      mica = await invoke<boolean>("is_mica_supported");
+      applied = await invoke<boolean>("set_window_material", { material, acrylicDim });
     } catch {
-      mica = false;
+      applied = false;
     }
   }
-  document.documentElement.classList.toggle("no-mica", !mica);
+  document.documentElement.classList.toggle("no-mica", !applied);
+  document.documentElement.classList.toggle("acrylic", applied && material === "acrylic");
 }

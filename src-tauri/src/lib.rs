@@ -1,12 +1,35 @@
 use tauri::Manager;
 
-/// Whether Mica was successfully applied to the main window at startup.
-/// The frontend queries this to decide between a transparent (Mica) or solid background.
-struct MicaState(bool);
-
 #[tauri::command]
-fn is_mica_supported(state: tauri::State<'_, MicaState>) -> bool {
-    state.0
+fn set_window_material(
+    app: tauri::AppHandle,
+    material: String,
+    acrylic_dim: u8,
+) -> Result<bool, String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Main window is unavailable".to_string())?;
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = window_vibrancy::clear_mica(&window);
+        let _ = window_vibrancy::clear_acrylic(&window);
+        let result = if material == "acrylic" {
+            window_vibrancy::apply_acrylic(
+                &window,
+                Some((0, 0, 0, ((u16::from(acrylic_dim.min(100)) * 255) / 100) as u8)),
+            )
+        } else {
+            window_vibrancy::apply_mica(&window, Some(true))
+        };
+        return result.map(|_| true).map_err(|error| error.to_string());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = material;
+        Ok(false)
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -21,28 +44,15 @@ pub fn run() {
                 )?;
             }
 
-            let window = app
-                .get_webview_window("main")
-                .expect("main window should exist");
-
             #[cfg(target_os = "windows")]
-            let mica_applied = {
-                // Dark Mica; fails on Windows 10 and earlier, where the frontend
-                // falls back to a solid background via the .no-mica class.
-                let result = window_vibrancy::apply_mica(&window, Some(true));
-                if let Err(ref err) = result {
-                    log::warn!("Mica not applied: {err}");
+            if let Some(window) = app.get_webview_window("main") {
+                if let Err(error) = window_vibrancy::apply_mica(&window, Some(true)) {
+                    log::warn!("Mica not applied: {error}");
                 }
-                result.is_ok()
-            };
-            #[cfg(not(target_os = "windows"))]
-            let mica_applied = false;
-
-            let _ = &window;
-            app.manage(MicaState(mica_applied));
+            }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![is_mica_supported])
+        .invoke_handler(tauri::generate_handler![set_window_material])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

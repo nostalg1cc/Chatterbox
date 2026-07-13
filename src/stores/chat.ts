@@ -1,7 +1,10 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 import { toast } from "sonner";
+import { playAppSound } from "@/lib/app-sounds";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { deleteCachedMedia, putCachedMedia } from "@/lib/media-cache";
+import type { PreparedMedia } from "@/lib/media";
 import type {
   Conversation,
   ConversationOverview,
@@ -20,8 +23,11 @@ interface OverviewEntry {
   at: string | null;
 }
 
+export type ConversationChannel = "chat" | "media";
+
 interface ChatState {
   view: "chat" | "friends";
+  channel: ConversationChannel;
   activeId: string | null;
   conversations: Conversation[];
   overviews: Record<string, OverviewEntry>;
@@ -38,10 +44,11 @@ interface ChatState {
 
   setView: (view: "chat" | "friends") => void;
   openConversation: (id: string) => void;
+  openConversationChannel: (id: string, channel: ConversationChannel) => void;
   loadConversations: () => Promise<void>;
   loadMessages: (convId: string) => Promise<void>;
   loadOlder: (convId: string) => Promise<void>;
-  sendMessage: (convId: string, content: string) => Promise<void>;
+  sendMessage: (convId: string, content: string, media?: PreparedMedia) => Promise<boolean>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   toggleReaction: (message: Message, emoji: string) => Promise<void>;
@@ -81,6 +88,7 @@ const typingLastSent = new Map<string, number>();
 
 export const useChat = create<ChatState>()((set, get) => ({
   view: "chat",
+  channel: "chat",
   activeId: null,
   conversations: [],
   overviews: {},
@@ -95,7 +103,13 @@ export const useChat = create<ChatState>()((set, get) => ({
   setView: (view) => set({ view }),
 
   openConversation: (id) => {
-    set({ activeId: id, view: "chat" });
+    set({ activeId: id, view: "chat", channel: "chat" });
+    void get().loadMessages(id);
+    get().markRead(id);
+  },
+
+  openConversationChannel: (id, channel) => {
+    set({ activeId: id, view: "chat", channel });
     void get().loadMessages(id);
     get().markRead(id);
   },
@@ -169,14 +183,22 @@ export const useChat = create<ChatState>()((set, get) => ({
     await loadReactionsFor(page.map((m) => m.id), set);
   },
 
-  sendMessage: async (convId, content) => {
+  sendMessage: async (convId, content, media) => {
     const myId = useAuth.getState().userId;
     const trimmed = content.trim();
-    if (!myId || !trimmed || trimmed.length > 4000) return;
+    if (!myId || (!trimmed && !media) || trimmed.length > 4000) return false;
 
-    // Client-generated id so the optimistic message, the insert response,
-    // and the realtime event all reconcile to one row.
     const id = crypto.randomUUID();
+    let mediaPath: string | null = null;
+    const removeOptimistic = () => {
+      set((s) => ({
+        messages: {
+          ...s.messages,
+          [convId]: (s.messages[convId] ?? []).filter((message) => message.id !== id),
+        },
+      }));
+    };
+
     const optimistic: Message = {
       id,
       conversation_id: convId,
@@ -185,26 +207,100 @@ export const useChat = create<ChatState>()((set, get) => ({
       created_at: new Date().toISOString(),
       edited_at: null,
       deleted_at: null,
+      media_kind: media?.kind ?? null,
+      media_path: null,
+      media_mime_type: media?.mimeType ?? null,
+      media_size_bytes: media?.blob.size ?? null,
+      media_width: media?.width ?? null,
+      media_height: media?.height ?? null,
+      media_duration_seconds: media?.durationSeconds ?? null,
+      media_expires_at: media ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString() : null,
+      media_deleted_at: null,
       pending: true,
     };
-    applyMessage(optimistic, set);
 
-    const { data, error } = await supabase
-      .from("messages")
-      .insert({ id, conversation_id: convId, sender_id: myId, content: trimmed })
-      .select()
-      .single();
-    if (error) {
-      set((s) => ({
-        messages: {
-          ...s.messages,
-          [convId]: (s.messages[convId] ?? []).filter((m) => m.id !== id),
-        },
-      }));
-      toast.error("Message didn't send.");
-      return;
+    try {
+      if (media) {
+        const { data: reservation, error: reservationError } = await supabase.functions.invoke(
+          "purge-chat-media",
+          {
+            body: {
+              mode: "reserve",
+              conversationId: convId,
+              messageId: id,
+              kind: media.kind,
+              mimeType: media.mimeType,
+              sizeBytes: media.blob.size,
+            },
+          }
+        );
+        if (
+          reservationError ||
+          typeof reservation?.path !== "string" ||
+          typeof reservation?.token !== "string"
+        ) {
+          throw new Error(reservationError?.message ?? reservation?.error ?? "Upload could not start.");
+        }
+
+        mediaPath = reservation.path;
+        const { error: uploadError } = await supabase.storage
+          .from("chat-media")
+          .uploadToSignedUrl(reservation.path, reservation.token, media.blob, {
+            contentType: media.mimeType,
+            cacheControl: "3600",
+          });
+        if (uploadError) throw new Error(uploadError.message);
+        optimistic.media_path = mediaPath;
+      }
+
+      applyMessage(optimistic, set);
+
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          id,
+          conversation_id: convId,
+          sender_id: myId,
+          content: trimmed,
+          media_kind: media?.kind ?? null,
+          media_path: mediaPath,
+          media_mime_type: media?.mimeType ?? null,
+          media_size_bytes: media?.blob.size ?? null,
+          media_width: media?.width ?? null,
+          media_height: media?.height ?? null,
+          media_duration_seconds: media?.durationSeconds ?? null,
+        })
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+
+      const sentMessage = data as Message;
+      applyMessage(sentMessage, set);
+      if (media) {
+        void putCachedMedia({
+          userId: myId,
+          messageId: id,
+          blob: media.blob,
+          mimeType: media.mimeType,
+          createdAt: sentMessage.created_at,
+        }).catch((error) => console.warn("Local media cache write failed", error));
+      }
+      if (mediaPath) {
+        void supabase.functions.invoke("purge-chat-media", {
+          body: { mode: "finalize", path: mediaPath },
+        });
+      }
+      return true;
+    } catch (error) {
+      removeOptimistic();
+      if (mediaPath) {
+        void supabase.functions.invoke("purge-chat-media", {
+          body: { mode: "discard", path: mediaPath },
+        });
+      }
+      toast.error(error instanceof Error ? error.message : "Message didn't send.");
+      return false;
     }
-    applyMessage(data as Message, set);
   },
 
   editMessage: async (messageId, content) => {
@@ -311,6 +407,7 @@ export const useChat = create<ChatState>()((set, get) => ({
             if (isViewing) {
               get().markRead(msg.conversation_id);
             } else {
+              playAppSound("notification_single");
               set((s) => ({
                 unread: {
                   ...s.unread,
@@ -436,6 +533,7 @@ export const useChat = create<ChatState>()((set, get) => ({
     typingLastSent.clear();
     set({
       view: "chat",
+      channel: "chat",
       activeId: null,
       conversations: [],
       overviews: {},
@@ -456,6 +554,12 @@ type SetChat = (
 /** Insert/replace a message, and (optionally) bump the conversation + overview. */
 function applyMessage(msg: Message, set: SetChat, opts: { bump?: boolean } = {}) {
   const bump = opts.bump ?? true;
+  const userId = useAuth.getState().userId;
+  if (msg.deleted_at && userId && msg.media_kind) {
+    void deleteCachedMedia(userId, msg.id).catch((error) =>
+      console.warn("Local media cache delete failed", error)
+    );
+  }
   set((s) => {
     const patch: Partial<ChatState> = {};
     if (s.messages[msg.conversation_id]) {
@@ -471,7 +575,7 @@ function applyMessage(msg: Message, set: SetChat, opts: { bump?: boolean } = {})
       patch.overviews = {
         ...s.overviews,
         [msg.conversation_id]: {
-          content: msg.content,
+          content: msg.content || (msg.media_kind === "image" ? "[Image]" : msg.media_kind === "video" ? "[Video]" : ""),
           senderId: msg.sender_id,
           deleted: msg.deleted_at !== null,
           at: msg.created_at,
