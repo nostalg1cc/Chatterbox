@@ -16,6 +16,22 @@ import { useProfiles } from "./profiles";
 
 const PAGE_SIZE = 50;
 
+function lastConversationStorageKey(userId: string): string {
+  return `dislight:last-conversation:${userId}`;
+}
+
+function getLastConversationId(): string | null {
+  const userId = useAuth.getState().userId;
+  if (!userId || typeof window === "undefined") return null;
+  return window.localStorage.getItem(lastConversationStorageKey(userId));
+}
+
+function rememberConversation(id: string): void {
+  const userId = useAuth.getState().userId;
+  if (!userId || typeof window === "undefined") return;
+  window.localStorage.setItem(lastConversationStorageKey(userId), id);
+}
+
 interface OverviewEntry {
   content: string | null;
   senderId: string | null;
@@ -116,12 +132,14 @@ export const useChat = create<ChatState>()((set, get) => ({
 
   openConversation: (id) => {
     set({ activeId: id, view: "chat", channel: "chat", replyTo: null });
+    rememberConversation(id);
     void get().loadMessages(id);
     get().markRead(id);
   },
 
   openConversationChannel: (id, channel) => {
     set({ activeId: id, view: "chat", channel, replyTo: null });
+    rememberConversation(id);
     void get().loadMessages(id);
     get().markRead(id);
   },
@@ -151,6 +169,15 @@ export const useChat = create<ChatState>()((set, get) => ({
       unread[o.conversation_id] = Number(o.unread_count) || 0;
     }
     set({ conversations, overviews, unread, loaded: true });
+
+    const lastConversationId = getLastConversationId();
+    if (
+      lastConversationId &&
+      conversations.some((conversation) => conversation.id === lastConversationId)
+    ) {
+      get().openConversation(lastConversationId);
+    }
+
   },
 
   loadMessages: async (convId) => {

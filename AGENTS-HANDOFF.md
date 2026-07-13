@@ -251,3 +251,5 @@ npx tsc --noEmit      # typecheck
 - **Global voice shortcuts (July 13):** settings now persist an opt-in global mute/deafen switch. The official Tauri global-shortcut plugin is only registered in the native desktop build; web keeps app-focused keybinds.
 
 - **Soundboard local playback (July 13):** sender and partner both play the same synchronized clip locally; playback now also honors the selected output device (with a Windows-default fallback).
+
+- **Last chat restoration (July 13):** the last opened conversation is persisted locally per signed-in account and automatically restored after conversations load; invalid or removed conversations safely fall back to the normal empty state.
