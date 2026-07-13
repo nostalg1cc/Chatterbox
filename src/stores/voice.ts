@@ -582,8 +582,9 @@ async function connectRoomChannel(
       void playSoundboardUrl(
         payload.id,
         payload.signedUrl,
-        payload.playAt,
-        usePreferences.getState().soundboardVolume
+payload.playAt,
+        usePreferences.getState().soundboardVolume,
+        usePreferences.getState().outputDeviceId
       ).catch((error) => console.warn("Soundboard playback failed", error));
     })
     .on("presence", { event: "sync" }, () => {

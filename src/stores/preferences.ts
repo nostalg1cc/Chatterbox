@@ -23,7 +23,8 @@ interface PreferencesState {
   interfaceSoundVolume: number;
   soundboardVolume: number;
   windowMaterial: WindowMaterial;
-  acrylicDim: number;
+acrylicDim: number;
+  globalVoiceShortcuts: boolean;
   keybinds: KeybindPreferences;
   setPreference: <K extends keyof PreferencesData>(key: K, value: PreferencesData[K]) => void;
 }
@@ -45,7 +46,8 @@ const defaults: PreferencesData = {
   interfaceSoundVolume: 65,
   soundboardVolume: 80,
   windowMaterial: "mica",
-  acrylicDim: 55,
+acrylicDim: 55,
+  globalVoiceShortcuts: false,
   keybinds: {
     toggleMute: "Ctrl+Shift+KeyM",
     toggleDeafen: "Ctrl+Shift+KeyD",

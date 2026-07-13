@@ -1,4 +1,4 @@
-﻿import { toast } from "sonner";
+import { toast } from "sonner";
 import { create } from "zustand";
 import { prepareSoundboardAudio, playSoundboardUrl, preloadSoundboardClips } from "@/lib/soundboard-audio";
 import { supabase } from "@/lib/supabase";
@@ -161,8 +161,9 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
       await playSoundboardUrl(
         payload.id,
         payload.signedUrl,
-        payload.playAt,
-        usePreferences.getState().soundboardVolume
+payload.playAt,
+        usePreferences.getState().soundboardVolume,
+        usePreferences.getState().outputDeviceId
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Sound could not play.");

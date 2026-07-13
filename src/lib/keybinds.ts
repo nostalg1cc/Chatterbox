@@ -1,4 +1,4 @@
-﻿export function eventKeybind(event: KeyboardEvent): string | null {
+export function eventKeybind(event: KeyboardEvent): string | null {
   if (["Control", "Shift", "Alt", "Meta"].includes(event.key)) return null;
   const parts: string[] = [];
   if (event.ctrlKey) parts.push("Ctrl");
@@ -16,4 +16,12 @@ export function keybindLabel(binding: string): string {
     .replace("Arrow", "")
     .split("+")
     .join(" + ");
+}
+export function globalKeybind(binding: string): string | null {
+  const converted = binding
+    .replace(/Key([A-Z])/g, "$1")
+    .replace(/Digit([0-9])/g, "$1")
+    .replace(/Arrow([A-Za-z]+)/g, "$1")
+    .replace("Meta", "Super");
+  return /^[A-Za-z0-9+\-]+$/.test(converted) ? converted : null;
 }

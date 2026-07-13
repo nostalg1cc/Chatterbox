@@ -1,4 +1,4 @@
-﻿const MAX_DURATION_SECONDS = 15;
+const MAX_DURATION_SECONDS = 15;
 const TARGET_SAMPLE_RATE = 48_000;
 const TARGET_AUDIO_BITRATE = 96_000;
 
@@ -172,15 +172,31 @@ export async function playSoundboardUrl(
   cacheKey: string,
   signedUrl: string,
   playAt: number,
-  volume: number
+volume: number,
+  outputDeviceId: string
 ): Promise<void> {
   const blob = await loadClip(cacheKey, signedUrl);
   const url = URL.createObjectURL(blob);
-  const audio = new Audio(url);
+const audio = new Audio(url);
+  audio.preload = "auto";
   audio.volume = Math.min(1, Math.max(0, volume / 100));
+  await routeSoundboardAudio(audio, outputDeviceId);
   const delay = Math.max(0, playAt - Date.now());
   window.setTimeout(() => {
     void audio.play().catch(() => undefined);
     audio.onended = () => URL.revokeObjectURL(url);
   }, delay);
+}
+type SinkAudio = HTMLAudioElement & {
+  setSinkId?: (sinkId: string) => Promise<void>;
+};
+
+async function routeSoundboardAudio(audio: HTMLAudioElement, outputDeviceId: string): Promise<void> {
+  const sinkAudio = audio as SinkAudio;
+  if (!sinkAudio.setSinkId) return;
+  try {
+    await sinkAudio.setSinkId(outputDeviceId === "default" ? "" : outputDeviceId);
+  } catch {
+    await sinkAudio.setSinkId("").catch(() => undefined);
+  }
 }

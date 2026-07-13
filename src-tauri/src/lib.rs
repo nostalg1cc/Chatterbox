@@ -17,7 +17,12 @@ fn set_window_material(
         let result = if material == "acrylic" {
             window_vibrancy::apply_acrylic(
                 &window,
-                Some((0, 0, 0, ((u16::from(acrylic_dim.min(100)) * 255) / 100) as u8)),
+                Some((
+                    0,
+                    0,
+                    0,
+                    ((u16::from(acrylic_dim.min(100)) * 255) / 100) as u8,
+                )),
             )
         } else {
             window_vibrancy::apply_mica(&window, Some(true))
@@ -35,6 +40,7 @@ fn set_window_material(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

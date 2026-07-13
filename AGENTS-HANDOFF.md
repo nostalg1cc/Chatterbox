@@ -247,3 +247,7 @@ npx tsc --noEmit      # typecheck
 - **Soundboard latency (July 13):** Source change pending Edge Function deployment: opening the shared soundboard obtains 60-second signed preview URLs and warms the max-32 MiB in-memory clip cache; playback reuses any in-flight download, and the synchronized lead is 200 ms rather than 350 ms. This removes the first-download wait from normal click-to-play without persisting clips or widening storage access.
 
 - **GIF avatars (July 13):** avatar uploads now retain a static WebP cover plus, for GIFs, a capped 1 MiB vatar.gif original. GIFs only render when an avatar would already animate (header/user panel, message hover, or each sender's latest message group); every other instance uses the cover frame.
+
+- **Global voice shortcuts (July 13):** settings now persist an opt-in global mute/deafen switch. The official Tauri global-shortcut plugin is only registered in the native desktop build; web keeps app-focused keybinds.
+
+- **Soundboard local playback (July 13):** sender and partner both play the same synchronized clip locally; playback now also honors the selected output device (with a Windows-default fallback).
