@@ -10,7 +10,7 @@ interface AuthState {
   email: string | null;
   profile: Profile | null;
   init: () => void;
-  updateGeneralSettings: (name: string, nameColor: NameColor) => Promise<void>;
+  updateGeneralSettings: (name: string, nameColor: NameColor, decoration: string | null, nameDecoration: string | null) => Promise<void>;
   updateAvatar: (path: string) => Promise<void>;
   applyProfile: (profile: Profile) => void;
   signOut: () => Promise<void>;
@@ -56,12 +56,12 @@ export const useAuth = create<AuthState>()((set, get) => ({
     });
   },
 
-  updateGeneralSettings: async (name, nameColor) => {
+  updateGeneralSettings: async (name, nameColor, decoration, nameDecoration) => {
     const { userId } = get();
     if (!userId) return;
     const { data, error } = await supabase
       .from("profiles")
-      .update({ display_name: name, name_color: nameColor })
+      .update({ display_name: name, name_color: nameColor, avatar_decoration: decoration, name_decoration: nameDecoration })
       .eq("id", userId)
       .select()
       .single();

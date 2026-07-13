@@ -28,16 +28,16 @@ export function UserPanel() {
 
   const voiceLabel =
     voiceStatus === "solo"
-      ? "Voice · waiting"
+      ? "Voice - waiting"
       : voiceStatus === "reconnecting"
-        ? "Voice · reconnecting"
+        ? "Voice - reconnecting"
         : voiceStatus === "failed"
-          ? "Voice · connection failed"
+          ? "Voice - connection failed"
           : "Voice connected";
 
   return (
     <div className="m-[5px] flex min-h-[47px] items-center gap-2 rounded-[5px] bg-transparent px-2.5 py-2">
-      <UserAvatar profile={profile} online={online} />
+      <UserAvatar profile={profile} online={online} animated />
       <div className="min-w-0 flex-1 leading-tight">
         <p
           className={cn(

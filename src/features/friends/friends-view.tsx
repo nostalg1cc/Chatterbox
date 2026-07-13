@@ -87,7 +87,7 @@ function SectionLabel({ text }: { text: string }) {
 }
 
 function EmptyHint({ text }: { text: string }) {
-  return <p className="px-2 py-8 text-center text-xs text-muted-foreground/70">{text}</p>;
+  return <div className="mx-2 my-4 rounded-lg border border-dashed border-white/[0.13] bg-muted/15 px-4 py-8 text-center text-xs leading-relaxed text-muted-foreground/75">{text}</div>;
 }
 
 function FriendRow({
@@ -105,7 +105,7 @@ function FriendRow({
   const online = useIsOnline(otherId);
 
   return (
-    <div className="flex items-center gap-2.5 rounded-md px-2 py-2 hover:bg-muted/40">
+    <div className="flex items-center gap-2.5 rounded-lg border border-transparent px-2.5 py-2.5 transition-colors hover:border-white/[0.09] hover:bg-muted/45">
       <UserAvatar profile={profile} online={kind === "accepted" ? online : undefined} />
       <div className="min-w-0 flex-1 leading-tight">
         <p className="truncate text-sm font-medium">{profile?.display_name ?? "..."}</p>

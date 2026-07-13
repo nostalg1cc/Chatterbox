@@ -119,3 +119,14 @@
 ::-webkit-scrollbar-thumb:hover {
   background: oklch(1 0 0 / 22%);
 }
+
+.text-decoration { display: inline-block; }
+.text-decoration-active.text-decoration-bouncy { animation: text-bounce .75s ease-in-out infinite; }
+.text-decoration-active.text-decoration-wavy { animation: text-wave 1.2s ease-in-out infinite; }
+.text-decoration-active.text-decoration-gradient { background: linear-gradient(90deg,#fff,#a78bfa,#60a5fa,#fff); background-size: 240% 100%; animation: text-gradient 2.2s linear infinite; color:transparent; background-clip:text; }
+.text-decoration-active.text-decoration-sparkles { text-shadow: 0 0 6px #fff,0 0 12px #a78bfa; animation: text-sparkle 1s ease-in-out infinite alternate; }
+.text-decoration-active.text-decoration-fuzzy { animation: text-fuzzy .28s steps(2) infinite; }
+.text-decoration-active.text-decoration-resize { animation: text-resize 1s ease-in-out infinite; }
+.text-decoration-active.text-decoration-glitch { animation: text-glitch .35s steps(2) infinite; text-shadow: 1px 0 #f00,-1px 0 #0ff; }
+.text-decoration-active.text-decoration-particle { text-shadow: 0 0 5px #fff, 4px -4px 0 -3px #a78bfa, -5px 5px 0 -3px #60a5fa; animation: text-particle 1s ease-in-out infinite; }
+@keyframes text-bounce{50%{transform:translateY(-2px)}}@keyframes text-wave{50%{transform:translateY(-1px) rotate(-1deg)}}@keyframes text-gradient{to{background-position:240% 0}}@keyframes text-sparkle{to{filter:brightness(1.35)}}@keyframes text-fuzzy{50%{filter:blur(.45px)}}@keyframes text-resize{50%{transform:scale(1.04)}}@keyframes text-glitch{50%{transform:translate(1px,-.5px)}}@keyframes text-particle{50%{transform:translateY(-1px)}}

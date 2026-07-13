@@ -12,6 +12,7 @@ export interface KeybindPreferences {
 
 interface PreferencesState {
   enterToSend: boolean;
+  composerHintVisible: boolean;
   compactMessages: boolean;
   showMediaPreviews: boolean;
   inputDeviceId: string;
@@ -33,6 +34,7 @@ const STORAGE_KEY = "dislight-preferences-v1";
 
 const defaults: PreferencesData = {
   enterToSend: true,
+  composerHintVisible: true,
   compactMessages: false,
   showMediaPreviews: true,
   inputDeviceId: "default",

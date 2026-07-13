@@ -1,31 +1,31 @@
-# Dislight â€” Agent Handoff Document
+# Dislight ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Agent Handoff Document
 
-> **Purpose:** This file is the single source of truth for cross-agent handoff (Claude Code â†” Codex).
+> **Purpose:** This file is the single source of truth for cross-agent handoff (Claude Code ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Â Codex).
 > Whoever works on this project: **update the checklist below as you complete work**, and add notes
 > in "Decisions & gotchas" when you make a non-obvious choice. Keep it current after every phase.
 
 ## What is this project?
 
-**Dislight** â€” a Windows desktop 1-on-1 chat app (Discord-inspired, but no servers/guilds; strictly DM-focused).
+**Dislight** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â a Windows desktop 1-on-1 chat app (Discord-inspired, but no servers/guilds; strictly DM-focused).
 Sleek, minimal, **dark-only** UI: Mica by default (Acrylic optional) for the transparent sidebar/window frame, plus a bordered near-black chat surface.
 
 ## Stack
 
-- **Shell:** Tauri 2.x — `decorations: false`, `transparent: false`, custom overlaid titlebar, solid black native window background
+- **Shell:** Tauri 2.x Ã¢â‚¬â€ `decorations: false`, `transparent: false`, custom overlaid titlebar, solid black native window background
 - **Frontend:** React 19 + TypeScript + Vite, Tailwind CSS v4, shadcn/ui, dark-only, bundled Google Sans Flex
 - **State:** Zustand stores (`src/stores/`) + Supabase Realtime subscriptions pushing into stores. No react-query.
 - **Backend:** Supabase (auth + Postgres/RLS + realtime). No custom server. Rust surface is minimal (window effects only).
 - **Package manager:** npm (pnpm not installed on this machine)
-- **Routing:** none â€” top-level state machine in `App.tsx`: `booting â†’ auth â†’ main`
+- **Routing:** none ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â top-level state machine in `App.tsx`: `booting ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ auth ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ main`
 
 ## Supabase
 
 - **Org:** "Nate's projects" (`vercel_icfg_oxyNEBfLgvm7JSw54EpiKrX9`)
-- **Project:** `dislight` â€” ref `lapjrxdgcbdseskmyfru`, region `eu-north-1`, free tier ($0/month)
+- **Project:** `dislight` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ref `lapjrxdgcbdseskmyfru`, region `eu-north-1`, free tier ($0/month)
 - **DO NOT TOUCH** the other project `supabase-red-village` (`wqxtjrkvdhitcduztcju`)
 - Client env vars in `.env` (gitignored): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (see `.env.example`)
 - Migrations are applied via Supabase MCP `apply_migration` AND mirrored in `supabase/migrations/*.sql` (repo copy is the reference; keep both in sync)
-- **Email confirmation:** new projects default to ON. App handles both states. User can disable in Dashboard â†’ Authentication â†’ Sign In / Up â†’ Email â†’ "Confirm email" for instant signup in dev.
+- **Email confirmation:** new projects default to ON. App handles both states. User can disable in Dashboard ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Authentication ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Sign In / Up ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Email ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ "Confirm email" for instant signup in dev.
 
 ### Schema (all tables RLS-enabled, in `public`)
 
@@ -33,56 +33,56 @@ Sleek, minimal, **dark-only** UI: Mica by default (Acrylic optional) for the tra
 |---|---|---|
 | profiles | user profile | auth user id; username unique; live avatar metadata + constrained name color |
 | `friendships` | requests + friends | `requester_id`, `addressee_id`, `status` enum pending/accepted/blocked; unique on ordered pair |
-| `conversations` | 1:1 threads | `user1_id < user2_id` ordered pair, unique; auto-created by trigger when friendship â†’ accepted; `last_message_at` bumped by message trigger |
+| `conversations` | 1:1 threads | `user1_id < user2_id` ordered pair, unique; auto-created by trigger when friendship ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ accepted; `last_message_at` bumped by message trigger |
 | messages | chat messages | soft delete/edit; optional WebP/WebM attachment metadata; server media expires after 3 days |
-| `reactions` | emoji reactions | unique (message_id, user_id, emoji); emoji â‰¤ 8 chars |
+| `reactions` | emoji reactions | unique (message_id, user_id, emoji); emoji ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¤ 8 chars |
 | `conversation_reads` | unread tracking | PK (conversation_id, user_id), `last_read_at` |
 
-- Helper: `public.is_participant(conv_id uuid)` â€” SECURITY DEFINER, used by policies to avoid recursion
+- Helper: `public.is_participant(conv_id uuid)` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â SECURITY DEFINER, used by policies to avoid recursion
 - Realtime publication includes messages, reactions, friendships, conversations, and profiles
 - Presence/typing: Supabase Realtime channels (presence channel `online`, broadcast `typing:{conversation_id}`), no tables
 
 ## Layout / design language
 
 - Grid: `[titlebar 32px] / [sidebar 280px | chat pane]`
-- Mica shows through **titlebar + sidebar** (transparent layers); **chat pane is solid** `bg-background` (this is native Win11 style Ã  la File Explorer â€” NOT glassmorphism; do not add blur/gradients)
+- Mica shows through **titlebar + sidebar** (transparent layers); **chat pane is solid** `bg-background` (this is native Win11 style ÃƒÆ’Ã‚Â  la File Explorer ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â NOT glassmorphism; do not add blur/gradients)
 - Near-black zinc tokens, raised hairline borders, bundled Google Sans Flex with Segoe UI Variable fallback, lucide icons
 - Destructive red is the only accent color
 
 ## Checklist (keep updated!)
 
-### Phase 0 â€” Handoff
+### Phase 0 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Handoff
 - [x] AGENTS-HANDOFF.md + AGENTS.md created
 
-### Phase 1 â€” Supabase backend
+### Phase 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Supabase backend
 - [x] Project created (`lapjrxdgcbdseskmyfru`)
-- [x] Migration: schema (tables, enum, triggers, indexes) â€” `initial_schema`
-- [x] Migration: RLS policies + helpers â€” `rls_policies`
-- [x] Migration: realtime publication + replica identity full on reactions/friendships â€” `realtime_publication`
-- [x] Migration: helpers moved to `private` schema, trigger fn EXECUTE revoked â€” `lock_down_function_exposure`
+- [x] Migration: schema (tables, enum, triggers, indexes) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â `initial_schema`
+- [x] Migration: RLS policies + helpers ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â `rls_policies`
+- [x] Migration: realtime publication + replica identity full on reactions/friendships ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â `realtime_publication`
+- [x] Migration: helpers moved to `private` schema, trigger fn EXECUTE revoked ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â `lock_down_function_exposure`
 - [x] Advisors: security = 0 findings; performance = only "unused index" INFO (expected, fresh DB)
 - [x] `.env` + `.env.example` written (URL + `sb_publishable_...` key in `VITE_SUPABASE_ANON_KEY`)
 - [x] Migrations mirrored to `supabase/migrations/`
 
-### Phase 2 â€” Scaffold
+### Phase 2 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Scaffold
 - [x] Vite + React + TS scaffold (hand-written, in repo root; create-vite refused non-empty dir)
 - [x] Tailwind v4 + shadcn init (radix base, **nova preset**, Geist font bundled via @fontsource) + 19 components in `src/components/ui/`
 - [x] Tauri init: undecorated/transparent/shadow/dark window, strict prod CSP (devCsp null for HMR), window-control capabilities
 - [x] Rust: window-vibrancy `apply_mica` in setup + `is_mica_supported` command (cargo check passes)
 - [x] git init + .gitignore + initial commit
 
-### Phase 3 â€” Window shell
+### Phase 3 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Window shell
 - [x] `components/titlebar.tsx` (drag region, min/max/close, hides outside Tauri)
 - [x] App layout grid, no window scrollbars
 
-### Phase 4 â€” Auth + boot
+### Phase 4 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Auth + boot
 - [x] `lib/supabase.ts` client
 - [x] Boot screen + session restore + onAuthStateChange routing
 - [x] Login form (email+password)
 - [x] Signup form (username availability check, display name, verify-email state + resend)
 - [x] `stores/auth.ts`
 
-### Phase 5 â€” Main app
+### Phase 5 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Main app
 - [x] `stores/friends.ts`, `stores/chat.ts`, `stores/presence.ts`
 - [x] Sidebar: conversation list (unread badge, online dot, last message, context menu), user footer
 - [x] Add friend dialog (by username, distinct error toasts)
@@ -94,10 +94,10 @@ Sleek, minimal, **dark-only** UI: Mica by default (Acrylic optional) for the tra
 - [x] Unread tracking (conversation_reads upsert on view/focus)
 - [x] Settings dialog (edit display name, logout)
 
-### Phase 6 â€” Polish + verify
+### Phase 6 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Polish + verify
 - [x] Empty states, skeletons, error toasts
 - [x] `npx tsc --noEmit` + `npm run build` + `cargo check` clean
-- [ ] E2E: two accounts (app + browser on Vite URL), friend request â†’ accept â†’ chat â†’ edit/delete â†’ reactions â†’ typing â†’ unread
+- [ ] E2E: two accounts (app + browser on Vite URL), friend request ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ accept ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ chat ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ edit/delete ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ reactions ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ typing ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ unread
 - [ ] RLS negative test (third account can't read others' messages)
 - [ ] Final advisors pass
 
@@ -139,12 +139,13 @@ Sleek, minimal, **dark-only** UI: Mica by default (Acrylic optional) for the tra
 
 ### Phase 10 - Shell refinement + component rollback (July 11)
 - [x] Main surface fills the window with a 5px inset, 25px left corners, 5px right corners, and a 1.25px white/15% border
-- [x] Experimental Figma component styling rolled back to the project’s simple shadcn controls, avatars, badges, and hover states
+- [x] Experimental Figma component styling rolled back to the projectÃ¢â‚¬â„¢s simple shadcn controls, avatars, badges, and hover states
 - [x] Mica restored as the default native material; a persisted Settings toggle switches to Acrylic live, with a 0-100% native black-tint slider and a continuous full-window material backdrop
 - [x] Native minimize/maximize/close controls live inside the chat header rather than in an overlay
 - [x] Chat header supports native window dragging without intercepting chat, voice, or window controls; transparent root lets Mica/Acrylic show through the sidebar
 - [x] Compact channel tree and transparent user footer verified in the running Tauri app
 - [x] Replaced malformed UI separator and ellipsis characters with ASCII-safe labels in chat and friends views
+- [x] UI polish pass: richer empty states, composer send guidance, clearer Friends rows, and consistent shadcn soundboard cards
 - [x] Production Vite build, TypeScript build, and Cargo check pass
 ### Phase 9 - Voice channels + soundboard (July 11)
 - [x] Persistent Supabase voice rooms/participants, authenticated channel discovery, heartbeats, and stale-room cleanup
@@ -165,13 +166,13 @@ Sleek, minimal, **dark-only** UI: Mica by default (Acrylic optional) for the tra
 - [x] Final Supabase advisors reviewed; no new soundboard security or performance warnings
 ## Decisions & gotchas
 
-- **RLS helpers live in `private` schema** (`private.is_participant(conv_id)`, `private.message_conversation(msg_id)`) â€” NOT `public` â€” so PostgREST doesn't expose them as RPC. `authenticated` has EXECUTE + USAGE on the schema (policies evaluate as the querying role).
-- **Username is plain `text`**, not citext â€” check constraint forces `^[a-z0-9_]{3,20}$`; client must lowercase before insert/lookup.
-- **No client INSERT policy on `conversations`** â€” rows are only created by the `handle_friendship_accepted` trigger (SECURITY DEFINER bypasses RLS).
-- **Decline/cancel/unfriend = DELETE on friendships** (no 'declined' status). Accept = addressee updates status pendingâ†’accepted.
+- **RLS helpers live in `private` schema** (`private.is_participant(conv_id)`, `private.message_conversation(msg_id)`) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â NOT `public` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â so PostgREST doesn't expose them as RPC. `authenticated` has EXECUTE + USAGE on the schema (policies evaluate as the querying role).
+- **Username is plain `text`**, not citext ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â check constraint forces `^[a-z0-9_]{3,20}$`; client must lowercase before insert/lookup.
+- **No client INSERT policy on `conversations`** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â rows are only created by the `handle_friendship_accepted` trigger (SECURITY DEFINER bypasses RLS).
+- **Decline/cancel/unfriend = DELETE on friendships** (no 'declined' status). Accept = addressee updates status pendingÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢accepted.
 - **`reactions` + `friendships` have `replica identity full`** so realtime DELETE events pass RLS authorization.
 - Supabase key used is the modern `sb_publishable_...` key (works with supabase-js v2), stored under the `VITE_SUPABASE_ANON_KEY` env name.
-- **RPCs for the client:** `public.username_available(text)` (anon-callable SECURITY DEFINER â€” intentional, signup-time check; the security advisor will WARN about it, that's accepted) and `public.conversation_overview()` (SECURITY INVOKER, sidebar previews + unread counts in one call).
+- **RPCs for the client:** `public.username_available(text)` (anon-callable SECURITY DEFINER ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â intentional, signup-time check; the security advisor will WARN about it, that's accepted) and `public.conversation_overview()` (SECURITY INVOKER, sidebar previews + unread counts in one call).
 - **Known realtime caveat:** postgres_changes DELETE events are not RLS-filtered by Supabase; with replica identity full the old row (uuids + emoji only, never message content) is visible to any authenticated subscriber of that table. Accepted for reactions/friendships.
 - **Unfriending keeps the conversation + history** (Discord-like). Messages can still be sent after unfriend (participants keep insert rights).
 - shadcn CLI is now v4-era: `init -b radix -p nova`; no `--base-color` flag anymore.
@@ -203,4 +204,35 @@ npx tsc --noEmit      # typecheck
 - **Soundboard privacy:** clients cannot write/delete bucket objects directly. The authenticated Edge Function issues narrow signed upload/download URLs, verifies active voice membership and conversation ownership before listing or playing either participant's clips, and uses 60-second playback URLs. Direct catalog RLS remains owner-only. The receiver validates the Supabase origin and rate-limits events.
 - **Audio preparation:** uploads accept up to 25 MiB source audio, trim silence, reject clips over 15 seconds, normalize conservatively, resample to mono 48 kHz, and encode Opus/WebM at 96 kbps locally before any upload.
 - **Keybind defaults:** Ctrl+Shift+M mute, Ctrl+Shift+D deafen, Ctrl+Shift+L leave, Ctrl+Shift+S screen share, Ctrl+Shift+B soundboard. They persist locally and are editable in Settings.
+### Phase 11 - Message replies (July 13)
+- [x] Persistent message replies: `messages.reply_to_message_id` has a self-reference with `ON DELETE SET NULL`
+- [x] Server-side trigger rejects self-replies and cross-conversation reply references
+- [x] Composer reply context with cancellation; replies support text, image, and video messages
+- [x] Reply action, compact referenced-message preview, and in-view jump-to-original behavior
+- [x] Reply targets hydrate for page loads and realtime inserts; target edits/deletions update their previews live
+- [x] Moved the `Saved locally` media cache label beneath the attachment so it never obscures image/video content
+- [x] Production Vite build + TypeScript check pass
+### Phase 12 - Shell and preferences follow-up (July 13)
+- [x] Removed the duplicate left chat-pane inset; sidebar spacing now provides the only separation
+- [x] Window controls remain available in friends and empty-chat views
+- [x] Composer shortcut guidance is dismissible and persisted locally
+- [x] Preferences audit: chat behavior, material/tint, device ids, input/output volume, interface/soundboard volume, and keybinds persist in localStorage; active voice applies device/volume changes immediately
+- [ ] Native Windows message notifications (separate Tauri notification-plugin task; no inactive preference is exposed yet)
+- [ ] Click-through native stream overlay (requires a second Tauri overlay window and video-frame relay; sidebar live preview remains the supported stream viewer)
 
+### Phase 13 - Live browser layout verification (July 13)
+- [x] Created a disposable browser account and completed a real friend/conversation flow with `@tlgf`
+- [x] Traced the message-avatar decoration drift to an auto-height wrapper plus an intrinsic image aspect ratio
+- [x] Avatar decoration anchors now have explicit size-aware square wrappers and a 1:1 decoration layer; sidebar, header, and message instances all measure from the same avatar center
+- [x] Verified live: no document overflow in the active conversation; settings uses `overflow-y: auto` with content larger than its viewport
+- [x] Production Vite build and TypeScript check pass after the layout correction- [x] Avatar decoration playback now switches from the static frame to the animated asset while hovering a message avatar; user panel and chat header remain continuously animated
+- [x] Online/away/offline avatar badges now use z-index 30, above the decoration layer (z-index 20), and were verified in the live browser DOM
+- [x] Avatar decorations now animate when hovering anywhere within a message row, not only when the pointer is directly over the avatar
+- [x] The newest message in the visible conversation is marked animated automatically, whether it was sent by the local user or their partner
+- [x] Verified the above change with `npm run build` (TypeScript and Vite production build pass; existing chunk-size advisory only)
+- [x] Newest-message autoplay resolves to the header avatar for its current grouped-message run, so it remains visible even when the final message omits a duplicate avatar
+- [x] Decoration autoplay now applies to the latest message group for each participant, rather than only the conversation-wide latest message
+- [x] Hovering any message in a grouped run now activates that run's header avatar decoration; verified with a passing production build
+- [x] Composer overlay now has a higher stacking layer than avatar decorations, preventing decorations from rendering over the message input and its gradient
+- [x] Consecutive messages now group only when they are from the same sender and less than one minute apart
+- [x] Chat input surface now uses a subtle translucent card background with backdrop blur while retaining its existing border and focus treatment

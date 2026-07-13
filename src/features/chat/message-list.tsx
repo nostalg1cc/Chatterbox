@@ -1,5 +1,5 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownIcon, Loader2Icon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDownIcon, ImagesIcon, Loader2Icon, MessageSquareIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -9,7 +9,7 @@ import { useAuth } from "@/stores/auth";
 import { useChat } from "@/stores/chat";
 import { MessageItem } from "./message-item";
 
-const GROUP_WINDOW_MS = 5 * 60_000;
+const GROUP_WINDOW_MS = 60_000;
 
 export function MessageList({
   conversationId,
@@ -25,6 +25,32 @@ export function MessageList({
     () => mediaOnly ? allMessages?.filter((message) => Boolean(message.media_kind)) : allMessages,
     [allMessages, mediaOnly]
   );
+  const decorationGroups = useMemo(() => {
+    const headerIdByMessageId = new Map<string, string>();
+    const latestHeaderIdBySenderId = new Map<string, string>();
+    let currentHeaderId: string | undefined;
+
+    for (let index = 0; index < (messages?.length ?? 0); index += 1) {
+      const message = messages![index];
+      const previous = messages![index - 1];
+      const startsNewGroup =
+        !previous ||
+        !sameDay(previous.created_at, message.created_at) ||
+        previous.sender_id !== message.sender_id ||
+        new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() >=
+          GROUP_WINDOW_MS;
+
+      if (startsNewGroup) currentHeaderId = message.id;
+      headerIdByMessageId.set(message.id, currentHeaderId!);
+      latestHeaderIdBySenderId.set(message.sender_id, currentHeaderId!);
+    }
+
+    return {
+      headerIdByMessageId,
+      autoplayHeaderIds: new Set(latestHeaderIdBySenderId.values()),
+    };
+  }, [messages]);
+  const [hoveredDecorationHeaderId, setHoveredDecorationHeaderId] = useState<string | null>(null);
   const hasMore = useChat((s) => s.hasMore[conversationId] ?? false);
   const loadingOlder = useChat((s) => s.loadingOlder);
   const myId = useAuth((s) => s.userId);
@@ -135,14 +161,17 @@ export function MessageList({
             </div>
           )}
           {messages.length === 0 && (
-            <div className="px-4 py-12 text-center">
-              <p className="text-sm font-medium text-muted-foreground">
-                {mediaOnly ? "No shared media yet" : "This is the beginning of your conversation"}
+            <div className="mx-auto flex max-w-sm flex-col items-center px-4 py-14 text-center">
+              <div className="mb-3 flex size-10 items-center justify-center rounded-xl border border-white/[0.12] bg-muted/30 text-muted-foreground">
+                {mediaOnly ? <ImagesIcon className="size-4" /> : <MessageSquareIcon className="size-4" />}
+              </div>
+              <p className="text-sm font-medium text-foreground/85">
+                {mediaOnly ? "No shared media yet" : "The conversation starts here"}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground/65">
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground/75">
                 {mediaOnly
-                  ? "Images and videos from this DM will appear here."
-                  : "Send a message to get things started."}
+                  ? "Images and videos shared in this DM will collect here."
+                  : "Send a message, share an image, or start voice whenever you are ready."}
               </p>
             </div>
           )}
@@ -158,7 +187,15 @@ export function MessageList({
             return (
               <div key={msg.id}>
                 {newDay && <DaySeparator iso={msg.created_at} />}
-                <MessageItem message={msg} showHeader={!grouped} />
+                <MessageItem
+                  message={msg}
+                  showHeader={!grouped}
+                  animateDecoration={decorationGroups.autoplayHeaderIds.has(msg.id)}
+                  decorationActive={hoveredDecorationHeaderId === decorationGroups.headerIdByMessageId.get(msg.id)}
+                  onDecorationHoverChange={(hovered) =>
+                    setHoveredDecorationHeaderId(hovered ? decorationGroups.headerIdByMessageId.get(msg.id) ?? null : null)
+                  }
+                />
               </div>
             );
           })}

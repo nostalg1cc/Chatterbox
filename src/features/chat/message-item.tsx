@@ -4,6 +4,7 @@ import {
   ImageOffIcon,
   Loader2Icon,
   PencilIcon,
+  ReplyIcon,
   SmilePlusIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -12,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UserAvatar } from "@/components/user-avatar";
+import { DecoratedText } from "@/components/decorated-text";
 import { fullTimestamp, timeOfDay } from "@/lib/format";
 import { getCachedMedia, putCachedMedia } from "@/lib/media-cache";
 import { nameColorClass } from "@/lib/name-colors";
@@ -37,13 +39,25 @@ const QUICK_EMOJIS = [
 export function MessageItem({
   message,
   showHeader,
+  animateDecoration = false,
+  decorationActive = false,
+  onDecorationHoverChange,
 }: {
   message: Message;
   showHeader: boolean;
+  animateDecoration?: boolean;
+  decorationActive?: boolean;
+  onDecorationHoverChange?: (hovered: boolean) => void;
 }) {
   const myId = useAuth((state) => state.userId);
   const sender = useProfiles((state) => state.byId[message.sender_id]);
   const reactions = useChat((state) => state.reactions[message.id]);
+  const replyTarget = useChat((state) =>
+    message.reply_to_message_id ? state.replyTargets[message.reply_to_message_id] : undefined
+  );
+  const replySender = useProfiles((state) =>
+    replyTarget ? state.byId[replyTarget.sender_id] : undefined
+  );
   const compact = usePreferences((state) => state.compactMessages);
   const showMediaPreviews = usePreferences((state) => state.showMediaPreviews);
   const [editing, setEditing] = useState(false);
@@ -65,6 +79,9 @@ export function MessageItem({
 
   return (
     <div
+      id={`message-${message.id}`}
+      onPointerEnter={() => onDecorationHoverChange?.(true)}
+      onPointerLeave={() => onDecorationHoverChange?.(false)}
       className={cn(
         "group relative flex w-full min-w-0 max-w-full gap-2 px-4 transition-colors hover:bg-white/[0.045]",
         compact ? "py-0" : "py-0.5",
@@ -74,7 +91,7 @@ export function MessageItem({
     >
       <div className="flex w-12 shrink-0 justify-center pt-0.5">
         {showHeader ? (
-          <UserAvatar profile={sender} />
+          <UserAvatar profile={sender} animated={animateDecoration} decorationActive={decorationActive} />
         ) : (
           <span className="block whitespace-nowrap pt-1 text-center text-[9px] leading-4 text-muted-foreground/75 opacity-0 tabular-nums select-none group-hover:opacity-100">
             {timeOfDay(message.created_at)}
@@ -86,7 +103,7 @@ export function MessageItem({
         {showHeader && (
           <p className="flex min-w-0 items-baseline gap-2 leading-tight">
             <span className={cn("truncate text-sm font-medium", nameColorClass(sender?.name_color))}>
-              {sender?.display_name ?? "..."}
+              <DecoratedText effect={sender?.name_decoration as never} active={false}>{sender?.display_name ?? "..."}</DecoratedText>
             </span>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -97,6 +114,10 @@ export function MessageItem({
               <TooltipContent>{fullTimestamp(message.created_at)}</TooltipContent>
             </Tooltip>
           </p>
+        )}
+
+        {message.reply_to_message_id && (
+          <ReplyPreview target={replyTarget} senderName={replySender?.display_name} />
         )}
 
         {isDeleted ? (
@@ -186,6 +207,15 @@ export function MessageItem({
               </div>
             </PopoverContent>
           </Popover>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Reply to message"
+            className="text-muted-foreground"
+            onClick={() => useChat.getState().setReplyTo(message)}
+          >
+            <ReplyIcon />
+          </Button>
           {isOwn && (
             <>
               {Boolean(message.content) && (
@@ -216,6 +246,35 @@ export function MessageItem({
   );
 }
 
+function ReplyPreview({
+  target,
+  senderName,
+}: {
+  target: Message | undefined;
+  senderName: string | undefined;
+}) {
+  const excerpt = target
+    ? target.deleted_at
+      ? "Message deleted"
+      : target.content || (target.media_kind === "image" ? "Image" : target.media_kind === "video" ? "Video" : "Message")
+    : "Original message unavailable";
+
+  return (
+    <button
+      type="button"
+      className="mt-1 mb-1 flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-white/[0.1] bg-muted/[0.18] px-2 py-1 text-left transition-colors hover:bg-muted/[0.35]"
+      onClick={() => target && document.getElementById(`message-${target.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+      disabled={!target}
+      aria-label={target ? "Jump to replied message" : "Original message unavailable"}
+    >
+      <ReplyIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0">
+        <span className="mr-1 text-[11px] font-medium text-foreground/80">{senderName ?? "Message"}</span>
+        <span className="truncate text-xs text-muted-foreground">{excerpt}</span>
+      </span>
+    </button>
+  );
+}
 function MediaAttachment({ message }: { message: Message }) {
   const userId = useAuth((state) => state.userId);
   const [url, setUrl] = useState<string | null>(null);
@@ -314,7 +373,7 @@ function MediaAttachment({ message }: { message: Message }) {
   }
 
   return (
-    <div className="relative my-1.5 w-fit max-w-full">
+    <div className="my-1.5 w-fit max-w-full">
       {message.media_kind === "video" ? (
         <video
           src={url}
@@ -332,7 +391,7 @@ function MediaAttachment({ message }: { message: Message }) {
         />
       )}
       {local && message.media_deleted_at && (
-        <span className="absolute right-2 bottom-2 rounded bg-black/75 px-1.5 py-0.5 text-[10px] text-white/80">
+        <span className="mt-1 flex w-fit items-center rounded-full border border-white/[0.12] bg-muted/70 px-2 py-0.5 text-[10px] text-muted-foreground">
           Saved locally
         </span>
       )}

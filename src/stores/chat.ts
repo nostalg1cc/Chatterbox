@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import { toast } from "sonner";
 import { playAppSound } from "@/lib/app-sounds";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -36,6 +36,10 @@ interface ChatState {
   messages: Record<string, Message[]>;
   /** Reactions keyed by message id. */
   reactions: Record<string, Reaction[]>;
+  /** Referenced messages needed to render reply previews. */
+  replyTargets: Record<string, Message>;
+  /** The message currently selected as the composer reply target. */
+  replyTo: Message | null;
   hasMore: Record<string, boolean>;
   loadingOlder: boolean;
   /** User id currently typing, per conversation. */
@@ -48,7 +52,13 @@ interface ChatState {
   loadConversations: () => Promise<void>;
   loadMessages: (convId: string) => Promise<void>;
   loadOlder: (convId: string) => Promise<void>;
-  sendMessage: (convId: string, content: string, media?: PreparedMedia) => Promise<boolean>;
+  sendMessage: (
+    convId: string,
+    content: string,
+    media?: PreparedMedia,
+    replyToMessageId?: string | null
+  ) => Promise<boolean>;
+  setReplyTo: (message: Message | null) => void;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   toggleReaction: (message: Message, emoji: string) => Promise<void>;
@@ -95,6 +105,8 @@ export const useChat = create<ChatState>()((set, get) => ({
   unread: {},
   messages: {},
   reactions: {},
+  replyTargets: {},
+  replyTo: null,
   hasMore: {},
   loadingOlder: false,
   typing: {},
@@ -103,13 +115,13 @@ export const useChat = create<ChatState>()((set, get) => ({
   setView: (view) => set({ view }),
 
   openConversation: (id) => {
-    set({ activeId: id, view: "chat", channel: "chat" });
+    set({ activeId: id, view: "chat", channel: "chat", replyTo: null });
     void get().loadMessages(id);
     get().markRead(id);
   },
 
   openConversationChannel: (id, channel) => {
-    set({ activeId: id, view: "chat", channel });
+    set({ activeId: id, view: "chat", channel, replyTo: null });
     void get().loadMessages(id);
     get().markRead(id);
   },
@@ -160,6 +172,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       hasMore: { ...s.hasMore, [convId]: page.length === PAGE_SIZE },
     }));
     await loadReactionsFor(list.map((m) => m.id), set);
+    await loadReplyTargets(list.map((m) => m.reply_to_message_id), set);
   },
 
   loadOlder: async (convId) => {
@@ -181,9 +194,10 @@ export const useChat = create<ChatState>()((set, get) => ({
       hasMore: { ...s.hasMore, [convId]: data.length === PAGE_SIZE },
     }));
     await loadReactionsFor(page.map((m) => m.id), set);
+    await loadReplyTargets(page.map((m) => m.reply_to_message_id), set);
   },
 
-  sendMessage: async (convId, content, media) => {
+  sendMessage: async (convId, content, media, replyToMessageId = null) => {
     const myId = useAuth.getState().userId;
     const trimmed = content.trim();
     if (!myId || (!trimmed && !media) || trimmed.length > 4000) return false;
@@ -216,6 +230,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       media_duration_seconds: media?.durationSeconds ?? null,
       media_expires_at: media ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString() : null,
       media_deleted_at: null,
+      reply_to_message_id: replyToMessageId,
       pending: true,
     };
 
@@ -269,6 +284,7 @@ export const useChat = create<ChatState>()((set, get) => ({
           media_width: media?.width ?? null,
           media_height: media?.height ?? null,
           media_duration_seconds: media?.durationSeconds ?? null,
+          reply_to_message_id: replyToMessageId,
         })
         .select()
         .single();
@@ -302,6 +318,8 @@ export const useChat = create<ChatState>()((set, get) => ({
       return false;
     }
   },
+
+  setReplyTo: (message) => set({ replyTo: message }),
 
   editMessage: async (messageId, content) => {
     const trimmed = content.trim();
@@ -400,6 +418,7 @@ export const useChat = create<ChatState>()((set, get) => ({
           const msg = payload.new as Message;
           const myId = useAuth.getState().userId;
           applyMessage(msg, set);
+          if (msg.reply_to_message_id) void loadReplyTargets([msg.reply_to_message_id], set);
           const { activeId, view } = get();
           const isViewing =
             activeId === msg.conversation_id && view === "chat" && document.hasFocus();
@@ -540,6 +559,8 @@ export const useChat = create<ChatState>()((set, get) => ({
       unread: {},
       messages: {},
       reactions: {},
+      replyTargets: {},
+      replyTo: null,
       hasMore: {},
       typing: {},
       loaded: false,
@@ -589,6 +610,9 @@ function applyMessage(msg: Message, set: SetChat, opts: { bump?: boolean } = {})
         )
       );
     }
+    if (s.replyTargets[msg.id]) {
+      patch.replyTargets = { ...s.replyTargets, [msg.id]: msg };
+    }
     return patch;
   });
 }
@@ -629,4 +653,18 @@ async function loadReactionsFor(messageIds: string[], set: SetChat) {
     }
     return { reactions };
   });
+}
+
+async function loadReplyTargets(replyIds: Array<string | null>, set: SetChat) {
+  const ids = [...new Set(replyIds.filter((id): id is string => Boolean(id)))];
+  if (ids.length === 0) return;
+  const { data, error } = await supabase.from("messages").select("*").in("id", ids);
+  if (error || !data) return;
+  const targets = data as Message[];
+  set((s) => ({
+    replyTargets: {
+      ...s.replyTargets,
+      ...Object.fromEntries(targets.map((message) => [message.id, message])),
+    },
+  }));
 }

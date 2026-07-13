@@ -45,6 +45,7 @@ import { playAppSound } from "@/lib/app-sounds";
 import { eventKeybind, keybindLabel } from "@/lib/keybinds";
 import { formattedBytes, prepareAvatar } from "@/lib/media";
 import { NAME_COLOR_OPTIONS, nameColorClass } from "@/lib/name-colors";
+import { AVATAR_DECORATIONS } from "@/lib/avatar-decorations";
 import { supabase } from "@/lib/supabase";
 import type { NameColor } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,8 @@ export function SettingsDialog() {
   const [tab, setTab] = useState("general");
   const [displayName, setDisplayName] = useState("");
   const [nameColor, setNameColor] = useState<NameColor>("default");
+  const [decoration, setDecoration] = useState<string | null>(null);
+  const [nameDecoration, setNameDecoration] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
@@ -100,7 +103,7 @@ export function SettingsDialog() {
     if (!name) return;
     setSaving(true);
     try {
-      await useAuth.getState().updateGeneralSettings(name, nameColor);
+      await useAuth.getState().updateGeneralSettings(name, nameColor, decoration, nameDecoration);
       const updated = useAuth.getState().profile;
       if (updated) useProfiles.getState().put([updated]);
       toast.success("Profile updated.");
@@ -166,7 +169,7 @@ export function SettingsDialog() {
   const speakers = devices.filter((device) => device.kind === "audiooutput");
   const profileChanged =
     displayName.trim() !== (profile?.display_name ?? "") ||
-    nameColor !== (profile?.name_color ?? "default");
+    nameColor !== (profile?.name_color ?? "default") || decoration !== (profile?.avatar_decoration ?? null) || nameDecoration !== (profile?.name_decoration ?? null);
 
   return (
     <Dialog
@@ -177,6 +180,8 @@ export function SettingsDialog() {
           setTab("general");
           setDisplayName(profile?.display_name ?? "");
           setNameColor(profile?.name_color ?? "default");
+          setDecoration(profile?.avatar_decoration ?? null);
+          setNameDecoration(profile?.name_decoration ?? null);
           void useSoundboard.getState().load();
         }
       }}
@@ -197,7 +202,7 @@ export function SettingsDialog() {
         <TooltipContent>Settings</TooltipContent>
       </Tooltip>
 
-      <DialogContent overlayClassName="bg-black/70 supports-backdrop-filter:backdrop-blur-none" className="h-[calc(100vh-48px)] max-h-[760px] overflow-hidden rounded-lg border-white/[0.18] p-0 sm:max-w-[940px]">
+      <DialogContent overlayClassName="bg-black/70 supports-backdrop-filter:backdrop-blur-none" className="flex h-[calc(100vh-48px)] max-h-[760px] min-h-0 flex-col overflow-hidden rounded-lg border-white/[0.18] p-0 sm:max-w-[940px]">
         <DialogHeader className="sr-only">
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>Profile, chat, and voice preferences.</DialogDescription>
@@ -207,7 +212,7 @@ export function SettingsDialog() {
           value={tab}
           onValueChange={setTab}
           orientation="vertical"
-          className="h-full flex-row gap-0"
+          className="flex h-full min-h-0 flex-1 flex-row gap-0"
         >
           <aside className="flex w-56 shrink-0 flex-col border-r border-white/[0.13] bg-[#151515] p-4">
             <p className="px-2 pb-2 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
@@ -253,8 +258,8 @@ export function SettingsDialog() {
             </div>
           </aside>
 
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <TabsContent value="general" className="h-full overflow-y-auto p-6 pr-8">
+          <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
+            <TabsContent value="general" className="mt-0 hidden min-h-0 flex-1 overflow-y-auto p-6 pr-8 data-[state=active]:block">
               <section className="space-y-5">
                 <div>
                   <h2 className="text-lg font-semibold">My Account</h2>
@@ -329,7 +334,15 @@ export function SettingsDialog() {
                     </div>
                   )}
                 </div>
-                <form onSubmit={save} className="space-y-4">
+                <div className="space-y-2 rounded-xl border border-white/[0.14] bg-card p-4">
+                  <Label>Avatar decoration</Label>
+                  <div className="grid grid-cols-5 gap-2">
+                    <button type="button" onClick={() => setDecoration(null)} className={cn("rounded-md border p-1 text-[10px]", !decoration && "border-white/50")}>None</button>
+                    {AVATAR_DECORATIONS.map(([id, label]) => <button key={id} type="button" title={label} onClick={() => setDecoration(id)} className={cn("relative aspect-square overflow-visible rounded-md border", decoration === id && "border-white/60 bg-white/10")}><img src={`/decorations/${id}.png`} alt={label} className="absolute -inset-2 size-[calc(100%+1rem)] max-w-none" /></button>)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Animated in your user panel and the partner header; static elsewhere until hover.</p>
+                </div>
+<div className="space-y-2 rounded-xl border border-white/[0.14] bg-card p-4"><Label>Name effect</Label><div className="grid grid-cols-4 gap-2">{["fuzzy","sparkles","resize","bouncy","wavy","gradient","glitch","particle"].map((effect) => <button key={effect} type="button" onClick={() => setNameDecoration(effect)} className={cn("rounded-md border px-2 py-1 text-xs capitalize", nameDecoration === effect && "border-white/60 bg-white/10")}>{effect}</button>)}<button type="button" onClick={() => setNameDecoration(null)} className="rounded-md border px-2 py-1 text-xs">None</button></div></div>                <form onSubmit={save} className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="settings-displayname">Display name</Label>
                     <Input
@@ -389,7 +402,7 @@ export function SettingsDialog() {
               </section>
             </TabsContent>
 
-            <TabsContent value="chat" className="h-full overflow-y-auto p-6 pr-8">
+            <TabsContent value="chat" className="mt-0 hidden min-h-0 flex-1 overflow-y-auto p-6 pr-8 data-[state=active]:block">
               <section className="space-y-5">
                 <div>
                   <h2 className="text-lg font-semibold">Chat</h2>
@@ -457,7 +470,7 @@ export function SettingsDialog() {
               </section>
             </TabsContent>
 
-            <TabsContent value="voice" className="h-full overflow-y-auto p-6 pr-8">
+            <TabsContent value="voice" className="mt-0 hidden min-h-0 flex-1 overflow-y-auto p-6 pr-8 data-[state=active]:block">
               <section className="space-y-5">
                 <div>
                   <h2 className="text-lg font-semibold">Voice & Video</h2>
@@ -542,7 +555,7 @@ export function SettingsDialog() {
                 </p>
               </section>
             </TabsContent>
-            <TabsContent value="keybinds" className="h-full overflow-y-auto p-8">
+            <TabsContent value="keybinds" className="mt-0 hidden min-h-0 flex-1 overflow-y-auto p-8 data-[state=active]:block">
               <section className="mx-auto max-w-2xl space-y-5">
                 <SettingsHeading title="Keybinds" description="Shortcuts work anywhere inside Dislight. Recording a duplicate replaces the old binding." />
                 <div className="divide-y divide-white/[0.10] rounded-lg border border-white/[0.14] bg-card">
@@ -565,7 +578,7 @@ export function SettingsDialog() {
               </section>
             </TabsContent>
 
-            <TabsContent value="soundboard" className="h-full overflow-y-auto p-8">
+            <TabsContent value="soundboard" className="mt-0 hidden min-h-0 flex-1 overflow-y-auto p-8 data-[state=active]:block">
               <section className="mx-auto max-w-2xl space-y-5">
                 <SettingsHeading title="Soundboard" description="Clips are trimmed, normalized, and converted locally to 48 kHz mono Opus at 96 kbps." />
                 <div className="rounded-lg border border-white/[0.14] bg-card p-4">
@@ -577,7 +590,7 @@ export function SettingsDialog() {
                       Add sound
                     </Button>
                   </div>
-                  <p className="mt-2 text-[11px] text-muted-foreground">15 seconds max · 512 KiB prepared max · 24 clips · 16 MiB per account</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">15 seconds max ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 512 KiB prepared max ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 24 clips ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 16 MiB per account</p>
                 </div>
                 <div className="space-y-2">
                   {sounds.map((sound) => (
@@ -585,7 +598,7 @@ export function SettingsDialog() {
                       <Music2Icon className="size-4 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{sound.name}</p>
-                        <p className="text-[11px] text-muted-foreground">{(sound.duration_ms / 1000).toFixed(1)}s · {formattedBytes(sound.size_bytes)}</p>
+                        <p className="text-[11px] text-muted-foreground">{(sound.duration_ms / 1000).toFixed(1)}s ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {formattedBytes(sound.size_bytes)}</p>
                       </div>
                       <Button variant="ghost" size="icon-sm" aria-label={"Delete " + sound.name} className="text-muted-foreground hover:text-destructive" onClick={() => void useSoundboard.getState().remove(sound.id)}>
                         <Trash2Icon />
@@ -668,7 +681,7 @@ function KeybindRow({
         className="min-w-40 font-normal"
         onClick={() => setRecording(true)}
       >
-        {recording ? "Press a combination…" : value ? keybindLabel(value) : "Not set"}
+        {recording ? "Press a combinationÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦" : value ? keybindLabel(value) : "Not set"}
       </Button>
     </div>
   );

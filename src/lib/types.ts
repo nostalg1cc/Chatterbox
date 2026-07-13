@@ -17,6 +17,8 @@ export interface Profile {
   created_at: string;
   avatar_path: string | null;
   avatar_updated_at: string | null;
+  avatar_decoration: string | null;
+  name_decoration: string | null;
   name_color: NameColor;
 }
 
@@ -58,6 +60,7 @@ export interface Message {
   media_duration_seconds: number | null;
   media_expires_at: string | null;
   media_deleted_at: string | null;
+  reply_to_message_id: string | null;
   /** Client-only: true while an optimistic send is in flight. */
   pending?: boolean;
 }

@@ -4,19 +4,26 @@ import {
   ImageIcon,
   Loader2Icon,
   PaperclipIcon,
+  ReplyIcon,
   SendIcon,
   XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  formattedBytes,
-  prepareChatMedia,
-  type PreparedMedia,
-} from "@/lib/media";
+import { formattedBytes, prepareChatMedia, type PreparedMedia } from "@/lib/media";
+import type { Message } from "@/lib/types";
 import { useChat } from "@/stores/chat";
 import { usePreferences } from "@/stores/preferences";
+import { useProfiles } from "@/stores/profiles";
+
+function replyExcerpt(message: Message) {
+  if (message.deleted_at) return "Message deleted";
+  if (message.content) return message.content;
+  if (message.media_kind === "image") return "Image";
+  if (message.media_kind === "video") return "Video";
+  return "Message";
+}
 
 export function Composer({
   conversationId,
@@ -32,6 +39,11 @@ export function Composer({
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState(0);
   const enterToSend = usePreferences((state) => state.enterToSend);
+  const composerHintVisible = usePreferences((state) => state.composerHintVisible);
+  const replyTo = useChat((state) => state.replyTo);
+  const replySender = useProfiles((state) =>
+    replyTo ? state.byId[replyTo.sender_id] : undefined
+  );
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -59,10 +71,12 @@ export function Composer({
     const sent = await useChat.getState().sendMessage(
       conversationId,
       trimmed,
-      media ?? undefined
+      media ?? undefined,
+      replyTo?.id ?? null
     );
     setSending(false);
     if (!sent) return;
+    useChat.getState().setReplyTo(null);
     setValue("");
     setMedia(null);
     setProgress(0);
@@ -88,6 +102,27 @@ export function Composer({
 
   return (
     <div className="shrink-0 px-4 pb-4">
+      {replyTo && (
+        <div className="mb-2 flex min-w-0 items-center gap-2 rounded-lg border border-white/[0.12] bg-card/80 px-2.5 py-2">
+          <ReplyIcon className="size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1 border-l-2 border-white/[0.24] pl-2">
+            <p className="text-[11px] font-medium text-foreground/85">
+              Replying to {replySender?.display_name ?? "message"}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">{replyExcerpt(replyTo)}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Cancel reply"
+            className="shrink-0 text-muted-foreground"
+            onClick={() => useChat.getState().setReplyTo(null)}
+          >
+            <XIcon />
+          </Button>
+        </div>
+      )}
+
       {(preparing || media) && (
         <div className="mb-2 flex max-w-sm items-center gap-3 rounded-lg border border-white/[0.15] bg-card p-2">
           <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
@@ -133,7 +168,7 @@ export function Composer({
         </div>
       )}
 
-      <div className="flex items-end gap-1.5 rounded-lg border border-white/[0.15] bg-card px-2 py-2 transition-colors focus-within:border-white/[0.24]">
+      <div className="flex items-end gap-1.5 rounded-lg border border-white/[0.15] bg-card/72 px-2 py-2 backdrop-blur-md transition-colors focus-within:border-white/[0.24]">
         <input
           ref={fileRef}
           type="file"
@@ -192,6 +227,14 @@ export function Composer({
           {sending ? <Loader2Icon className="animate-spin" /> : <SendIcon />}
         </Button>
       </div>
+      {composerHintVisible && (<div className="mt-1 flex min-h-3 items-center justify-between px-1 text-[10px] text-muted-foreground/60">
+        <button className="hover:text-muted-foreground" onClick={() => usePreferences.getState().setPreference("composerHintVisible", false)}>{enterToSend ? "Enter to send - Shift+Enter for a new line" : "Ctrl+Enter to send"}</button>
+        {value.length >= 3600 && (
+          <span className={value.length >= 3900 ? "text-destructive" : undefined}>
+            {4000 - value.length} left
+          </span>
+        )}
+      </div>)}
       <p className="sr-only" aria-live="polite">
         {preparing ? "Compressing attachment locally." : sending ? "Sending message." : ""}
       </p>

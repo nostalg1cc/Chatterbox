@@ -113,7 +113,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
         }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <UserAvatar profile={friend} online={online} />
+          <UserAvatar profile={friend} online={online} animated />
           <div className="min-w-0 leading-tight">
             <p
               className={cn(
@@ -193,6 +193,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
             </>
           )}
         </div>
+
         <WindowControls />
       </header>
 
@@ -205,7 +206,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
 
         {!mediaOnly && <div
           ref={composerOverlayRef}
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-30"
           style={COMPOSER_GRADIENT_STYLE}
         >
           <div className="h-5 px-4 text-xs text-muted-foreground">

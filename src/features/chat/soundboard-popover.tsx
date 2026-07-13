@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2Icon, Music2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -92,17 +92,19 @@ function SoundGroup({
       </h3>
       <div className="grid grid-cols-2 gap-2">
         {sounds.map((sound) => (
-          <button
+          <Button
             key={sound.id}
-            type="button"
-            className="min-w-0 rounded-md border border-white/[0.13] bg-muted/35 px-3 py-2.5 text-left transition-colors hover:border-white/[0.22] hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            variant="outline"
+            className="h-auto min-w-0 justify-start border-white/[0.13] bg-muted/25 px-3 py-2.5 text-left hover:border-white/[0.22] hover:bg-muted/65"
             onClick={() => void useSoundboard.getState().play(sound.id)}
           >
-            <span className="block truncate text-xs font-medium">{sound.name}</span>
-            <span className="mt-0.5 block text-[10px] text-muted-foreground">
-              {(sound.duration_ms / 1000).toFixed(1)}s
+            <span className="min-w-0">
+              <span className="block truncate text-xs font-medium">{sound.name}</span>
+              <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">
+                {(sound.duration_ms / 1000).toFixed(1)}s
+              </span>
             </span>
-          </button>
+          </Button>
         ))}
       </div>
     </section>
