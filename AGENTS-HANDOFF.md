@@ -337,3 +337,8 @@ npx tsc --noEmit      # typecheck
 - [x] Verified and applied Windows `DWMWA_WINDOW_CORNER_PREFERENCE` with the small-round setting through the Tauri native HWND at startup.
 - [x] This targets the actual Acrylic/Mica compositor surface; CSS clipping alone cannot round that OS-level surface.
 - [x] Cargo check, TypeScript, production Vite build, and whitespace verification pass; native Tauri dev window restarted.
+### Phase 27 — v0.1.2 release (July 14)
+- [x] Versioned, built, and published Dislight v0.1.2 from GitHub main.
+- [x] Release assets: signed NSIS installer, `.sig`, MSI, and updater `latest.json` manifest.
+- [x] GitHub repository visibility set to public so installer downloads and the configured in-app updater endpoint are reachable (HTTP 200 verified).
+- [x] Source commits: `eb423f9` and `6c957cf`; release tag `v0.1.2`.
