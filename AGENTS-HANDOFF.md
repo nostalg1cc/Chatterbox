@@ -353,3 +353,8 @@ npx tsc --noEmit      # typecheck
 - [x] Raised the release to v0.1.3 for the icon-bearing installer and updater.
 - [x] Reworked the shared floating material so the header, composer, message reaction tray, popovers, dropdowns, context menus, and dialogs all visibly use the same translucent backdrop blur.
 - [x] Production TypeScript/Vite build and Cargo check pass.- [x] Preserved composer focus across controlled input updates and vertically centered its single-line placeholder/action row before v0.1.3 packaging.
+
+### Phase 30 — v0.1.3 branded installer release (July 14)
+- [x] Built Windows NSIS and MSI artifacts with the new Dislight application icon.
+- [x] Signed the NSIS installer with the existing updater key and generated a v0.1.3 `latest.json` manifest for the in-app updater.
+- [x] Packaged after the composer focus/vertical alignment correction and shared backdrop-blur refinement.
