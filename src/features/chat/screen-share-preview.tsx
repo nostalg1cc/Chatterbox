@@ -25,7 +25,7 @@ export function ScreenSharePreview() {
   };
 
   return (
-    <div className="group relative mx-[5px] aspect-video shrink-0 overflow-hidden rounded-[5px] border-[1.25px] border-solid border-white/[0.18] bg-black">
+    <div className="group absolute top-[77px] right-[21px] z-20 w-[min(360px,42vw)] aspect-video overflow-hidden rounded-[5px] border-[1.25px] border-solid border-white/[0.18] bg-black shadow-xl">
       <video
         ref={videoRef}
         autoPlay

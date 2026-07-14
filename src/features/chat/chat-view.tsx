@@ -4,28 +4,28 @@ import {
   ImagesIcon,
   MonitorUpIcon,
   MonitorXIcon,
+  MicIcon,
+  MicOffIcon,
+  VolumeXIcon,
   PhoneOffIcon,
   RefreshCwIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WindowControls } from "@/components/titlebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { UserAvatar } from "@/components/user-avatar";
-import { nameColorClass } from "@/lib/name-colors";
 import { appWindow, isTauri } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/stores/auth";
 import { useChat } from "@/stores/chat";
 import { useIsOnline } from "@/stores/presence";
 import { useProfiles } from "@/stores/profiles";
+import { useSoundboard } from "@/stores/soundboard";
 import { formatVoiceElapsed, useVoice } from "@/stores/voice";
 import { Composer } from "./composer";
+import { ChatSwitcher } from "./chat-switcher";
 import { MessageList } from "./message-list";
+import { ScreenSharePreview } from "./screen-share-preview";
 import { SoundboardPopover } from "./soundboard-popover";
-
-const COMPOSER_GRADIENT_STYLE = {
-  background: "linear-gradient(to top, var(--background), transparent)",
-} as const;
 
 export function ChatView({ conversationId }: { conversationId: string }) {
   const myId = useAuth((state) => state.userId) ?? "";
@@ -61,6 +61,8 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   const activeVoiceId = useVoice((state) => state.activeConversationId);
   const voiceStatus = useVoice((state) => state.status);
   const sharingScreen = useVoice((state) => state.sharingScreen);
+  const muted = useVoice((state) => state.muted);
+  const deafened = useVoice((state) => state.deafened);
   const isJoined = activeVoiceId === conversationId;
   const elapsed = useVoiceElapsed(room?.started_at);
   const composerOverlayRef = useRef<HTMLDivElement>(null);
@@ -70,6 +72,10 @@ export function ChatView({ conversationId }: { conversationId: string }) {
     () => useChat.getState().joinTyping(conversationId),
     [conversationId]
   );
+
+  useEffect(() => {
+    if (isJoined) void useSoundboard.getState().loadAvailable(conversationId);
+  }, [conversationId, isJoined]);
 
   useEffect(() => {
     const onFocus = () => useChat.getState().markRead(conversationId);
@@ -102,9 +108,9 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   });
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className={cn("conversation-canvas relative flex h-full min-h-0 flex-col", isJoined && "voice-active")}>
       <header
-        className="flex h-12 shrink-0 items-center gap-2.5 overflow-hidden border-b border-white/[0.13] pl-4 pr-0"
+        className="surface-panel floating-surface conversation-dock absolute top-[21px] left-1/2 z-30 flex h-11 w-max max-w-[calc(100%-116px)] -translate-x-1/2 items-center gap-1 p-1 shadow-[0_12px_28px_rgb(0_0_0_/_0.28)]"
         onMouseDown={(event) => {
           if (!isTauri || event.button !== 0) return;
           const target = event.target as HTMLElement;
@@ -112,35 +118,20 @@ export function ChatView({ conversationId }: { conversationId: string }) {
           void appWindow().startDragging();
         }}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <UserAvatar profile={friend} online={online} animated />
-          <div className="min-w-0 leading-tight">
-            <p
-              className={cn(
-                "truncate text-sm font-medium",
-                nameColorClass(friend?.name_color)
-              )}
-            >
-              {friend?.display_name ?? "..."}
-            </p>
-            <p
-              className={cn(
-                "truncate text-xs text-muted-foreground",
-                (partnerInVoice || isJoined) && "text-foreground/75",
-                voiceStatus === "failed" && isJoined && "text-destructive"
-              )}
-            >
-              {mediaOnly ? "Media - Shared images and videos" : presenceLabel}
-            </p>
-          </div>
-        </div>
+        <ChatSwitcher conversationId={conversationId} />
+        {(mediaOnly || isTyping || partnerInVoice || isJoined || selfInVoiceElsewhere) && (
+          <p className={cn("dock-status h-9 min-w-0 max-w-52 truncate px-2.5 text-xs leading-9 text-muted-foreground", (partnerInVoice || isJoined) && "text-foreground/75", voiceStatus === "failed" && isJoined && "text-destructive")}>
+            {mediaOnly ? "Media - Shared images and videos" : presenceLabel}
+          </p>
+        )}
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="dock-actions flex h-9 shrink-0 items-center gap-1 border-l border-white/[0.12] pl-1">
           {!isJoined ? (
             partnerInVoice ? (
               <Button
                 variant="secondary"
                 size="sm"
+                className="dock-join"
                 onClick={() => void useVoice.getState().join(conversationId)}
               >
                 <HeadphonesIcon />
@@ -160,6 +151,12 @@ export function ChatView({ conversationId }: { conversationId: string }) {
             )
           ) : (
             <>
+              <CallAction label={muted ? "Unmute" : "Mute"} pressed={muted} onClick={() => useVoice.getState().toggleMute()}>
+                {muted ? <MicOffIcon /> : <MicIcon />}
+              </CallAction>
+              <CallAction label={deafened ? "Undeafen" : "Deafen"} pressed={deafened} onClick={() => useVoice.getState().toggleDeafen()}>
+                {deafened ? <VolumeXIcon /> : <HeadphonesIcon />}
+              </CallAction>
               <SoundboardPopover
                 conversationId={conversationId}
                 partnerName={friend?.display_name ?? "Partner"}
@@ -194,28 +191,29 @@ export function ChatView({ conversationId }: { conversationId: string }) {
           )}
         </div>
 
-        <WindowControls />
       </header>
+      <div className="window-controls-reveal absolute top-[9px] right-[9px] z-40 h-10 w-[108px]"><WindowControls /></div>
 
       <div className="relative min-h-0 flex-1">
         <MessageList
           conversationId={conversationId}
           bottomInset={mediaOnly ? 0 : composerInset}
+          topInset={82}
           mediaOnly={mediaOnly}
         />
 
         {!mediaOnly && <div
           ref={composerOverlayRef}
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-30"
-          style={COMPOSER_GRADIENT_STYLE}
+          className="pointer-events-none absolute right-[21px] bottom-[21px] left-[21px] z-30"
+
         >
-          <div className="h-5 px-4 text-xs text-muted-foreground">
+          <div className="h-5 px-2 text-xs text-muted-foreground">
             {isTyping && (
               <span>{friend?.display_name ?? "Friend"} is typing...</span>
             )}
           </div>
 
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto mx-auto w-full max-w-[640px]">
             <Composer
               conversationId={conversationId}
               placeholder={
@@ -225,11 +223,12 @@ export function ChatView({ conversationId }: { conversationId: string }) {
           </div>
         </div>}
         {mediaOnly && (
-          <div className="pointer-events-none absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-md border border-white/[0.13] bg-background/90 px-2.5 py-1.5 text-[11px] text-muted-foreground shadow-sm">
+          <div className="pointer-events-none absolute top-[78px] right-[21px] z-10 flex items-center gap-1.5 rounded-md border border-white/[0.13] bg-background/90 px-2.5 py-1.5 text-[11px] text-muted-foreground shadow-sm">
             <ImagesIcon className="size-3.5" />
             Media channel
           </div>
         )}
+        <ScreenSharePreview />
       </div>
     </div>
   );

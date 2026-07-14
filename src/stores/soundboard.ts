@@ -21,6 +21,7 @@ interface SoundboardState {
   loading: boolean;
   uploading: boolean;
   cooldownUntil: number;
+  signedUrls: Record<string, string>;
   load: () => Promise<void>;
   loadAvailable: (conversationId: string) => Promise<void>;
   upload: (file: File, name: string) => Promise<void>;
@@ -41,6 +42,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   loading: false,
   uploading: false,
   cooldownUntil: 0,
+  signedUrls: {},
 
   load: async () => {
     set({ loading: true });
@@ -61,7 +63,10 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
         mode: "list",
         conversationId,
       });
-      set({ availableSounds: data.sounds });
+      set((state) => ({
+        availableSounds: data.sounds,
+        signedUrls: { ...state.signedUrls, ...(data.preloadUrls ?? {}) },
+      }));
       if (data.preloadUrls) {
         preloadSoundboardClips(
           Object.entries(data.preloadUrls).map(([id, signedUrl]) => ({ id, signedUrl }))
@@ -138,33 +143,52 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
       return;
     }
     if (Date.now() < get().cooldownUntil) return;
-    set({ cooldownUntil: Date.now() + 1200 });
+    set({ cooldownUntil: Date.now() + 600 });
+
     try {
-      const data = await invoke<{
-        sound: { id: string; owner_id: string; name: string; duration_ms: number };
-        signedUrl: string;
-        playAt: number;
-      }>({
-        mode: "play",
-        soundId,
-        conversationId: voice.activeConversationId,
-      });
+      let signedUrl = get().signedUrls[soundId];
+      const sound = get().availableSounds.find((entry) => entry.id === soundId);
+      let playAt = Date.now() + 120;
+
+      // The normal path is fully hot: the library call already supplied and
+      // downloaded this signed clip for both channel members. Only recover
+      // through the function if the short-lived URL has expired or was missed.
+      if (!signedUrl || !sound) {
+        const data = await invoke<{
+          sound: { id: string; owner_id: string; name: string; duration_ms: number };
+          signedUrl: string;
+          playAt: number;
+        }>({
+          mode: "play",
+          soundId,
+          conversationId: voice.activeConversationId,
+        });
+        signedUrl = data.signedUrl;
+        playAt = data.playAt;
+        set((state) => ({ signedUrls: { ...state.signedUrls, [soundId]: signedUrl! } }));
+        const payload = {
+          version: 1 as const,
+          id: data.sound.id,
+          name: data.sound.name,
+          signedUrl,
+          playAt,
+          nonce: crypto.randomUUID(),
+        };
+        broadcastVoiceSoundboard(payload);
+        await playSoundboardUrl(payload.id, payload.signedUrl, payload.playAt, usePreferences.getState().soundboardVolume, usePreferences.getState().outputDeviceId);
+        return;
+      }
+
       const payload = {
         version: 1 as const,
-        id: data.sound.id,
-        name: data.sound.name,
-        signedUrl: data.signedUrl,
-        playAt: data.playAt,
+        id: sound.id,
+        name: sound.name,
+        signedUrl,
+        playAt,
         nonce: crypto.randomUUID(),
       };
       broadcastVoiceSoundboard(payload);
-      await playSoundboardUrl(
-        payload.id,
-        payload.signedUrl,
-payload.playAt,
-        usePreferences.getState().soundboardVolume,
-        usePreferences.getState().outputDeviceId
-      );
+      await playSoundboardUrl(payload.id, payload.signedUrl, payload.playAt, usePreferences.getState().soundboardVolume, usePreferences.getState().outputDeviceId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Sound could not play.");
     }

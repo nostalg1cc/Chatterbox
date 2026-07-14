@@ -63,7 +63,7 @@ export default function App() {
   return (
     <TooltipProvider delayDuration={300}>
       <div
-        className={isTauri ? "relative h-full" : "relative h-full bg-black"}
+        className={isTauri ? "app-frame relative h-full" : "app-frame relative h-full bg-black"}
         style={isTauri ? { backgroundColor: "rgb(0 0 0 / " + backdropDim + "%)" } : undefined}
       >
         <Titlebar />

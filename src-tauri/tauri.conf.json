@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Dislight",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "io.github.nostalg1cc.dislight",
   "build": {
     "frontendDist": "../dist",
@@ -23,7 +23,7 @@
         "fullscreen": false,
         "decorations": false,
         "transparent": true,
-        "shadow": true,
+        "shadow": false,
         "theme": "Dark"
       }
     ],

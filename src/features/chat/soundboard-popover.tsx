@@ -46,7 +46,7 @@ export function SoundboardPopover({
           variant="ghost"
           size="icon-sm"
           aria-label="Open shared soundboard"
-          className="text-muted-foreground"
+          className="dock-icon text-muted-foreground"
         >
           <Music2Icon />
         </Button>

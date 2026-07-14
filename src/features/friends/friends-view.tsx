@@ -26,7 +26,7 @@ export function FriendsView() {
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col pt-[77px]">
       <Tabs defaultValue="all" className="flex h-full min-h-0 flex-col gap-0">
         <div className="flex h-12 shrink-0 items-center gap-4 border-b px-4">
           <h1 className="text-sm font-semibold">Friends</h1>

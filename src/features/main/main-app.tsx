@@ -1,8 +1,10 @@
 import { useEffect } from "react";
-import { MessageSquareIcon } from "lucide-react";
+import { MessageSquareIcon, UsersIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { WindowControls } from "@/components/titlebar";
 import { ChatView } from "@/features/chat/chat-view";
-import { Sidebar } from "@/features/chat/sidebar";
+import { ChatSwitcher } from "@/features/chat/chat-switcher";
+import { AddFriendDialog } from "@/features/friends/add-friend-dialog";
 import { FriendsView } from "@/features/friends/friends-view";
 import { KeybindManager } from "@/features/settings/keybind-manager";
 import { preloadAppSounds } from "@/lib/app-sounds";
@@ -13,6 +15,7 @@ import { useChat } from "@/stores/chat";
 import { useFriends } from "@/stores/friends";
 import { usePresence } from "@/stores/presence";
 import { useProfiles } from "@/stores/profiles";
+import { appWindow, isTauri } from "@/lib/tauri";
 import { useVoice } from "@/stores/voice";
 
 let cleanupRequested = false;
@@ -62,19 +65,43 @@ export function MainApp() {
   }, [userId]);
 
   return (
-    <div className="relative flex h-full min-h-0">
+    <div
+      className="relative flex h-full min-h-0"
+      onMouseDown={(event) => {
+        if (!isTauri || event.button !== 0) return;
+        const target = event.target as HTMLElement;
+        if (target.closest("button, input, textarea, select, a, [role=button]")) return;
+        const top = event.currentTarget.getBoundingClientRect().top;
+        if (event.clientY - top < 88) void appWindow().startDragging();
+      }}
+    >
       <KeybindManager />
-      {(view === "friends" || !activeId) && <div className="absolute top-0 right-0 z-40 h-8"><WindowControls /></div>}
-      <Sidebar />
-      <main className="mt-[5px] mr-[5px] mb-[5px] min-w-0 flex-1 overflow-hidden rounded-tl-[25px] rounded-tr-[5px] rounded-br-[5px] rounded-bl-[25px] border-[1.25px] border-solid border-white/[0.15] bg-[#0D0D0D]">
-        <div className="h-full min-h-0">
-        {view === "friends" ? (
-          <FriendsView />
-        ) : activeId ? (
-          <ChatView key={activeId} conversationId={activeId} />
-        ) : (
-          <NoConversation />
+      <main className="app-shell relative m-0 min-w-0 flex-1 overflow-hidden border-0 bg-transparent">
+        {(view === "friends" || !activeId) && (
+          <div className="surface-panel floating-surface conversation-dock absolute top-[21px] left-1/2 z-30 flex h-11 w-max max-w-[calc(100%-42px)] -translate-x-1/2 items-center gap-1 p-1 shadow-[0_12px_28px_rgb(0_0_0_/_0.28)]">
+            {activeId ? (
+              <ChatSwitcher conversationId={activeId} />
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => useChat.getState().setView("friends")}>
+                  <UsersIcon />
+                  Friends
+                </Button>
+                <AddFriendDialog />
+                <span className="min-w-0 truncate px-1 text-xs text-muted-foreground">Add a friend to start chatting.</span>
+              </>
+            )}
+          </div>
         )}
+        {(view === "friends" || !activeId) && <div className="window-controls-reveal absolute top-[9px] right-[9px] z-40 h-10 w-[108px]"><WindowControls /></div>}
+        <div className="h-full min-h-0">
+          {view === "friends" ? (
+            <FriendsView />
+          ) : activeId ? (
+            <ChatView key={activeId} conversationId={activeId} />
+          ) : (
+            <NoConversation />
+          )}
         </div>
       </main>
     </div>
@@ -90,7 +117,7 @@ function NoConversation() {
       <div className="mt-4 max-w-xs">
         <p className="text-sm font-medium text-foreground/85">No conversation selected</p>
         <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground/75">
-          Pick a direct message from the sidebar, or add a friend to start a new one.
+          Add a friend to start a direct message.
         </p>
       </div>
     </div>

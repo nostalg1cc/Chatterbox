@@ -257,3 +257,83 @@ npx tsc --noEmit      # typecheck
 - **Animated GIF avatar optimization (July 13):** GIFs over the 1 MiB Storage cap are decoded and recompressed locally with progressively lower dimensions, frame sampling, and palette depth while retaining animation; only source files over 25 MiB or GIFs that still exceed the cap after every pass are rejected.
 
 - **Motion stream + updater (July 14):** streams now target 1280x720 at 60 fps with an 8 Mbps ceiling, motion content hint, and frame-rate-first adaptation. Version 0.1.1 installs Tauri's signed updater; future desktop releases publish a signed NSIS EXE, its .sig, and updates/latest.json as the GitHub latest.json asset. The private signing key remains only at %USERPROFILE%\.tauri\dislight-updater.key and must never be committed or lost.
+
+### Phase 11 - Floating navigation shell (July 14)
+- [x] Created local rollback branch `backup/pre-header-sidebar-redesign-20260714` at `2d92465` before changing the shell
+- [x] Disabled the persistent sidebar without deleting its implementation
+- [x] Added a floating, blurred chat header with partner-triggered chat switcher, Friends, add-friend, and Chat/Media/Voice controls
+- [x] Moved mute/deafen into the active voice controls and removed the duplicate sidebar leave action
+- [x] Added a composer-adjacent Send as account popover with Settings and sign out
+- [x] Moved the remote screen preview to an on-demand floating PiP beneath the header
+- [x] Made the main chat surface a 5px-inset, 1.25px all-edge bordered pane; window controls fade in on their hover grace area
+- [x] Reserved message-list space around the floating header/composer and preserved drag handling in the header/top grace area
+- [x] TypeScript and production Vite build pass
+- [ ] Authenticated visual/E2E pass of the new navigation flow
+### Phase 14 - Visual consistency polish (July 14)
+- [x] Removed duplicate online/offline wording from the floating header; the partner trigger now identifies the current channel and the adjacent status remains the single live status source
+- [x] Converted chat switcher and Send as menu actions to vertical lists; shared Add friend and Settings triggers now support full-width menu actions
+- [x] Added shared outer/surface/control geometry tokens (5px/8px/6px) and progressive Chromium `corner-shape: superellipse(...)` smoothing
+- [x] Applied the shared geometry to buttons, fields, popovers, dialogs, chat header/composer, and the main shell
+- [x] Increased grouped-message vertical rhythm: message rows receive more breathing room and sender-group starts are clearly separated
+- [x] Browser verification: WebView2 reports `corner-shape: superellipse(1.25)` support; empty shell/header geometry renders without console errors
+- [x] TypeScript and production Vite build pass; `git diff --check` passes- **July 14 header follow-up:** Floating header and composer now share the same 21px visual inset (5px wrapper + 16px inner padding). Presence lives under the partner name; the secondary status only appears for typing/media/voice states. Native window controls are always visible inside the header rather than reserved as an invisible right-side gap. Friends/empty header uses the same layout, and content clears its taller inset.
+### Phase 15 - Figma-inspired conversation composition (July 14)
+- [x] Inspected Figma frame `519:493` (`jKSbx77MuEBuHXTCbR2an7`) and used it as the visual reference for the active conversation view
+- [x] Replaced the full-width chat header with a centered compact floating conversation dock; voice controls remain in the same dock and native window controls sit independently at the top-right
+- [x] Reworked the no-chat/Friends fallback into the same compact dock, avoiding a different empty-state header language
+- [x] Added a quiet charcoal/green conversation canvas, fine inset highlights, and a compact centered composer to create the intended spacious conversation hierarchy
+- [x] Aligned local-user message groups to the right (including avatars, names, timestamps, hover actions, reactions, and media) while retaining left-aligned incoming groups and existing grouping/reply behavior
+- [x] Production TypeScript/Vite build, diff whitespace check, and a live browser render pass completed without console errors
+### Phase 16 - Hot soundboard and floating-surface follow-up (July 14)
+- [x] Soundboard now warms the shared library immediately on voice-channel join for both participants; clip blobs and temporary URLs are retained in a session cache
+- [x] Normal soundboard clicks no longer wait on the Supabase Edge Function: they broadcast the already-authorized hot clip over the existing private realtime voice socket and schedule both local players at the same near-immediate timestamp; the function remains a safe cache-miss/expired-URL recovery path
+- [x] Unified dock, composer, and message-action surfaces under the same blurred material; fixed composer Send as padding and removed the composer bottom gradient entirely
+- [x] Replaced desktop window buttons with compact macOS-style traffic lights, added black outer/inset-white shell framing, and added the requested green top radial while active in voice
+- [x] Production TypeScript/Vite build, diff whitespace check, and live browser render pass completed without console errors
+### Phase 17 - Dock hierarchy and blur framing (July 14)
+- [x] Header is now a deliberate three-part rail: fixed-width partner chip, status chip only when context requires it, and a separated fixed-size action cluster; icon controls share a 36px target and Join voice remains a deliberate text control
+- [x] Composer now restores a 21px floating inset and uses the same 15px rounded material geometry as the conversation dock
+- [x] App frame is a thin 1px black outer edge plus 2px low-opacity white inset; no chat-canvas frame remains
+- [x] Added transparent, mask-based progressive backdrop blur at the top and bottom of the message viewport without adding colour gradients
+- [x] Production TypeScript/Vite build and diff whitespace checks pass
+### Phase 18 - Surface primitive correction (July 14)
+- [x] Dock, composer, and message action tray now share a single `surface-panel` recipe: 14px radius, 1.25px edge, inset highlight, material opacity, 24px blur, and shared shadow
+- [x] Reworked chat-edge treatment to use a stronger backdrop blur behind intentional dark top/bottom scrims, replacing the hazy transparent-mask result
+- [x] App edge frame is now rounded and clipped consistently, with a 1px black outer line and a 1px low-opacity white inset
+- [x] Production TypeScript/Vite build and diff whitespace checks pass
+### Phase 19 - Full surface-system convergence (July 14)
+- [x] Applied the shared panel treatment to popovers, dropdown menus, context menus, dialogs, composer reply/media subpanels, and the existing dock/composer/message action tray
+- [x] Added shared transient-menu item sizing and rounding so menu internals follow the same control language
+- [x] Moved the app edge frame to a pointer-safe topmost pseudo-element so it remains visible above every dialog, PiP, and floating surface
+- [x] Tuned message-edge overlays to explicit black-to-transparent top-down and bottom-up scrims behind the stronger blur rather than nearly opaque haze
+- [x] Live browser shell/dialog render and production TypeScript/Vite build pass without console errors
+### Phase 20 - Composer-style message action capsule (July 14)
+- [x] Message hover actions (reaction, reply, edit, delete) now render as a compact attached capsule derived from the composer material rather than a full floating card
+- [x] Standardized the action tray to 30px controls, 12px capsule geometry, shared 1.25px edge/inset highlight/blur, and restrained hover treatment
+- [x] Production TypeScript/Vite build and diff whitespace checks pass
+### Phase 21 — Native-edge frame correction (July 14)
+- [x] Restored the custom application-edge frame at a restrained 10px corner radius: 1px black outer edge plus a subtle 1px white inset.
+- [x] Kept that treatment on the actual application boundary only; the chat pane remains free of the oversized card-like frame.
+- [x] Rebuilt successfully and restarted the Tauri development app so the current window uses the live Vite UI.
+### Phase 22 — Controls and viewport fade correction (July 14)
+- [x] Removed the visible “Send as” label; the composer account trigger is now avatar-only while retaining account/settings access.
+- [x] Restored compact Windows-style minimize, maximize, and close controls in a hover-reveal top-right grace area.
+- [x] Disabled the native window shadow to avoid a second Windows-looking outer frame while preserving the compact custom app-edge treatment.
+- [x] Unified floating panels, popovers, dialogs, and action trays under a thin black edge, white inset, and blurred material.
+- [x] Removed the opaque message blur overlays. The actual message viewport now uses a top-and-bottom transparency mask, so avatars, decorations, and media fade with the scroll content.
+- [x] TypeScript, production Vite build, and whitespace verification pass; Tauri development app restarted.
+### Phase 23 — App-edge corner rasterization fix (July 14)
+- [x] Replaced the pseudo-element’s 1px border with rounded inset shadow rings inside a 10px clip, eliminating the sharp corner seam at the transparent app edge.
+- [x] TypeScript, production Vite build, and diff whitespace verification pass.
+### Phase 24 — Action visibility and native canvas fix (July 14)
+- [x] Fixed message hover controls: the tray is hidden by default, revealed only on its message hover, and kept visible only while its reaction picker is open.
+- [x] Disabled Tauri transparent-window rendering while retaining the configured native Mica/Acrylic material, removing the Acrylic layer that could escape the DOM’s 10px custom clip as a square edge.
+- [x] Production TypeScript/Vite build and whitespace verification pass; Tauri development app restarted.
+### Phase 25 — Acrylic restoration and full-root clip correction (July 14)
+- [x] Restored `transparent: true`; Acrylic/Mica remains an available native material as requested.
+- [x] Applied the 10px round clip to the full HTML/body/root paint chain and inset the custom ring by 1px, addressing the seam without removing Acrylic.
+- [x] Production TypeScript/Vite build and whitespace verification pass; Tauri development app restarted.
+### Phase 26 — Native compositor corner preference (July 14)
+- [x] Verified and applied Windows `DWMWA_WINDOW_CORNER_PREFERENCE` with the small-round setting through the Tauri native HWND at startup.
+- [x] This targets the actual Acrylic/Mica compositor surface; CSS clipping alone cannot round that OS-level surface.
+- [x] Cargo check, TypeScript, production Vite build, and whitespace verification pass; native Tauri dev window restarted.

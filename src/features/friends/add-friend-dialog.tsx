@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
 
-export function AddFriendDialog() {
+export function AddFriendDialog({ fullWidth = false }: { fullWidth?: boolean }) {
   const [open, setOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +54,14 @@ export function AddFriendDialog() {
       <Tooltip>
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Add friend">
+            <Button
+              variant="ghost"
+              size={fullWidth ? "sm" : "icon"}
+              aria-label="Add friend"
+              className={fullWidth ? "w-full justify-start text-muted-foreground" : undefined}
+            >
               <UserPlusIcon />
+              {fullWidth && "Add friend"}
             </Button>
           </DialogTrigger>
         </TooltipTrigger>

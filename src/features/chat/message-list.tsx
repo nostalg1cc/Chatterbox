@@ -14,10 +14,12 @@ const GROUP_WINDOW_MS = 60_000;
 export function MessageList({
   conversationId,
   bottomInset = 0,
+  topInset = 0,
   mediaOnly = false,
 }: {
   conversationId: string;
   bottomInset?: number;
+  topInset?: number;
   mediaOnly?: boolean;
 }) {
   const allMessages = useChat((s) => s.messages[conversationId]);
@@ -141,10 +143,10 @@ export function MessageList({
 
   return (
     <div ref={rootRef} className="relative h-full min-h-0">
-      <ScrollArea className="h-full [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden">
+      <ScrollArea className="message-fade-mask h-full [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden">
         <div
-          className="flex w-full min-w-0 max-w-full flex-col overflow-x-hidden pt-3"
-          style={{ paddingBottom: bottomInset + 8 }}
+          className="flex w-full min-w-0 max-w-full flex-col overflow-x-hidden"
+          style={{ paddingTop: topInset + 8, paddingBottom: bottomInset + 8 }}
         >
           {hasMore && (
             <div className="flex justify-center pb-2">

@@ -1,5 +1,25 @@
 use tauri::Manager;
 
+#[cfg(target_os = "windows")]
+fn apply_native_corner_preference(window: &tauri::WebviewWindow) {
+    use std::ffi::c_void;
+    use windows_sys::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUNDSMALL,
+    };
+
+    if let Ok(hwnd) = window.hwnd() {
+        let preference = DWMWCP_ROUNDSMALL;
+        unsafe {
+            let _ = DwmSetWindowAttribute(
+                hwnd.0 as _,
+                DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+                &preference as *const _ as *const c_void,
+                size_of_val(&preference) as u32,
+            );
+        }
+    }
+}
+
 #[tauri::command]
 fn set_window_material(
     app: tauri::AppHandle,
@@ -53,6 +73,7 @@ pub fn run() {
 
             #[cfg(target_os = "windows")]
             if let Some(window) = app.get_webview_window("main") {
+                apply_native_corner_preference(&window);
                 if let Err(error) = window_vibrancy::apply_mica(&window, Some(true)) {
                     log::warn!("Mica not applied: {error}");
                 }

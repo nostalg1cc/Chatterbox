@@ -83,9 +83,10 @@ export function MessageItem({
       onPointerEnter={() => onDecorationHoverChange?.(true)}
       onPointerLeave={() => onDecorationHoverChange?.(false)}
       className={cn(
-        "group relative flex w-full min-w-0 max-w-full gap-2 px-4 transition-colors hover:bg-white/[0.045]",
-        compact ? "py-0" : "py-0.5",
-        showHeader && (compact ? "mt-1" : "mt-1.5"),
+        "group relative mx-auto flex w-full max-w-[1120px] min-w-0 gap-2 px-5 transition-colors hover:bg-white/[0.025]",
+        isOwn && "flex-row-reverse",
+        compact ? "py-0.5" : "py-1",
+        showHeader && (compact ? "mt-2" : "mt-3"),
         message.pending && "opacity-60"
       )}
     >
@@ -99,9 +100,9 @@ export function MessageItem({
         )}
       </div>
 
-      <div className="min-w-0 max-w-full flex-1 overflow-hidden">
+      <div className={cn("min-w-0 max-w-full flex-1 overflow-hidden", isOwn && "text-right")}>
         {showHeader && (
-          <p className="flex min-w-0 items-baseline gap-2 leading-tight">
+          <p className={cn("flex min-w-0 items-baseline gap-2 leading-tight", isOwn && "justify-end")}>
             <span className={cn("truncate text-sm font-medium", nameColorClass(sender?.name_color))}>
               <DecoratedText effect={sender?.name_decoration as never} active={false}>{sender?.display_name ?? "..."}</DecoratedText>
             </span>
@@ -128,7 +129,7 @@ export function MessageItem({
           <>
             {message.media_kind && (
               showMediaPreviews ? (
-                <MediaAttachment message={message} />
+                <MediaAttachment message={message} alignEnd={isOwn} />
               ) : (
                 <div className="my-1.5 flex w-fit items-center gap-2 rounded-md border border-dashed border-white/[0.14] px-3 py-2 text-xs text-muted-foreground">
                   <EyeOffIcon className="size-4" />
@@ -137,7 +138,7 @@ export function MessageItem({
               )
             )}
             {message.content && (
-              <p className="min-w-0 max-w-full whitespace-pre-wrap text-sm leading-relaxed text-foreground/95 [overflow-wrap:anywhere]">
+              <p className={cn("min-w-0 max-w-full whitespace-pre-wrap text-sm leading-relaxed text-foreground/95 [overflow-wrap:anywhere]", isOwn && "ml-auto")}>
                 {message.content}
                 {message.edited_at && (
                   <span className="ml-1.5 text-[10px] text-muted-foreground/65">
@@ -150,7 +151,7 @@ export function MessageItem({
         )}
 
         {!isDeleted && grouped.length > 0 && (
-          <div className="mt-1 flex flex-wrap items-center gap-1">
+          <div className={cn("mt-1 flex flex-wrap items-center gap-1", isOwn && "justify-end")}>
             {grouped.map(([emoji, info]) => (
               <button
                 key={emoji}
@@ -173,8 +174,9 @@ export function MessageItem({
       {!isDeleted && !editing && (
         <div
           className={cn(
-            "absolute -top-3 right-4 items-center rounded-md border border-white/[0.15] bg-popover p-0.5 shadow-md",
-            pickerOpen ? "flex" : "hidden group-hover:flex"
+            "composer-action-tray absolute -top-2 items-center",
+            isOwn ? "left-4" : "right-4",
+            pickerOpen ? "action-tray-open" : ""
           )}
         >
           <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -183,7 +185,7 @@ export function MessageItem({
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Add reaction"
-                className="text-muted-foreground"
+                className="action-tray-button text-muted-foreground"
               >
                 <SmilePlusIcon />
               </Button>
@@ -211,7 +213,7 @@ export function MessageItem({
             variant="ghost"
             size="icon-sm"
             aria-label="Reply to message"
-            className="text-muted-foreground"
+            className="action-tray-button text-muted-foreground"
             onClick={() => useChat.getState().setReplyTo(message)}
           >
             <ReplyIcon />
@@ -223,7 +225,7 @@ export function MessageItem({
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Edit message"
-                  className="text-muted-foreground"
+                  className="action-tray-button text-muted-foreground"
                   onClick={() => setEditing(true)}
                 >
                   <PencilIcon />
@@ -233,7 +235,7 @@ export function MessageItem({
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Delete message"
-                className="text-muted-foreground hover:text-destructive"
+                className="action-tray-button text-muted-foreground hover:text-destructive"
                 onClick={() => void useChat.getState().deleteMessage(message.id)}
               >
                 <Trash2Icon />
@@ -275,7 +277,7 @@ function ReplyPreview({
     </button>
   );
 }
-function MediaAttachment({ message }: { message: Message }) {
+function MediaAttachment({ message, alignEnd = false }: { message: Message; alignEnd?: boolean }) {
   const userId = useAuth((state) => state.userId);
   const [url, setUrl] = useState<string | null>(null);
   const [local, setLocal] = useState(false);
@@ -373,7 +375,7 @@ function MediaAttachment({ message }: { message: Message }) {
   }
 
   return (
-    <div className="my-1.5 w-fit max-w-full">
+    <div className={cn("my-1.5 w-fit max-w-full", alignEnd && "ml-auto")}>
       {message.media_kind === "video" ? (
         <video
           src={url}

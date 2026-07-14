@@ -27,15 +27,15 @@ export function WindowControls() {
   if (!isTauri) return null;
 
   return (
-    <div className="ml-1 flex h-full shrink-0">
-      <Button variant="ghost" aria-label="Minimize" className="h-full w-11 rounded-none text-muted-foreground hover:text-foreground" onClick={() => void appWindow().minimize()}>
+    <div className="window-controls flex h-full items-center gap-1" aria-label="Window controls">
+      <Button variant="ghost" aria-label="Minimize" className="window-control" onClick={() => void appWindow().minimize()}>
         <MinusIcon className="size-3.5" />
       </Button>
-      <Button variant="ghost" aria-label={maximized ? "Restore" : "Maximize"} className="h-full w-11 rounded-none text-muted-foreground hover:text-foreground" onClick={() => void appWindow().toggleMaximize()}>
+      <Button variant="ghost" aria-label={maximized ? "Restore" : "Maximize"} className="window-control" onClick={() => void appWindow().toggleMaximize()}>
         {maximized ? <CopyIcon className="size-3" /> : <SquareIcon className="size-3" />}
       </Button>
-      <Button variant="ghost" aria-label="Close" className="h-full w-11 rounded-none text-muted-foreground hover:bg-[#c42b1c] hover:text-white" onClick={() => void appWindow().close()}>
-        <XIcon className="size-4" />
+      <Button variant="ghost" aria-label="Close" className="window-control window-control-close" onClick={() => void appWindow().close()}>
+        <XIcon className="size-3.5" />
       </Button>
     </div>
   );

@@ -55,7 +55,7 @@ import { useProfiles } from "@/stores/profiles";
 import { useSoundboard } from "@/stores/soundboard";
 import { useVoice } from "@/stores/voice";
 
-export function SettingsDialog() {
+export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   const profile = useAuth((state) => state.profile);
   const email = useAuth((state) => state.email);
   const userId = useAuth((state) => state.userId);
@@ -204,11 +204,12 @@ export function SettingsDialog() {
           <DialogTrigger asChild>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size={buttonLabel ? "sm" : "icon-sm"}
               aria-label="Settings"
-              className="text-muted-foreground"
+              className={cn("text-muted-foreground", buttonLabel && "w-full justify-start")}
             >
               <SettingsIcon />
+              {buttonLabel}
             </Button>
           </DialogTrigger>
         </TooltipTrigger>

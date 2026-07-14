@@ -10,10 +10,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { UserAvatar } from "@/components/user-avatar";
+import { SettingsDialog } from "@/features/settings/settings-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { formattedBytes, prepareChatMedia, type PreparedMedia } from "@/lib/media";
 import type { Message } from "@/lib/types";
 import { useChat } from "@/stores/chat";
+import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
 import { useProfiles } from "@/stores/profiles";
 
@@ -44,6 +48,7 @@ export function Composer({
   const replySender = useProfiles((state) =>
     replyTo ? state.byId[replyTo.sender_id] : undefined
   );
+  const ownProfile = useAuth((state) => state.profile);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -101,9 +106,9 @@ export function Composer({
   };
 
   return (
-    <div className="shrink-0 px-4 pb-4">
+    <div className="shrink-0 px-0 pb-0">
       {replyTo && (
-        <div className="mb-2 flex min-w-0 items-center gap-2 rounded-lg border border-white/[0.12] bg-card/80 px-2.5 py-2">
+        <div className="mb-2 flex min-w-0 items-center gap-2 surface-panel app-surface border border-white/[0.12] bg-card/80 px-2.5 py-2">
           <ReplyIcon className="size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1 border-l-2 border-white/[0.24] pl-2">
             <p className="text-[11px] font-medium text-foreground/85">
@@ -115,7 +120,7 @@ export function Composer({
             variant="ghost"
             size="icon-sm"
             aria-label="Cancel reply"
-            className="shrink-0 text-muted-foreground"
+            className="shrink-0 text-muted-foreground hover:bg-white/[0.07]"
             onClick={() => useChat.getState().setReplyTo(null)}
           >
             <XIcon />
@@ -124,7 +129,7 @@ export function Composer({
       )}
 
       {(preparing || media) && (
-        <div className="mb-2 flex max-w-sm items-center gap-3 rounded-lg border border-white/[0.15] bg-card p-2">
+        <div className="mb-2 flex max-w-sm items-center gap-3 surface-panel app-surface border border-white/[0.15] bg-card p-2">
           <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
             {preparing ? (
               <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
@@ -168,7 +173,7 @@ export function Composer({
         </div>
       )}
 
-      <div className="flex items-end gap-1.5 rounded-lg border border-white/[0.15] bg-card/72 px-2 py-2 backdrop-blur-md transition-colors focus-within:border-white/[0.24]">
+      <div className="surface-panel composer-surface floating-surface flex items-end gap-2 p-1.5 shadow-[0_10px_26px_rgb(0_0_0_/_0.20)] transition-colors focus-within:border-white/[0.28]">
         <input
           ref={fileRef}
           type="file"
@@ -176,11 +181,31 @@ export function Composer({
           className="hidden"
           onChange={(event) => void selectMedia(event.target.files?.[0])}
         />
-        <Button
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className="app-control flex h-9 shrink-0 items-center gap-1.5 px-2 text-left transition-colors hover:bg-white/[0.07]" aria-label="Your account and settings">
+              <UserAvatar profile={ownProfile} size="sm" animated />
+
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="top" align="start" className="surface-panel app-surface w-56 p-2.5">
+            <div className="flex items-center gap-2 px-1 py-1.5">
+              <UserAvatar profile={ownProfile} animated />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{ownProfile?.display_name ?? "..."}</p>
+                <p className="truncate text-xs text-muted-foreground">@{ownProfile?.username ?? ""}</p>
+              </div>
+            </div>
+            <div className="mt-1 flex flex-col gap-0.5 border-t border-white/[0.11] pt-2">
+              <SettingsDialog buttonLabel="Settings" />
+              <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => void useAuth.getState().signOut()}>Sign out</Button>
+            </div>
+          </PopoverContent>
+        </Popover>        <Button
           variant="ghost"
           size="icon-sm"
           aria-label="Attach image or video"
-          className="shrink-0 text-muted-foreground"
+          className="shrink-0 text-muted-foreground hover:bg-white/[0.07]"
           disabled={preparing || sending}
           onClick={() => fileRef.current?.click()}
         >
@@ -220,7 +245,7 @@ export function Composer({
           variant="ghost"
           size="icon-sm"
           aria-label="Send message"
-          className="shrink-0 text-muted-foreground"
+          className="shrink-0 text-muted-foreground hover:bg-white/[0.07]"
           disabled={preparing || sending || (!value.trim() && !media)}
           onClick={() => void send()}
         >
