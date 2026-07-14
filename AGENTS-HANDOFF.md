@@ -352,4 +352,4 @@ npx tsc --noEmit      # typecheck
 - [x] Configured the 32/64/128/256/ICO native asset set and added the matching web favicon asset.
 - [x] Raised the release to v0.1.3 for the icon-bearing installer and updater.
 - [x] Reworked the shared floating material so the header, composer, message reaction tray, popovers, dropdowns, context menus, and dialogs all visibly use the same translucent backdrop blur.
-- [x] Production TypeScript/Vite build and Cargo check pass.
+- [x] Production TypeScript/Vite build and Cargo check pass.- [x] Preserved composer focus across controlled input updates and vertically centered its single-line placeholder/action row before v0.1.3 packaging.

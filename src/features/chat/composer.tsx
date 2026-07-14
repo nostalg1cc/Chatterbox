@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   FilmIcon,
   ImageIcon,
@@ -51,6 +51,7 @@ export function Composer({
   const ownProfile = useAuth((state) => state.profile);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const restoreFocusRef = useRef(false);
 
   useEffect(() => {
     if (!media) {
@@ -61,6 +62,12 @@ export function Composer({
     setPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [media]);
+
+  useLayoutEffect(() => {
+    if (!restoreFocusRef.current) return;
+    restoreFocusRef.current = false;
+    ref.current?.focus({ preventScroll: true });
+  }, [value]);
 
   const resize = () => {
     const el = ref.current;
@@ -173,7 +180,7 @@ export function Composer({
         </div>
       )}
 
-      <div className="surface-panel composer-surface floating-surface flex items-end gap-2 p-1.5 shadow-[0_10px_26px_rgb(0_0_0_/_0.20)] transition-colors focus-within:border-white/[0.28]">
+      <div className="surface-panel composer-surface floating-surface flex items-center gap-2 p-1.5 shadow-[0_10px_26px_rgb(0_0_0_/_0.20)] transition-colors focus-within:border-white/[0.28]">
         <input
           ref={fileRef}
           type="file"
@@ -223,9 +230,10 @@ export function Composer({
           value={value}
           placeholder={placeholder}
           maxLength={4000}
-          className="max-h-40 min-h-6 flex-1 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
+          className="max-h-40 min-h-9 flex-1 self-stretch resize-none border-0 bg-transparent py-2 leading-5 shadow-none focus-visible:ring-0 dark:bg-transparent"
           disabled={sending}
           onChange={(event) => {
+            restoreFocusRef.current = document.activeElement === event.currentTarget;
             setValue(event.target.value);
             resize();
             useChat.getState().notifyTyping(conversationId);
