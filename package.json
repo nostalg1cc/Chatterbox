@@ -21,7 +21,7 @@
     "gifenc": "^1.0.3",
     "gifuct-js": "^2.1.2",
     "lucide-react": "^1.24.0",
-    "radix-ui": "^1.6.2",
+    "radix-ui": "1.6.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "sonner": "^2.0.7",
