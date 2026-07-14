@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
-import type { NameColor, Profile } from "@/lib/types";
+import type { NameColor, NameFont, NameWeight, Profile } from "@/lib/types";
 
 type AuthStatus = "booting" | "signedOut" | "signedIn";
 
@@ -10,7 +10,7 @@ interface AuthState {
   email: string | null;
   profile: Profile | null;
   init: () => void;
-  updateGeneralSettings: (name: string, nameColor: NameColor, decoration: string | null, nameDecoration: string | null) => Promise<void>;
+  updateGeneralSettings: (name: string, nameColor: NameColor, decoration: string | null, nameDecoration: string | null, nameFont: NameFont, nameWeight: NameWeight) => Promise<void>;
   updateAvatar: (path: string, animatedPath?: string | null) => Promise<void>;
   applyProfile: (profile: Profile) => void;
   signOut: () => Promise<void>;
@@ -56,12 +56,12 @@ export const useAuth = create<AuthState>()((set, get) => ({
     });
   },
 
-  updateGeneralSettings: async (name, nameColor, decoration, nameDecoration) => {
+  updateGeneralSettings: async (name, nameColor, decoration, nameDecoration, nameFont, nameWeight) => {
     const { userId } = get();
     if (!userId) return;
     const { data, error } = await supabase
       .from("profiles")
-      .update({ display_name: name, name_color: nameColor, avatar_decoration: decoration, name_decoration: nameDecoration })
+      .update({ display_name: name, name_color: nameColor, avatar_decoration: decoration, name_decoration: nameDecoration, name_font: nameFont, name_weight: nameWeight })
       .eq("id", userId)
       .select()
       .single();

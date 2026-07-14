@@ -104,7 +104,7 @@ export function MessageItem({
         {showHeader && (
           <p className={cn("flex min-w-0 items-baseline gap-2 leading-tight", isOwn && "justify-end")}>
             <span className={cn("truncate text-sm font-medium", nameColorClass(sender?.name_color))}>
-              <DecoratedText effect={sender?.name_decoration as never} active={false}>{sender?.display_name ?? "..."}</DecoratedText>
+              <DecoratedText effect={sender?.name_decoration as never} font={sender?.name_font} weight={sender?.name_weight} active>{sender?.display_name ?? "..."}</DecoratedText>
             </span>
             <Tooltip>
               <TooltipTrigger asChild>

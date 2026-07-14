@@ -358,3 +358,13 @@ npx tsc --noEmit      # typecheck
 - [x] Built Windows NSIS and MSI artifacts with the new Dislight application icon.
 - [x] Signed the NSIS installer with the existing updater key and generated a v0.1.3 `latest.json` manifest for the in-app updater.
 - [x] Packaged after the composer focus/vertical alignment correction and shared backdrop-blur refinement.
+### Phase 31 — Username typography presets (July 14)
+- [x] Added constrained, live-persisted profile typography: Sans, Rounded, Serif, or Mono; Regular, Medium, Bold, or Black.
+- [x] Completed the existing name-effect system so animated effects now run for active header/user-panel contexts and the newest or hovered message group.
+- [x] Added matching settings controls, mirrored migration `20260714233000_profile_name_typography.sql`, and applied the migration to the live Supabase project.
+- [x] Verified live profile columns and production TypeScript/Vite build.### Phase 32 — Real Sera UI text-effect renderers (July 14)
+- [x] Replaced the former CSS-only name-effect placeholders with local React renderers adapted from Sera UI's public Fuzzy, Sparkles, Resize Handle, Bouncy, Wavy, Gradient, Glitch, and Particle components.
+- [x] Kept static names inexpensive; only intentionally active contexts instantiate canvases, per-letter motion, sparkles, particles, or glitch layers.
+- [x] Verified production TypeScript/Vite build and a clean live-app console after Vite HMR.
+### Phase 33 — Always-on name effects (July 14)
+- [x] Username effects are now continuous in every rendered context; they no longer wait for hover or the latest message group.

@@ -10,6 +10,9 @@ export type NameColor =
   | "violet"
   | "pink";
 
+export type NameFont = "sans" | "rounded" | "serif" | "mono";
+export type NameWeight = "regular" | "medium" | "bold" | "black";
+
 export interface Profile {
   id: string;
   username: string;
@@ -20,6 +23,8 @@ export interface Profile {
   avatar_updated_at: string | null;
   avatar_decoration: string | null;
   name_decoration: string | null;
+  name_font: NameFont;
+  name_weight: NameWeight;
   name_color: NameColor;
 }
 

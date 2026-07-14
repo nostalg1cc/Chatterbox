@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { UserAvatar } from "@/components/user-avatar";
+import { DecoratedText } from "@/components/decorated-text";
 import { AddFriendDialog } from "@/features/friends/add-friend-dialog";
 import { relativeTime } from "@/lib/format";
 import { nameColorClass } from "@/lib/name-colors";
@@ -45,7 +46,7 @@ export function ChatSwitcher({ conversationId }: { conversationId: string }) {
           <UserAvatar profile={friend} online={online} size="sm" animated />
           <span className="min-w-0 flex-1 leading-[1.05]">
             <span className={cn("block truncate text-sm font-medium", nameColorClass(friend?.name_color))}>
-              {friend?.display_name ?? "..."}
+              <DecoratedText effect={friend?.name_decoration as never} font={friend?.name_font} weight={friend?.name_weight} active>{friend?.display_name ?? "..."}</DecoratedText>
             </span>
             <span className="block truncate text-xs text-muted-foreground">
               {channel === "media" ? "Media channel" : online ? "Online" : "Offline"}
@@ -129,7 +130,7 @@ function ConversationChoice({ conversationId }: { conversationId: string }) {
     >
       <UserAvatar profile={friend} online={online} size="sm" />
       <span className="min-w-0 flex-1">
-        <span className={cn("block truncate text-sm font-medium", nameColorClass(friend?.name_color))}>{friend?.display_name ?? "..."}</span>
+        <span className={cn("block truncate text-sm font-medium", nameColorClass(friend?.name_color))}><DecoratedText effect={friend?.name_decoration as never} font={friend?.name_font} weight={friend?.name_weight} active>{friend?.display_name ?? "..."}</DecoratedText></span>
         <span className="block truncate text-[11px] text-muted-foreground">{overview?.content || "Say hi."}</span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">

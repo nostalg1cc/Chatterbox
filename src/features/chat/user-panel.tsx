@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UserAvatar } from "@/components/user-avatar";
+import { DecoratedText } from "@/components/decorated-text";
 import { SettingsDialog } from "@/features/settings/settings-dialog";
 import { nameColorClass } from "@/lib/name-colors";
 import { cn } from "@/lib/utils";
@@ -45,7 +46,7 @@ export function UserPanel() {
             nameColorClass(profile?.name_color)
           )}
         >
-          {profile?.display_name ?? "..."}
+          <DecoratedText effect={profile?.name_decoration as never} font={profile?.name_font} weight={profile?.name_weight} active>{profile?.display_name ?? "..."}</DecoratedText>
         </p>
         <p
           className={cn(

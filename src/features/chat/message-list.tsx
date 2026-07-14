@@ -146,7 +146,7 @@ export function MessageList({
       <ScrollArea className="message-fade-mask h-full [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden">
         <div
           className="flex w-full min-w-0 max-w-full flex-col overflow-x-hidden"
-          style={{ paddingTop: topInset + 8, paddingBottom: bottomInset + 8 }}
+          style={{ paddingTop: topInset + 8, paddingBottom: bottomInset + 76 }}
         >
           {hasMore && (
             <div className="flex justify-center pb-2">

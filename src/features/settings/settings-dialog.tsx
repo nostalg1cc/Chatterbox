@@ -47,7 +47,7 @@ import { formattedBytes, prepareAnimatedAvatar, prepareAvatar } from "@/lib/medi
 import { NAME_COLOR_OPTIONS, nameColorClass } from "@/lib/name-colors";
 import { AVATAR_DECORATIONS } from "@/lib/avatar-decorations";
 import { supabase } from "@/lib/supabase";
-import type { NameColor } from "@/lib/types";
+import type { NameColor, NameFont, NameWeight } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/stores/auth";
 import { usePreferences, type KeybindPreferences } from "@/stores/preferences";
@@ -66,6 +66,8 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   const [nameColor, setNameColor] = useState<NameColor>("default");
   const [decoration, setDecoration] = useState<string | null>(null);
   const [nameDecoration, setNameDecoration] = useState<string | null>(null);
+  const [nameFont, setNameFont] = useState<NameFont>("sans");
+  const [nameWeight, setNameWeight] = useState<NameWeight>("medium");
   const [saving, setSaving] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
@@ -103,7 +105,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
     if (!name) return;
     setSaving(true);
     try {
-      await useAuth.getState().updateGeneralSettings(name, nameColor, decoration, nameDecoration);
+      await useAuth.getState().updateGeneralSettings(name, nameColor, decoration, nameDecoration, nameFont, nameWeight);
       const updated = useAuth.getState().profile;
       if (updated) useProfiles.getState().put([updated]);
       toast.success("Profile updated.");
@@ -182,7 +184,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   const speakers = devices.filter((device) => device.kind === "audiooutput");
   const profileChanged =
     displayName.trim() !== (profile?.display_name ?? "") ||
-    nameColor !== (profile?.name_color ?? "default") || decoration !== (profile?.avatar_decoration ?? null) || nameDecoration !== (profile?.name_decoration ?? null);
+    nameColor !== (profile?.name_color ?? "default") || decoration !== (profile?.avatar_decoration ?? null) || nameDecoration !== (profile?.name_decoration ?? null) || nameFont !== (profile?.name_font ?? "sans") || nameWeight !== (profile?.name_weight ?? "medium");
 
   return (
     <Dialog
@@ -195,6 +197,8 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
           setNameColor(profile?.name_color ?? "default");
           setDecoration(profile?.avatar_decoration ?? null);
           setNameDecoration(profile?.name_decoration ?? null);
+          setNameFont(profile?.name_font ?? "sans");
+          setNameWeight(profile?.name_weight ?? "medium");
           void useSoundboard.getState().load();
         }
       }}
@@ -356,7 +360,8 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                   </div>
                   <p className="text-xs text-muted-foreground">Animated in your user panel and the partner header; static elsewhere until hover.</p>
                 </div>
-<div className="space-y-2 rounded-xl border border-white/[0.14] bg-card p-4"><Label>Name effect</Label><div className="grid grid-cols-4 gap-2">{["fuzzy","sparkles","resize","bouncy","wavy","gradient","glitch","particle"].map((effect) => <button key={effect} type="button" onClick={() => setNameDecoration(effect)} className={cn("rounded-md border px-2 py-1 text-xs capitalize", nameDecoration === effect && "border-white/60 bg-white/10")}>{effect}</button>)}<button type="button" onClick={() => setNameDecoration(null)} className="rounded-md border px-2 py-1 text-xs">None</button></div></div>                <form onSubmit={save} className="space-y-4">
+<div className="space-y-3 rounded-xl border border-white/[0.14] bg-card p-4"><div><Label>Name font</Label><div className="mt-2 grid grid-cols-4 gap-2">{(["sans", "rounded", "serif", "mono"] as NameFont[]).map((font) => <button key={font} type="button" onClick={() => setNameFont(font)} className={cn("rounded-md border px-2 py-1.5 text-xs capitalize", nameFont === font && "border-white/60 bg-white/10")}>{font}</button>)}</div></div><div><Label>Name weight</Label><div className="mt-2 grid grid-cols-4 gap-2">{(["regular", "medium", "bold", "black"] as NameWeight[]).map((weight) => <button key={weight} type="button" onClick={() => setNameWeight(weight)} className={cn("rounded-md border px-2 py-1.5 text-xs capitalize", nameWeight === weight && "border-white/60 bg-white/10")}>{weight}</button>)}</div></div></div>
+                <div className="space-y-2 rounded-xl border border-white/[0.14] bg-card p-4"><Label>Name effect</Label><div className="grid grid-cols-4 gap-2">{["fuzzy","sparkles","resize","bouncy","wavy","gradient","glitch","particle"].map((effect) => <button key={effect} type="button" onClick={() => setNameDecoration(effect)} className={cn("rounded-md border px-2 py-1 text-xs capitalize", nameDecoration === effect && "border-white/60 bg-white/10")}>{effect}</button>)}<button type="button" onClick={() => setNameDecoration(null)} className="rounded-md border px-2 py-1 text-xs">None</button></div></div>                <form onSubmit={save} className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="settings-displayname">Display name</Label>
                     <Input
