@@ -342,3 +342,8 @@ npx tsc --noEmit      # typecheck
 - [x] Release assets: signed NSIS installer, `.sig`, MSI, and updater `latest.json` manifest.
 - [x] GitHub repository visibility set to public so installer downloads and the configured in-app updater endpoint are reachable (HTTP 200 verified).
 - [x] Source commits: `eb423f9` and `6c957cf`; release tag `v0.1.2`.
+### Phase 28 — Vercel production deployment repair (July 14)
+- [x] Removed the unused `shadcn` CLI package and its build-time stylesheet import; the app already owns its local component sources and theme tokens.
+- [x] Pinned `radix-ui` to installable `1.6.1`, avoiding the subsequently unavailable internal Radix tarballs referenced by the floating `1.6.2` dependency tree.
+- [x] Confirmed a local production TypeScript/Vite build and a clean Vercel install/build.
+- [x] Deployed current `main` to Vercel production: `https://dislight.vercel.app` (deployment `dpl_A4TxqnHbqj2uwicK2F9R6KjtwVYR`, READY).
