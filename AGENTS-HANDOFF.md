@@ -347,3 +347,9 @@ npx tsc --noEmit      # typecheck
 - [x] Pinned `radix-ui` to installable `1.6.1`, avoiding the subsequently unavailable internal Radix tarballs referenced by the floating `1.6.2` dependency tree.
 - [x] Confirmed a local production TypeScript/Vite build and a clean Vercel install/build.
 - [x] Deployed current `main` to Vercel production: `https://dislight.vercel.app` (deployment `dpl_A4TxqnHbqj2uwicK2F9R6KjtwVYR`, READY).
+### Phase 29 — Dislight brand assets + material polish (July 14)
+- [x] Generated the full Tauri icon family from `stuff/logo.png`: Windows ICO/taskbar, NSIS/MSI installer, Store/AppX, PNG, macOS, Android, and iOS outputs.
+- [x] Configured the 32/64/128/256/ICO native asset set and added the matching web favicon asset.
+- [x] Raised the release to v0.1.3 for the icon-bearing installer and updater.
+- [x] Reworked the shared floating material so the header, composer, message reaction tray, popovers, dropdowns, context menus, and dialogs all visibly use the same translucent backdrop blur.
+- [x] Production TypeScript/Vite build and Cargo check pass.
