@@ -662,3 +662,26 @@ body,
 .text-effect-resize > i:nth-of-type(3) { bottom: -3px; left: -3px; }
 .text-effect-resize > i:nth-of-type(4) { right: -3px; bottom: -3px; }
 @media (prefers-reduced-motion: reduce) { .text-effect-letter, .text-effect-sparkle, .text-effect-particle, .text-effect-gradient, .text-effect-glitch::before, .text-effect-glitch::after { animation: none !important; } }
+
+/* Native WebView2 can make backdrop filtering inconsistent. Keep every floating control deliberately opaque. */
+.surface-panel,
+.composer-action-tray,
+[data-slot="popover-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="context-menu-content"],
+[data-slot="context-menu-sub-content"],
+[data-slot="dialog-content"] {
+  background: #202020 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.conversation-dock,
+.composer-surface { background: #202020 !important; }
+.chat-link {
+  color: #9cc9ff;
+  text-decoration: underline;
+  text-decoration-color: rgb(156 201 255 / .54);
+  text-underline-offset: 2px;
+}
+.chat-link:hover { color: #c3defe; text-decoration-color: currentColor; }

@@ -1,11 +1,11 @@
 ﻿{
-    "version":  "0.1.5",
-    "notes":  "Manual-reset release for the updated updater signing key. Includes always-on Sera UI-inspired username effects and typography controls.",
-    "pub_date":  "2026-07-14T22:16:29.6376712Z",
+    "version":  "0.1.6",
+    "notes":  "Hotfix: floating header, composer, menus, and action trays now use an opaque dark-gray surface; the composer resets after sending multiline text; pasted http/https links are clickable and open in the default browser.",
+    "pub_date":  "2026-07-14T22:29:50.6683320Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTW5Ya284Vk1tc21qbzFvL3YzNFRXbnRiRzU5MWF0eHNibjBYbnY0YnN0VmtqSkVYcUcxTW1Sbk9sd212WG9XaUszSFVqUit6T2VFRnBjdmcwMUw5ZW9sNVRrUWVyTkFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MDY3MzQ2CWZpbGU6RGlzbGlnaHRfMC4xLjVfeDY0LXNldHVwLmV4ZQpvblZ6R0J6NnVORk5YYUJoOVpjZXczSWhaWExsdHptclgwdktaV3BQaldEbE84MG9mNzVkT04zTy9KSXBoaE1SbEVwZlkyaEs0UTdYZGJLdE5OV1FBQT09Cg==",
-                                             "url":  "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.5/Dislight_0.1.5_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTW5Ya284Vk1tc3ZLSGQ5eEZHRDZFWXZEVzJ0ejZ3YVg5dGF3NVgrWmh0LzQ1Njkxc0FqKzVMMUYrMFRRZE5Eb0JYUWVjM1k5eWZzcGpNVkZMa1U2YzV1NjJjK2k0OHdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MDY4MTY3CWZpbGU6RGlzbGlnaHRfMC4xLjZfeDY0LXNldHVwLmV4ZQpPY04wR05MTzgxb1NhTjQzWVhCUmZmQUZONU9QcytGTzZnQTBDV0pjbnNraEtsNDBWeThOYndHaUhDREJGRTA5b3JacU1rK3NQbHBOUVMxSml1VDlCUT09Cg==",
+                                             "url":  "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.6/Dislight_0.1.6_x64-setup.exe"
                                          }
                   }
 }

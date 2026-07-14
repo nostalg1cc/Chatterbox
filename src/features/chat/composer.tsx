@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+﻿import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   FilmIcon,
   ImageIcon,
@@ -64,9 +64,14 @@ export function Composer({
   }, [media]);
 
   useLayoutEffect(() => {
+    const el = ref.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 160) + "px";
+    }
     if (!restoreFocusRef.current) return;
     restoreFocusRef.current = false;
-    ref.current?.focus({ preventScroll: true });
+    el?.focus({ preventScroll: true });
   }, [value]);
 
   const resize = () => {
@@ -92,7 +97,7 @@ export function Composer({
     setValue("");
     setMedia(null);
     setProgress(0);
-    requestAnimationFrame(resize);
+
   };
 
   const selectMedia = async (file: File | undefined) => {

@@ -372,3 +372,8 @@ npx tsc --noEmit      # typecheck
 - [x] Rotated the lost updater signing key and configured the replacement public key in Tauri.
 - [x] Built signed NSIS/MSI artifacts and updater signatures for 0.1.5.
 - [x] 0.1.5 requires one manual install from 0.1.3 because the updater signing identity changed; future releases will update normally from 0.1.5.
+### Phase 35 — v0.1.6 surface/composer/link hotfix (July 15)
+- [x] Replaced unreliable WebView2 backdrop filtering with opaque dark-gray floating header, composer, menus, dialogs, and message-action surfaces.
+- [x] Composer now recalculates after its controlled value clears, so a sent multiline message immediately returns to single-line height.
+- [x] Added safe `http`/`https` link rendering and Tauri's scoped default-browser opener permission; regular text remains escaped React text.
+- [x] Production web build, Cargo check, signed NSIS/MSI packages, and updater signatures pass.

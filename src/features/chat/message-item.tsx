@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { isTauri } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   EyeOffIcon,
   ImageOffIcon,
@@ -36,6 +38,29 @@ const QUICK_EMOJIS = [
   "\u{1F440}",
 ];
 
+const URL_PART = /(https?:\/\/[^\s<]+)/gi;
+const URL_ONLY = /^https?:\/\/[^\s<]+$/i;
+
+function splitLinkSuffix(value: string) {
+  const match = value.match(/^(.*?)([.,!?;:]+)$/);
+  return match ? { url: match[1], suffix: match[2] } : { url: value, suffix: "" };
+}
+
+async function openChatLink(url: string) {
+  if (isTauri()) {
+    await openUrl(url);
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function MessageText({ content }: { content: string }) {
+  return <>{content.split(URL_PART).map((part, index) => {
+    if (!URL_ONLY.test(part)) return part;
+    const { url, suffix } = splitLinkSuffix(part);
+    return <span key={"link-" + index}><a href={url} target="_blank" rel="noreferrer" className="chat-link" onClick={(event) => { if (!isTauri()) return; event.preventDefault(); void openChatLink(url); }}>{url}</a>{suffix}</span>;
+  })}</>;
+}
 export function MessageItem({
   message,
   showHeader,
@@ -139,7 +164,7 @@ export function MessageItem({
             )}
             {message.content && (
               <p className={cn("min-w-0 max-w-full whitespace-pre-wrap text-sm leading-relaxed text-foreground/95 [overflow-wrap:anywhere]", isOwn && "ml-auto")}>
-                {message.content}
+                <MessageText content={message.content} />
                 {message.edited_at && (
                   <span className="ml-1.5 text-[10px] text-muted-foreground/65">
                     (edited)
