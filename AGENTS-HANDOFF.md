@@ -377,3 +377,9 @@ npx tsc --noEmit      # typecheck
 - [x] Composer now recalculates after its controlled value clears, so a sent multiline message immediately returns to single-line height.
 - [x] Added safe `http`/`https` link rendering and Tauri's scoped default-browser opener permission; regular text remains escaped React text.
 - [x] Production web build, Cargo check, signed NSIS/MSI packages, and updater signatures pass.
+
+
+### Phase 36 - Web mobile + PWA (July 15)
+- [x] Added a browser-only installable PWA manifest, icon metadata, and a conservative service worker for app-shell resilience
+- [x] Added safe-area-aware responsive layout rules for phones, touch-friendly composer controls, responsive media, and compact floating navigation
+- [x] Kept the desktop shell and desktop release version unchanged; this is a web-only Vercel update

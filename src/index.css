@@ -685,3 +685,59 @@ body,
   text-underline-offset: 2px;
 }
 .chat-link:hover { color: #c3defe; text-decoration-color: currentColor; }
+
+
+/* Web-first responsive pass. Desktop geometry remains unchanged above this breakpoint. */
+@media (max-width: 720px) {
+  html, body, #root {
+    min-width: 0;
+    min-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+    clip-path: none;
+  }
+  .app-frame, .app-shell { border-radius: 0; clip-path: none; }
+  .app-frame::after { display: none; }
+  .conversation-canvas { min-height: 100dvh; background: var(--background); }
+  .conversation-dock {
+    top: max(10px, env(safe-area-inset-top)) !important;
+    left: 10px !important;
+    right: 10px;
+    width: auto !important;
+    max-width: none !important;
+    height: 48px !important;
+    transform: none !important;
+  }
+  .conversation-dock .dock-profile { width: min(52vw, 220px); }
+  .conversation-dock .dock-status { display: none; }
+  .conversation-dock .dock-actions { margin-left: auto; }
+  .conversation-dock .dock-actions .dock-join { max-width: 108px; padding-inline: 8px; }
+  .window-controls-reveal { display: none; }
+  .message-fade-mask { -webkit-mask-image: none; mask-image: none; }
+  .message-fade-mask [data-slot="scroll-area-viewport"] {
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .group { max-width: 100%; }
+  .group img, .group video { max-width: min(78vw, 420px); }
+  .conversation-canvas > .relative > .pointer-events-none.absolute {
+    right: 10px !important;
+    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    left: 10px !important;
+  }
+  .composer-surface { min-height: 48px; padding: 6px !important; }
+  .composer-surface textarea { min-height: 34px; font-size: 16px; }
+  .composer-surface [data-slot="button"], .composer-surface .app-control { min-width: 36px; min-height: 36px; }
+  [data-slot="popover-content"] { max-width: calc(100vw - 20px) !important; }
+  [data-slot="dialog-content"] {
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: min(82dvh, 760px) !important;
+  }
+  ::-webkit-scrollbar { width: 4px; }
+}
+@media (max-width: 400px) {
+  .conversation-dock .dock-profile { width: min(50vw, 172px); }
+  .conversation-dock .dock-actions { gap: 0; }
+  .conversation-dock .dock-actions [data-slot="button"] { padding-inline: 6px; }
+}
