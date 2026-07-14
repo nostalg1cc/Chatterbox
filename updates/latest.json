@@ -1,11 +1,11 @@
-{
-    "version":  "0.1.3",
-    "notes":  "Dislight branding update: new application, taskbar, installer, and web icon set. Also improves shared translucent blur across composer, header, reactions, and menus, plus composer focus and alignment.",
-    "pub_date":  "2026-07-14T21:15:46.7279635Z",
+﻿{
+    "version":  "0.1.5",
+    "notes":  "Manual-reset release for the updated updater signing key. Includes always-on Sera UI-inspired username effects and typography controls.",
+    "pub_date":  "2026-07-14T22:16:29.6376712Z",
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRa0RLazZwdmlJd2prcUp2anZUYVJ2bndKcmlvNWxYMEg5MVZUNXJteVZlVnh6RjRFMmZabDZ5TlZ2RWRNUmtqbXl1b1N0YTl3bjQ0bVNPSCtoaW1kdFE5aWlZOUt5dWc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MDYzNzAzCWZpbGU6RGlzbGlnaHRfMC4xLjNfeDY0LXNldHVwLmV4ZQpjKzIyeFZoS2hGdFlwN1ZGdHJQRmU0Sm5xcFRaZkxXVjl5R2tjc2FrdklDT1h4QmNKWWZpczVOUFB1OHMxRXRjb2NpNXBYajZMUmhxZ3dxMGlOQ0VEUT09Cg==",
-                                             "url":  "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.3/Dislight_0.1.3_x64-setup.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTW5Ya284Vk1tc21qbzFvL3YzNFRXbnRiRzU5MWF0eHNibjBYbnY0YnN0VmtqSkVYcUcxTW1Sbk9sd212WG9XaUszSFVqUit6T2VFRnBjdmcwMUw5ZW9sNVRrUWVyTkFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MDY3MzQ2CWZpbGU6RGlzbGlnaHRfMC4xLjVfeDY0LXNldHVwLmV4ZQpvblZ6R0J6NnVORk5YYUJoOVpjZXczSWhaWExsdHptclgwdktaV3BQaldEbE84MG9mNzVkT04zTy9KSXBoaE1SbEVwZlkyaEs0UTdYZGJLdE5OV1FBQT09Cg==",
+                                             "url":  "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.5/Dislight_0.1.5_x64-setup.exe"
                                          }
                   }
 }

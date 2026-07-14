@@ -368,3 +368,7 @@ npx tsc --noEmit      # typecheck
 - [x] Verified production TypeScript/Vite build and a clean live-app console after Vite HMR.
 ### Phase 33 — Always-on name effects (July 14)
 - [x] Username effects are now continuous in every rendered context; they no longer wait for hover or the latest message group.
+### Phase 34 — v0.1.5 updater-key reset release (July 15)
+- [x] Rotated the lost updater signing key and configured the replacement public key in Tauri.
+- [x] Built signed NSIS/MSI artifacts and updater signatures for 0.1.5.
+- [x] 0.1.5 requires one manual install from 0.1.3 because the updater signing identity changed; future releases will update normally from 0.1.5.
