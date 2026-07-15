@@ -95,7 +95,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
       toast.success("Sound added.");
     } catch (error) {
       if (reserved) void invoke({ mode: "discard", soundId }).catch(() => undefined);
-      if (error instanceof Error -and error.message.Contains("Soundboard quota reached")) {
+      if (error instanceof Error && error.message.includes("Soundboard quota reached")) {
         throw new Error("Soundboard storage is full (16 MiB per user, 96 MiB shared).");
       }
       throw error;
