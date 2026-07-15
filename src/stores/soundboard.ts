@@ -25,6 +25,7 @@ interface SoundboardState {
   load: () => Promise<void>;
   loadAvailable: (conversationId: string) => Promise<void>;
   upload: (file: File, name: string) => Promise<void>;
+  rename: (soundId: string, name: string) => Promise<void>;
   remove: (soundId: string) => Promise<void>;
   play: (soundId: string) => Promise<void>;
 }
@@ -68,9 +69,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
         signedUrls: { ...state.signedUrls, ...(data.preloadUrls ?? {}) },
       }));
       if (data.preloadUrls) {
-        preloadSoundboardClips(
-          Object.entries(data.preloadUrls).map(([id, signedUrl]) => ({ id, signedUrl }))
-        );
+        preloadSoundboardClips(Object.entries(data.preloadUrls).map(([id, signedUrl]) => ({ id, signedUrl })));
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Shared soundboard could not load.");
@@ -87,52 +86,36 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
     let reserved = false;
     try {
       const prepared = await prepareSoundboardAudio(file);
-      const reservation = await invoke<{ path: string; token: string }>({
-        mode: "reserve",
-        soundId,
-        name,
-        sizeBytes: prepared.blob.size,
-        durationMs: prepared.durationMs,
-      });
+      const reservation = await invoke<{ path: string; token: string }>({ mode: "reserve", soundId, name, sizeBytes: prepared.blob.size, durationMs: prepared.durationMs });
       reserved = true;
-      const { error } = await supabase.storage
-        .from("soundboard")
-        .uploadToSignedUrl(reservation.path, reservation.token, prepared.blob, {
-          contentType: "audio/webm",
-          cacheControl: "31536000",
-        });
+      const { error } = await supabase.storage.from("soundboard").uploadToSignedUrl(reservation.path, reservation.token, prepared.blob, { contentType: "audio/webm", cacheControl: "31536000" });
       if (error) throw new Error(error.message);
-      const data = await invoke<{ sound: SoundboardSound }>({
-        mode: "finalize",
-        soundId,
-        name,
-        sizeBytes: prepared.blob.size,
-        durationMs: prepared.durationMs,
-      });
-      set((state) => ({
-        sounds: [data.sound, ...state.sounds],
-        availableSounds: [
-          data.sound,
-          ...state.availableSounds.filter((sound) => sound.id !== data.sound.id),
-        ],
-      }));
+      const data = await invoke<{ sound: SoundboardSound }>({ mode: "finalize", soundId, name, sizeBytes: prepared.blob.size, durationMs: prepared.durationMs });
+      set((state) => ({ sounds: [data.sound, ...state.sounds], availableSounds: [data.sound, ...state.availableSounds.filter((sound) => sound.id !== data.sound.id)] }));
       toast.success("Sound added.");
     } catch (error) {
-      if (reserved) {
-        void invoke({ mode: "discard", soundId }).catch(() => undefined);
-      }
+      if (reserved) void invoke({ mode: "discard", soundId }).catch(() => undefined);
       throw error;
     } finally {
       set({ uploading: false });
     }
   },
 
+  rename: async (soundId, requestedName) => {
+    const name = requestedName.trim().slice(0, 32);
+    if (!name) throw new Error("Give the sound a name.");
+    const { data, error } = await supabase.rpc("rename_soundboard_sound", { p_sound_id: soundId, p_name: name });
+    if (error) throw new Error(error.message);
+    set((state) => ({
+      sounds: state.sounds.map((sound) => sound.id === soundId ? data.sound : sound),
+      availableSounds: state.availableSounds.map((sound) => sound.id === soundId ? data.sound : sound),
+    }));
+    toast.success("Sound renamed.");
+  },
+
   remove: async (soundId) => {
     await invoke({ mode: "delete", soundId });
-    set((state) => ({
-      sounds: state.sounds.filter((sound) => sound.id !== soundId),
-      availableSounds: state.availableSounds.filter((sound) => sound.id !== soundId),
-    }));
+    set((state) => ({ sounds: state.sounds.filter((sound) => sound.id !== soundId), availableSounds: state.availableSounds.filter((sound) => sound.id !== soundId) }));
     toast.success("Sound removed.");
   },
 
@@ -144,49 +127,21 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
     }
     if (Date.now() < get().cooldownUntil) return;
     set({ cooldownUntil: Date.now() + 600 });
-
     try {
       let signedUrl = get().signedUrls[soundId];
       const sound = get().availableSounds.find((entry) => entry.id === soundId);
       let playAt = Date.now() + 120;
-
-      // The normal path is fully hot: the library call already supplied and
-      // downloaded this signed clip for both channel members. Only recover
-      // through the function if the short-lived URL has expired or was missed.
       if (!signedUrl || !sound) {
-        const data = await invoke<{
-          sound: { id: string; owner_id: string; name: string; duration_ms: number };
-          signedUrl: string;
-          playAt: number;
-        }>({
-          mode: "play",
-          soundId,
-          conversationId: voice.activeConversationId,
-        });
+        const data = await invoke<{ sound: { id: string; owner_id: string; name: string; duration_ms: number }; signedUrl: string; playAt: number }>({ mode: "play", soundId, conversationId: voice.activeConversationId });
         signedUrl = data.signedUrl;
         playAt = data.playAt;
         set((state) => ({ signedUrls: { ...state.signedUrls, [soundId]: signedUrl! } }));
-        const payload = {
-          version: 1 as const,
-          id: data.sound.id,
-          name: data.sound.name,
-          signedUrl,
-          playAt,
-          nonce: crypto.randomUUID(),
-        };
+        const payload = { version: 1 as const, id: data.sound.id, name: data.sound.name, signedUrl, playAt, nonce: crypto.randomUUID() };
         broadcastVoiceSoundboard(payload);
         await playSoundboardUrl(payload.id, payload.signedUrl, payload.playAt, usePreferences.getState().soundboardVolume, usePreferences.getState().outputDeviceId);
         return;
       }
-
-      const payload = {
-        version: 1 as const,
-        id: sound.id,
-        name: sound.name,
-        signedUrl,
-        playAt,
-        nonce: crypto.randomUUID(),
-      };
+      const payload = { version: 1 as const, id: sound.id, name: sound.name, signedUrl, playAt, nonce: crypto.randomUUID() };
       broadcastVoiceSoundboard(payload);
       await playSoundboardUrl(payload.id, payload.signedUrl, payload.playAt, usePreferences.getState().soundboardVolume, usePreferences.getState().outputDeviceId);
     } catch (error) {

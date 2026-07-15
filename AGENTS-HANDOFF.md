@@ -383,3 +383,11 @@ npx tsc --noEmit      # typecheck
 - [x] Added a browser-only installable PWA manifest, icon metadata, and a conservative service worker for app-shell resilience
 - [x] Added safe-area-aware responsive layout rules for phones, touch-friendly composer controls, responsive media, and compact floating navigation
 - [x] Kept the desktop shell and desktop release version unchanged; this is a web-only Vercel update
+
+
+### Phase 37 - Soundboard storage-first management (July 15)
+- [x] Repaired mojibake in the Soundboard settings copy and sound metadata rows
+- [x] Removed the 24-clip quota from the live reservation function; 16 MiB per user and 96 MiB shared storage limits remain enforced
+- [x] Added a sound-storage progress bar, per-sound prepared size, and inline rename controls
+- [x] Added authenticated owner-only sound rename RPC; live verification confirms the count cap is removed and anonymous callers have no execute permission
+- [ ] Supabase Edge Function deployment for the matching storage-only quota error copy returned a platform internal 500; local function source is ready for a later retry

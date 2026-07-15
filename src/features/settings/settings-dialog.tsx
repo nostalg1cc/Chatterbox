@@ -13,6 +13,9 @@ import {
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
+  PencilIcon,
+  CheckIcon,
+  XIcon,
   UserRoundIcon,
   Volume2Icon,
 } from "lucide-react";
@@ -76,8 +79,12 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   const avatarInput = useRef<HTMLInputElement>(null);
   const soundInput = useRef<HTMLInputElement>(null);
   const [soundName, setSoundName] = useState("");
+  const [renamingSoundId, setRenamingSoundId] = useState<string | null>(null);
+  const [renamingSoundName, setRenamingSoundName] = useState("");
   const sounds = useSoundboard((state) => state.sounds);
   const soundUploading = useSoundboard((state) => state.uploading);
+  const SOUND_STORAGE_LIMIT = 16 * 1024 * 1024;
+  const soundStorageBytes = sounds.reduce((total, sound) => total + sound.size_bytes, 0);
 
   const refreshCacheStats = async () => {
     if (!userId) return;
@@ -166,6 +173,14 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
     }
   };
 
+  const renameSound = async (soundId: string) => {
+    try {
+      await useSoundboard.getState().rename(soundId, renamingSoundName);
+      setRenamingSoundId(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't rename the sound.");
+    }
+  };
   const clearCache = async () => {
     if (!userId) return;
     setClearingCache(true);
@@ -616,29 +631,74 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
               <section className="mx-auto max-w-2xl space-y-5">
                 <SettingsHeading title="Soundboard" description="Clips are trimmed, normalized, and converted locally to 48 kHz mono Opus at 96 kbps." />
                 <div className="rounded-lg border border-white/[0.14] bg-card p-4">
+                  <div className="mb-4">
+                    <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                      <span className="font-medium text-foreground">Sound storage</span>
+                      <span className="tabular-nums text-muted-foreground">{formattedBytes(soundStorageBytes)} / 16 MiB</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/[0.08]">
+                      <div
+                        className={cn("h-full rounded-full transition-[width]", soundStorageBytes / SOUND_STORAGE_LIMIT > 0.9 ? "bg-amber-400" : "bg-emerald-400")}
+                        style={{ width: Math.min(100, (soundStorageBytes / SOUND_STORAGE_LIMIT) * 100) + "%" }}
+                      />
+                    </div>
+                    <p className="mt-2 text-[11px] text-muted-foreground">Storage is the limit - add as many sounds as fit within your allowance.</p>
+                  </div>
                   <div className="flex gap-2">
                     <Input value={soundName} maxLength={32} placeholder="Optional sound name" onChange={(event) => setSoundName(event.target.value)} />
                     <input ref={soundInput} className="hidden" type="file" accept="audio/*" onChange={(event) => void uploadSound(event.target.files?.[0])} />
-                    <Button variant="secondary" disabled={soundUploading || sounds.length >= 24} onClick={() => soundInput.current?.click()}>
+                    <Button variant="secondary" disabled={soundUploading || soundStorageBytes >= SOUND_STORAGE_LIMIT} onClick={() => soundInput.current?.click()}>
                       {soundUploading ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
                       Add sound
                     </Button>
                   </div>
-                  <p className="mt-2 text-[11px] text-muted-foreground">15 seconds max ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 512 KiB prepared max ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 24 clips ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 16 MiB per account</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">15 seconds max / 512 KiB prepared max per sound.</p>
                 </div>
                 <div className="space-y-2">
-                  {sounds.map((sound) => (
-                    <div key={sound.id} className="flex items-center gap-3 rounded-md border border-white/[0.13] bg-card px-3 py-2.5">
-                      <Music2Icon className="size-4 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{sound.name}</p>
-                        <p className="text-[11px] text-muted-foreground">{(sound.duration_ms / 1000).toFixed(1)}s ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {formattedBytes(sound.size_bytes)}</p>
+                  {sounds.map((sound) => {
+                    const isRenaming = renamingSoundId === sound.id;
+                    return (
+                      <div key={sound.id} className="flex items-center gap-3 rounded-md border border-white/[0.13] bg-card px-3 py-2.5">
+                        <Music2Icon className="size-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          {isRenaming ? (
+                            <Input
+                              autoFocus
+                              value={renamingSoundName}
+                              maxLength={32}
+                              aria-label="Sound name"
+                              className="h-8"
+                              onChange={(event) => setRenamingSoundName(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") void renameSound(sound.id);
+                                if (event.key === "Escape") setRenamingSoundId(null);
+                              }}
+                            />
+                          ) : (
+                            <p className="truncate text-sm font-medium">{sound.name}</p>
+                          )}
+                          <p className="text-[11px] text-muted-foreground">{(sound.duration_ms / 1000).toFixed(1)}s / {formattedBytes(sound.size_bytes)}</p>
+                        </div>
+                        {isRenaming ? (
+                          <>
+                            <Button variant="ghost" size="icon-sm" aria-label="Save sound name" className="text-muted-foreground hover:text-foreground" onClick={() => void renameSound(sound.id)}>
+                              <CheckIcon />
+                            </Button>
+                            <Button variant="ghost" size="icon-sm" aria-label="Cancel rename" className="text-muted-foreground" onClick={() => setRenamingSoundId(null)}>
+                              <XIcon />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button variant="ghost" size="icon-sm" aria-label={"Rename " + sound.name} className="text-muted-foreground" onClick={() => { setRenamingSoundId(sound.id); setRenamingSoundName(sound.name); }}>
+                            <PencilIcon />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon-sm" aria-label={"Delete " + sound.name} className="text-muted-foreground hover:text-destructive" onClick={() => void useSoundboard.getState().remove(sound.id)}>
+                          <Trash2Icon />
+                        </Button>
                       </div>
-                      <Button variant="ghost" size="icon-sm" aria-label={"Delete " + sound.name} className="text-muted-foreground hover:text-destructive" onClick={() => void useSoundboard.getState().remove(sound.id)}>
-                        <Trash2Icon />
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {!sounds.length && <p className="rounded-lg border border-dashed border-white/[0.13] p-8 text-center text-xs text-muted-foreground">No sounds yet. Add a short clip, then play it from the chat header while in voice.</p>}
                 </div>
               </section>
@@ -715,7 +775,7 @@ function KeybindRow({
         className="min-w-40 font-normal"
         onClick={() => setRecording(true)}
       >
-        {recording ? "Press a combinationÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦" : value ? keybindLabel(value) : "Not set"}
+        {recording ? "Press a combinationÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦" : value ? keybindLabel(value) : "Not set"}
       </Button>
     </div>
   );
