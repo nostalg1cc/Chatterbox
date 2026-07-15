@@ -429,3 +429,7 @@ npx tsc --noEmit      # typecheck
 - [x] Clear the partner PiP from the authoritative sharing_screen room-presence update, covering WebRTC sender removal paths that leave a remote video track on its final frame.
 ### Phase 45 - Voice header hierarchy (July 15)
 - [x] Widened the fixed elapsed-call status column to avoid clipping without timer-driven layout jitter, and added labeled neutral Voicechat, green Join voice, and red Leave voice primary controls.
+### Phase 46 - v0.1.9 voice polish release (July 15)
+- [x] Built and manually signed NSIS/MSI artifacts after Tauri's build process could not read the passwordless signing key environment.
+- [x] Published GitHub release 0.1.9 with installers, signatures, and verified updater manifest.
+- [x] Deployed the matching web build to Vercel production (https://dislight.vercel.app).
