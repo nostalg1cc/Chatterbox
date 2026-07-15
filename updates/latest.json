@@ -1,11 +1,11 @@
-﻿{
-    "version":  "0.1.6",
-    "notes":  "Hotfix: floating header, composer, menus, and action trays now use an opaque dark-gray surface; the composer resets after sending multiline text; pasted http/https links are clickable and open in the default browser.",
-    "pub_date":  "2026-07-14T22:29:50.6683320Z",
-    "platforms":  {
-                      "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTW5Ya284Vk1tc3ZLSGQ5eEZHRDZFWXZEVzJ0ejZ3YVg5dGF3NVgrWmh0LzQ1Njkxc0FqKzVMMUYrMFRRZE5Eb0JYUWVjM1k5eWZzcGpNVkZMa1U2YzV1NjJjK2k0OHdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MDY4MTY3CWZpbGU6RGlzbGlnaHRfMC4xLjZfeDY0LXNldHVwLmV4ZQpPY04wR05MTzgxb1NhTjQzWVhCUmZmQUZONU9QcytGTzZnQTBDV0pjbnNraEtsNDBWeThOYndHaUhDREJGRTA5b3JacU1rK3NQbHBOUVMxSml1VDlCUT09Cg==",
-                                             "url":  "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.6/Dislight_0.1.6_x64-setup.exe"
-                                         }
-                  }
+{
+  "version": "0.1.7",
+  "notes": "Soundboard hotfix: repaired text encoding, storage-first sound limits with a 16 MiB meter, visible clip sizes, and inline rename controls.",
+  "pub_date": "2026-07-15T16:06:23.827Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTW5Ya284Vk1tc3UrVkl3c3RueGVQc0ZUMDhQRk1idnVyTzJHVmRET2s3Vnp5RzU4MFZyMXBsSWszMjZNZG43U2ZQTjJIQ2I0bmxGOXdKcXNuN1ZUY0ZMeDRxYkdtWkFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTMxNTQzCWZpbGU6RGlzbGlnaHRfMC4xLjdfeDY0LXNldHVwLmV4ZQovY2RmZmY5ODNFMFZDVithaM0NvRE9uK2lMRi9uQW5UcUxNQXJyYTR3UTg5d212dXZEZi91bWdJaDZ0WUsxbU45QzRRZW9Ic1RPcm5FSzE0WHFnMXRBUT09Cg==",
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.7/Dislight_0.1.7_x64-setup.exe"
+    }
+  }
 }
