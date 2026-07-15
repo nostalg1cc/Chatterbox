@@ -451,6 +451,19 @@ function applyParticipant(
     },
   }));
 
+  // Removing a sender track does not reliably fire `ended` on the remote
+  // WebRTC track. The room heartbeat is the authoritative share-state signal,
+  // so clear the preview as soon as the active partner reports it is off.
+  const state = useVoice.getState();
+  if (
+    participant.user_id !== currentUserId &&
+    participant.conversation_id === state.activeConversationId &&
+    !participant.sharing_screen &&
+    state.remoteScreenStream
+  ) {
+    useVoice.setState({ remoteScreenStream: null });
+  }
+
   if (
     announce &&
     !wasPresent &&

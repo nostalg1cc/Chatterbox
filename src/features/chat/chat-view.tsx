@@ -110,7 +110,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   return (
     <div className={cn("conversation-canvas relative flex h-full min-h-0 flex-col", isJoined && "voice-active")}>
       <header
-        className="surface-panel floating-surface conversation-dock absolute top-[21px] left-1/2 z-50 flex h-11 w-max max-w-[calc(100%-116px)] -translate-x-1/2 items-center gap-1 p-1 shadow-[0_12px_28px_rgb(0_0_0_/_0.28)]"
+        className="surface-panel floating-surface conversation-dock isolate absolute top-[21px] left-1/2 z-[60] flex h-11 w-max max-w-[calc(100%-116px)] -translate-x-1/2 items-center gap-1 p-1 shadow-[0_12px_28px_rgb(0_0_0_/_0.28)]"
         onMouseDown={(event) => {
           if (!isTauri || event.button !== 0) return;
           const target = event.target as HTMLElement;
@@ -120,35 +120,24 @@ export function ChatView({ conversationId }: { conversationId: string }) {
       >
         <ChatSwitcher conversationId={conversationId} />
         {(mediaOnly || isTyping || partnerInVoice || isJoined || selfInVoiceElsewhere) && (
-          <p className={cn("dock-status h-9 w-[190px] shrink-0 truncate px-2.5 text-xs leading-9 tabular-nums text-muted-foreground", (partnerInVoice || isJoined) && "text-foreground/75", voiceStatus === "failed" && isJoined && "text-destructive")}>
+          <p className={cn("dock-status h-9 w-[270px] shrink-0 truncate px-2.5 text-xs leading-9 tabular-nums text-muted-foreground", (partnerInVoice || isJoined) && "text-foreground/75", voiceStatus === "failed" && isJoined && "text-destructive")}>
             {mediaOnly ? "Media - Shared images and videos" : presenceLabel}
           </p>
         )}
 
         <div className="dock-actions flex h-9 shrink-0 items-center gap-1 border-l border-white/[0.12] pl-1">
           {!isJoined ? (
-            partnerInVoice ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                className="dock-join"
-                onClick={() => void useVoice.getState().join(conversationId)}
-              >
-                <HeadphonesIcon />
-                Join voice
-              </Button>
-            ) : (
-              <CallAction
-                label={
-                  selfInVoiceElsewhere
-                    ? "Take over voice on this device"
-                    : "Join voice channel"
-                }
-                onClick={() => void useVoice.getState().join(conversationId)}
-              >
-                <HeadphonesIcon />
-              </CallAction>
-            )
+            <VoiceButton
+              label={
+                partnerInVoice
+                  ? "Join voice"
+                  : selfInVoiceElsewhere
+                    ? "Take over voice"
+                    : "Voicechat"
+              }
+              tone={partnerInVoice ? "join" : "neutral"}
+              onClick={() => void useVoice.getState().join(conversationId)}
+            />
           ) : (
             <>
               <CallAction label={muted ? "Unmute" : "Mute"} pressed={muted} onClick={() => useVoice.getState().toggleMute()}>
@@ -180,13 +169,11 @@ export function ChatView({ conversationId }: { conversationId: string }) {
               >
                 {sharingScreen ? <MonitorXIcon /> : <MonitorUpIcon />}
               </CallAction>
-              <CallAction
+              <VoiceButton
                 label="Leave voice"
-                danger
+                tone="leave"
                 onClick={() => void useVoice.getState().leave()}
-              >
-                <PhoneOffIcon />
-              </CallAction>
+              />
             </>
           )}
         </div>
@@ -278,6 +265,33 @@ function useVoiceElapsed(startedAt: string | undefined): string {
   return formatVoiceElapsed(startedAt, now);
 }
 
+function VoiceButton({
+  label,
+  tone,
+  onClick,
+}: {
+  label: string;
+  tone: "neutral" | "join" | "leave";
+  onClick: () => void;
+}) {
+  const styles = {
+    neutral: "border-white/[0.12] bg-white/[0.08] text-foreground/82 hover:bg-white/[0.14] hover:text-foreground",
+    join: "border-emerald-400/30 bg-emerald-500/18 text-emerald-100 hover:bg-emerald-500/28 hover:text-white",
+    leave: "border-destructive/35 bg-destructive/18 text-red-100 hover:bg-destructive/28 hover:text-white",
+  }[tone];
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={cn("dock-join h-9 gap-1.5 border px-3 text-xs font-medium", styles)}
+      onClick={onClick}
+    >
+      {tone === "leave" ? <PhoneOffIcon /> : <HeadphonesIcon />}
+      {label}
+    </Button>
+  );
+}
 function CallAction({
   label,
   pressed = false,

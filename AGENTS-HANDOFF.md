@@ -420,3 +420,12 @@ npx tsc --noEmit      # typecheck
 - [x] Published GitHub release `v0.1.8` with signed NSIS/MSI artifacts and the verified `latest.json` updater manifest
 - [x] Deployed the matching web build to Vercel production (`https://dislight.vercel.app`); HTTP 200 verified
 - [x] Verified the configured GitHub latest-manifest endpoint returns version 0.1.8
+
+### Phase 43 - Header media drag ownership (July 15)
+- [x] Raised and isolated the floating chat header above all message and screen-share media layers, preserving its dedicated native drag handler while controls remain interactive.
+
+
+### Phase 44 - Remote screen-share teardown (July 15)
+- [x] Clear the partner PiP from the authoritative sharing_screen room-presence update, covering WebRTC sender removal paths that leave a remote video track on its final frame.
+### Phase 45 - Voice header hierarchy (July 15)
+- [x] Widened the fixed elapsed-call status column to avoid clipping without timer-driven layout jitter, and added labeled neutral Voicechat, green Join voice, and red Leave voice primary controls.

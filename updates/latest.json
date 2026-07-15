@@ -1,11 +1,11 @@
-{
-  "version": "0.1.7",
-  "notes": "Soundboard hotfix: repaired text encoding, storage-first sound limits with a 16 MiB meter, visible clip sizes, and inline rename controls.",
-  "pub_date": "2026-07-15T16:06:23.827Z",
-  "platforms": {
-    "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTTW5Ya284Vk1tc3UrVkl3c3RueGVQc0ZUMDhQRk1idnVyTzJHVmRET2s3Vnp5RzU4MFZyMXBsSWszMjZNZG43U2ZQTjJIQ2I0bmxGOXdKcXNuN1ZUY0ZMeDRxYkdtWkFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTMxNTQzCWZpbGU6RGlzbGlnaHRfMC4xLjdfeDY0LXNldHVwLmV4ZQovY2RmZmY5ODNFMFZDVithaM0NvRE9uK2lMRi9uQW5UcUxNQXJyYTR3UTg5d212dXZEZi91bWdJaDZ0WUsxbU45QzRRZW9Ic1RPcm5FSzE0WHFnMXRBUT09Cg==",
-      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.7/Dislight_0.1.7_x64-setup.exe"
-    }
-  }
+﻿{
+    "version":  "0.1.9",
+    "notes":  "Voice header polish: stable elapsed call status, labeled Voicechat / Join voice / Leave voice controls, reliable header dragging over media, and immediate screen-share PiP cleanup when sharing stops.",
+    "pub_date":  "2026-07-15T21:43:06.3598224Z",
+    "platforms":  {
+                      "windows-x86_64":  {
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRa0RLazZwdmlJd3BMVDJ6QlBQSXVKQnc1a1kwVzFVcC83L0sxay9kWXNIU3E2eGFlbzF6L3FlRW5lSVJldHdjOW0vSDZ5YldVSml6SDg4MDc0N0FPYW96K2V5cjI3TncwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTUxNzQyCWZpbGU6RGlzbGlnaHRfMC4xLjlfeDY0LXNldHVwLmV4ZQphN0s0VmQ0dm5Ibi9EbXU5d3lTaG1SM1V0Smd4MEcvTitaK3pVemxtRThtMVBGR1dLQ1BxaGw0TEcvVUhsYk5zUU1IVlZaODNUYkd3SjlJcWtrTUJCQT09Cg==",
+                                             "url":  "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.9/Dislight_0.1.9_x64-setup.exe"
+                                         }
+                  }
 }
