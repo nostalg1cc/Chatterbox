@@ -22,6 +22,7 @@ interface PreferencesState {
   interfaceSounds: boolean;
   interfaceSoundVolume: number;
   soundboardVolume: number;
+  pinnedSoundIds: string[];
   windowMaterial: WindowMaterial;
 acrylicDim: number;
   globalVoiceShortcuts: boolean;
@@ -45,6 +46,7 @@ const defaults: PreferencesData = {
   interfaceSounds: true,
   interfaceSoundVolume: 65,
   soundboardVolume: 80,
+  pinnedSoundIds: [],
   windowMaterial: "mica",
 acrylicDim: 55,
   globalVoiceShortcuts: false,

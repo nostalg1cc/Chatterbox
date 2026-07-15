@@ -398,3 +398,20 @@ npx tsc --noEmit      # typecheck
 - [x] Built signed NSIS/MSI + updater manifest for v0.1.7
 - [x] Published GitHub v0.1.7 with signed NSIS/MSI artifacts, updater manifest, and signature files
 - [x] Deployed v0.1.7 to Vercel production and verified the updater manifest returns version 0.1.7
+
+### Phase 39 - Soundboard controls and Settings resilience (July 15)
+- [x] Fixed sound rename state handling so a successful RPC response no longer inserts an undefined sound entry or temporarily whitescreens the app
+- [x] Added local persisted star pins for own and partner sounds; pins sort first in the shared in-call soundboard and can be toggled off directly there
+- [x] Added a Settings sound preview control plus an authenticated owner-only preview path in the Edge Function source
+- [x] Fixed the voice elapsed-status column to a stable fixed width and elevated the floating header above chat media for reliable dragging
+- [x] Updated Settings framing to use the shared panel treatment and added an About tab with version and update checks
+- [ ] Edge Function preview deployment remains blocked by the Supabase platform returning an internal 500; retry later from CLI or dashboard once the service recovers
+
+### Phase 40 - Expandable live screen share (July 15)
+- [x] Screen-share PiP now toggles between a compact top-right preview and a canvas view bounded by the floating header and composer
+- [x] Kept a visible fullscreen action in canvas view and prevented stream clicks from pausing the live video
+
+### Phase 41 - v0.1.8 updater identity recovery (July 15)
+- [x] Restored passwordless local signing key storage at `C:\Users\nrohd\.tauri\dislight-updater.key` and the user-scoped signing environment
+- [x] Rotated the embedded updater public key to match that recovered key; 0.1.8 requires a one-time manual install from 0.1.7
+- [x] Built and signed the 0.1.8 NSIS/MSI artifacts; future releases can use the restored key without another recovery step

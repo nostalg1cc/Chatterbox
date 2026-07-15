@@ -12,7 +12,7 @@ const corsHeaders = {
 };
 
 type RequestBody = {
-  mode?: "list" | "reserve" | "finalize" | "discard" | "rename" | "delete" | "play";
+  mode?: "list" | "reserve" | "finalize" | "discard" | "rename" | "delete" | "play" | "preview";
   soundId?: string;
   name?: string;
   sizeBytes?: number;
@@ -106,6 +106,12 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
   }
 
   const { data: sound, error: soundError } = await admin.from("soundboard_sounds").select("*").eq("id", body.soundId).eq("owner_id", userId).maybeSingle();
+
+  if (body.mode === "preview") {
+    if (!sound || soundError) return json({ error: "Sound not found" }, 404);
+    const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(sound.storage_path, 60);
+    return error || !data?.signedUrl ? json({ error: error?.message ?? "Sound could not be opened" }, 500) : json({ signedUrl: data.signedUrl });
+  }
 
   if (body.mode === "finalize") {
     const name = body.name?.trim().slice(0, 32);

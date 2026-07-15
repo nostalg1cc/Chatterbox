@@ -110,7 +110,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   return (
     <div className={cn("conversation-canvas relative flex h-full min-h-0 flex-col", isJoined && "voice-active")}>
       <header
-        className="surface-panel floating-surface conversation-dock absolute top-[21px] left-1/2 z-30 flex h-11 w-max max-w-[calc(100%-116px)] -translate-x-1/2 items-center gap-1 p-1 shadow-[0_12px_28px_rgb(0_0_0_/_0.28)]"
+        className="surface-panel floating-surface conversation-dock absolute top-[21px] left-1/2 z-50 flex h-11 w-max max-w-[calc(100%-116px)] -translate-x-1/2 items-center gap-1 p-1 shadow-[0_12px_28px_rgb(0_0_0_/_0.28)]"
         onMouseDown={(event) => {
           if (!isTauri || event.button !== 0) return;
           const target = event.target as HTMLElement;
@@ -120,7 +120,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
       >
         <ChatSwitcher conversationId={conversationId} />
         {(mediaOnly || isTyping || partnerInVoice || isJoined || selfInVoiceElsewhere) && (
-          <p className={cn("dock-status h-9 min-w-0 max-w-52 truncate px-2.5 text-xs leading-9 text-muted-foreground", (partnerInVoice || isJoined) && "text-foreground/75", voiceStatus === "failed" && isJoined && "text-destructive")}>
+          <p className={cn("dock-status h-9 w-[190px] shrink-0 truncate px-2.5 text-xs leading-9 tabular-nums text-muted-foreground", (partnerInVoice || isJoined) && "text-foreground/75", voiceStatus === "failed" && isJoined && "text-destructive")}>
             {mediaOnly ? "Media - Shared images and videos" : presenceLabel}
           </p>
         )}

@@ -28,6 +28,7 @@ interface SoundboardState {
   rename: (soundId: string, name: string) => Promise<void>;
   remove: (soundId: string) => Promise<void>;
   play: (soundId: string) => Promise<void>;
+  preview: (soundId: string) => Promise<void>;
 }
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
@@ -109,9 +110,11 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
     if (!name) throw new Error("Give the sound a name.");
     const { data, error } = await supabase.rpc("rename_soundboard_sound", { p_sound_id: soundId, p_name: name });
     if (error) throw new Error(error.message);
+    const renamed = data as SoundboardSound | null;
+    if (!renamed) throw new Error("Sound rename returned no data.");
     set((state) => ({
-      sounds: state.sounds.map((sound) => sound.id === soundId ? data.sound : sound),
-      availableSounds: state.availableSounds.map((sound) => sound.id === soundId ? data.sound : sound),
+      sounds: state.sounds.map((sound) => sound.id === soundId ? renamed : sound),
+      availableSounds: state.availableSounds.map((sound) => sound.id === soundId ? renamed : sound),
     }));
     toast.success("Sound renamed.");
   },
@@ -120,6 +123,15 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
     await invoke({ mode: "delete", soundId });
     set((state) => ({ sounds: state.sounds.filter((sound) => sound.id !== soundId), availableSounds: state.availableSounds.filter((sound) => sound.id !== soundId) }));
     toast.success("Sound removed.");
+  },
+
+  preview: async (soundId) => {
+    try {
+      const data = await invoke<{ signedUrl: string }>({ mode: "preview", soundId });
+      await playSoundboardUrl(soundId, data.signedUrl, Date.now() + 20, usePreferences.getState().soundboardVolume, usePreferences.getState().outputDeviceId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Sound preview could not play.");
+    }
   },
 
   play: async (soundId) => {

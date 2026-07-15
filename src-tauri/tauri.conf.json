@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Dislight",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "identifier": "io.github.nostalg1cc.dislight",
   "build": {
     "frontendDist": "../dist",
@@ -42,7 +42,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIyMjY1M0YxMjg3OTlEOEMKUldTTW5Ya284Vk1tc3M1a0d6L3NHbXRSTWxhR1ZIMURvMHRPSlJiVmRTaVBWeGdmUmxlQWlkdGQK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMyODhGOEE2M0FBOTBDMjQKUldRa0RLazZwdmlJd29PTWJiV3lHN0J3dDNHNGZ1M2dQR2xCSk91VUlvYzRxWFlZa3F2dXJneHcK",
       "endpoints": [
         "https://github.com/nostalg1cc/Chatterbox/releases/latest/download/latest.json"
       ],

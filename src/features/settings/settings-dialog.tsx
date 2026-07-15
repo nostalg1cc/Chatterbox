@@ -15,6 +15,9 @@ import {
   Trash2Icon,
   PencilIcon,
   CheckIcon,
+  PlayIcon,
+  InfoIcon,
+  RefreshCwIcon,
   XIcon,
   UserRoundIcon,
   Volume2Icon,
@@ -50,6 +53,9 @@ import { formattedBytes, prepareAnimatedAvatar, prepareAvatar } from "@/lib/medi
 import { NAME_COLOR_OPTIONS, nameColorClass } from "@/lib/name-colors";
 import { AVATAR_DECORATIONS } from "@/lib/avatar-decorations";
 import { supabase } from "@/lib/supabase";
+import { isTauri } from "@/lib/tauri";
+import { getVersion } from "@tauri-apps/api/app";
+import { check } from "@tauri-apps/plugin-updater";
 import type { NameColor, NameFont, NameWeight } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/stores/auth";
@@ -81,6 +87,9 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   const [soundName, setSoundName] = useState("");
   const [renamingSoundId, setRenamingSoundId] = useState<string | null>(null);
   const [renamingSoundName, setRenamingSoundName] = useState("");
+  const [appVersion, setAppVersion] = useState("0.1.7");
+  const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "current" | "available" | "error">("idle");
+  const [availableVersion, setAvailableVersion] = useState<string | null>(null);
   const sounds = useSoundboard((state) => state.sounds);
   const soundUploading = useSoundboard((state) => state.uploading);
   const SOUND_STORAGE_LIMIT = 16 * 1024 * 1024;
@@ -98,6 +107,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   useEffect(() => {
     if (!open) return;
     void refreshCacheStats();
+    if (isTauri) void getVersion().then(setAppVersion).catch(() => undefined);
     if (navigator.mediaDevices?.enumerateDevices) {
       void navigator.mediaDevices
         .enumerateDevices()
@@ -181,6 +191,18 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
       toast.error(error instanceof Error ? error.message : "Couldn't rename the sound.");
     }
   };
+  const checkForUpdates = async () => {
+    if (!isTauri) { setUpdateStatus("current"); return; }
+    setUpdateStatus("checking");
+    try {
+      const update = await check();
+      setAvailableVersion(update?.version ?? null);
+      setUpdateStatus(update ? "available" : "current");
+    } catch {
+      setUpdateStatus("error");
+    }
+  };
+
   const clearCache = async () => {
     if (!userId) return;
     setClearingCache(true);
@@ -235,7 +257,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
         <TooltipContent>Settings</TooltipContent>
       </Tooltip>
 
-      <DialogContent overlayClassName="bg-black/70 supports-backdrop-filter:backdrop-blur-none" className="flex h-[calc(100vh-48px)] max-h-[760px] min-h-0 flex-col overflow-hidden rounded-lg border-white/[0.18] p-0 sm:max-w-[940px]">
+      <DialogContent overlayClassName="bg-black/70 supports-backdrop-filter:backdrop-blur-none" className="surface-panel flex h-[calc(100vh-48px)] max-h-[760px] min-h-0 flex-col overflow-hidden rounded-[14px] border-white/[0.18] bg-[#202020] p-0 shadow-2xl sm:max-w-[940px]">
         <DialogHeader className="sr-only">
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>Profile, chat, and voice preferences.</DialogDescription>
@@ -247,7 +269,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
           orientation="vertical"
           className="flex h-full min-h-0 flex-1 flex-row gap-0"
         >
-          <aside className="flex w-56 shrink-0 flex-col border-r border-white/[0.13] bg-[#151515] p-4">
+          <aside className="flex w-56 shrink-0 flex-col border-r border-white/[0.13] bg-white/[0.025] p-4">
             <p className="px-2 pb-2 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
               User settings
             </p>
@@ -269,6 +291,9 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
               </SettingsTab>
               <SettingsTab value="soundboard" icon={<Music2Icon />}>
                 Soundboard
+              </SettingsTab>
+              <SettingsTab value="about" icon={<InfoIcon />}>
+                About
               </SettingsTab>
             </TabsList>
 
@@ -689,9 +714,14 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                             </Button>
                           </>
                         ) : (
-                          <Button variant="ghost" size="icon-sm" aria-label={"Rename " + sound.name} className="text-muted-foreground" onClick={() => { setRenamingSoundId(sound.id); setRenamingSoundName(sound.name); }}>
-                            <PencilIcon />
-                          </Button>
+                          <>
+                            <Button variant="ghost" size="icon-sm" aria-label={"Preview " + sound.name} className="text-muted-foreground hover:text-foreground" onClick={() => void useSoundboard.getState().preview(sound.id)}>
+                              <PlayIcon />
+                            </Button>
+                            <Button variant="ghost" size="icon-sm" aria-label={"Rename " + sound.name} className="text-muted-foreground" onClick={() => { setRenamingSoundId(sound.id); setRenamingSoundName(sound.name); }}>
+                              <PencilIcon />
+                            </Button>
+                          </>
                         )}
                         <Button variant="ghost" size="icon-sm" aria-label={"Delete " + sound.name} className="text-muted-foreground hover:text-destructive" onClick={() => void useSoundboard.getState().remove(sound.id)}>
                           <Trash2Icon />
@@ -700,6 +730,19 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                     );
                   })}
                   {!sounds.length && <p className="rounded-lg border border-dashed border-white/[0.13] p-8 text-center text-xs text-muted-foreground">No sounds yet. Add a short clip, then play it from the chat header while in voice.</p>}
+                </div>
+              </section>
+            </TabsContent>
+
+            <TabsContent value="about" className="mt-0 hidden min-h-0 flex-1 overflow-y-auto p-8 data-[state=active]:block">
+              <section className="mx-auto max-w-2xl space-y-5">
+                <SettingsHeading title="About Dislight" description="A focused space for one-to-one chat, voice, and shared moments." />
+                <div className="surface-panel rounded-[14px] border-white/[0.14] bg-white/[0.025] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div><p className="text-sm font-medium">Dislight {appVersion}</p><p className="mt-1 text-xs text-muted-foreground">{isTauri ? "Desktop release channel" : "Web app"}</p></div>
+                    <Button variant="secondary" size="sm" disabled={updateStatus === "checking"} onClick={() => void checkForUpdates()}><RefreshCwIcon className={cn(updateStatus === "checking" && "animate-spin")} />Check for updates</Button>
+                  </div>
+                  <p className="mt-4 text-xs text-muted-foreground">{updateStatus === "available" ? "Update " + availableVersion + " is available. Restart after installing it from the release page." : updateStatus === "current" ? "You are up to date." : updateStatus === "error" ? "Could not check for updates right now." : "Check for the latest desktop release whenever you like."}</p>
                 </div>
               </section>
             </TabsContent>
