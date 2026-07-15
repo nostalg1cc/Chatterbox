@@ -415,3 +415,8 @@ npx tsc --noEmit      # typecheck
 - [x] Restored passwordless local signing key storage at `C:\Users\nrohd\.tauri\dislight-updater.key` and the user-scoped signing environment
 - [x] Rotated the embedded updater public key to match that recovered key; 0.1.8 requires a one-time manual install from 0.1.7
 - [x] Built and signed the 0.1.8 NSIS/MSI artifacts; future releases can use the restored key without another recovery step
+
+### Phase 42 - v0.1.8 published release (July 15)
+- [x] Published GitHub release `v0.1.8` with signed NSIS/MSI artifacts and the verified `latest.json` updater manifest
+- [x] Deployed the matching web build to Vercel production (`https://dislight.vercel.app`); HTTP 200 verified
+- [x] Verified the configured GitHub latest-manifest endpoint returns version 0.1.8
