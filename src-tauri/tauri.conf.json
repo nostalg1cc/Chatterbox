@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Dislight",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "identifier": "io.github.nostalg1cc.dislight",
   "build": {
     "frontendDist": "../dist",
@@ -32,10 +32,10 @@
         "default-src": "'self'",
         "script-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' data: blob: https://lapjrxdgcbdseskmyfru.supabase.co",
+        "img-src": "'self' data: blob: https://lapjrxdgcbdseskmyfru.supabase.co https://res.cloudinary.com",
         "media-src": "'self' blob: https://lapjrxdgcbdseskmyfru.supabase.co",
         "font-src": "'self' data:",
-        "connect-src": "'self' ipc: http://ipc.localhost https://lapjrxdgcbdseskmyfru.supabase.co wss://lapjrxdgcbdseskmyfru.supabase.co"
+        "connect-src": "'self' ipc: http://ipc.localhost https://lapjrxdgcbdseskmyfru.supabase.co wss://lapjrxdgcbdseskmyfru.supabase.co https://res.cloudinary.com"
       },
       "devCsp": null
     }

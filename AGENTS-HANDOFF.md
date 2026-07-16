@@ -480,3 +480,5 @@ npx tsc --noEmit      # typecheck
 - [x] Global voice keybinds: replaced cleanup-race registration with generation-safe native shortcut reconciliation; mute/deafen each use a dedicated native handler.
 
 - [!] 0.1.10 release: installer/MSI built. GitHub updater signing is pending the password for the configured C288F8A63AA90C24 key; do not rotate the updater pubkey to an older signing key.
+
+- [x] 0.1.11 hotfix: Tauri CSP now permits Cloudinary image delivery and live catalogue fetches; packaged decoration picker loads all live entries instead of ten blocked fallback previews.
