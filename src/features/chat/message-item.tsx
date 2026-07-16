@@ -127,13 +127,14 @@ export function MessageItem({
 
       <div className={cn("min-w-0 max-w-full flex-1 overflow-hidden", isOwn && "text-right")}>
         {showHeader && (
-          <p className={cn("flex min-w-0 items-baseline gap-2 leading-tight", isOwn && "justify-end")}>
-            <span className={cn("truncate text-sm font-medium", nameColorClass(sender?.name_color))}>
+          <p className={cn("flex min-w-0 items-center gap-1.5 leading-tight", isOwn && "justify-end")}>
+            <span className={cn("inline-flex h-4 items-center relative -top-px truncate text-sm font-medium", isOwn && "order-3", nameColorClass(sender?.name_color))}>
               <DecoratedText effect={sender?.name_decoration as never} font={sender?.name_font} weight={sender?.name_weight} active>{sender?.display_name ?? "..."}</DecoratedText>
             </span>
+            <span aria-hidden="true" className={cn("shrink-0 text-[10px] leading-none text-muted-foreground/55", isOwn && "order-2")}>&middot;</span>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground/75">
+                <span className={cn("shrink-0 whitespace-nowrap text-[11px] leading-none text-muted-foreground/70", isOwn && "order-1")}>
                   {timeOfDay(message.created_at)}
                 </span>
               </TooltipTrigger>

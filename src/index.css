@@ -159,7 +159,7 @@
 .conversation-dock::before {
   content: "";
   position: absolute;
-  inset: 1px;
+  inset: 1.25px;
   z-index: -1;
   border-radius: inherit;
   background: linear-gradient(180deg, rgb(255 255 255 / 0.045), transparent 62%);
@@ -175,7 +175,7 @@
   backdrop-filter: blur(16px);
 }
 .window-controls [data-slot="button"] {
-  width: 32px;
+  width: 36px;
 }
 .window-controls [data-slot="button"]:first-child { border-radius: 9px 0 0 9px; }
 .window-controls [data-slot="button"]:last-child { border-radius: 0 9px 9px 0; }
@@ -247,7 +247,6 @@
 /* Compact control hierarchy: profile, status, then icon actions. */
 .dock-profile { border-radius: 11px; }
 .dock-status {
-  border-left: 1px solid rgb(255 255 255 / 0.10);
   letter-spacing: -0.01em;
 }
 .dock-actions [data-slot="button"],
@@ -275,7 +274,7 @@
   box-shadow:
     inset 0 0 0 1px #000,
     inset 0 0 0 3px rgb(255 255 255 / 0.24);
-}.dock-actions [data-slot="button"].dock-join { width: auto; min-width: auto; padding-inline: 10px; }
+}.dock-actions [data-slot="button"].dock-join { width: auto; min-width: auto; height: 36px; padding-inline: 10px; }
 /* One shared floating-panel recipe, scaled only by its content. */
 .surface-panel {
   border: 1.25px solid rgb(255 255 255 / 0.16);
@@ -333,8 +332,8 @@
 [data-slot="context-menu-item"],
 [data-slot="dropdown-menu-sub-trigger"],
 [data-slot="context-menu-sub-trigger"] {
-  min-height: 32px;
-  border-radius: 9px;
+  min-height: 36px;
+  border-radius: 8.75px;
 }
 .app-frame {
   box-shadow: none;
@@ -420,7 +419,7 @@
 }
 .window-controls {
   display: flex;
-  height: 32px;
+  height: 36px;
   overflow: hidden;
   border: 1px solid rgb(0 0 0 / 0.92);
   border-radius: 10px;
@@ -439,10 +438,10 @@
 }
 .window-controls .window-control {
   display: grid;
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
-  min-height: 32px;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
   padding: 0;
   border-radius: 0;
   color: rgb(235 235 235 / 0.72);
@@ -472,8 +471,14 @@
 /* Fade the actual message viewport at each floating surface; there is no overlay, blur slab, or raised decoration layer. */
 .chat-edge-blur { display: none !important; }
 .message-fade-mask {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgb(0 0 0 / 0.18) 18px, #000 84px, #000 calc(100% - 132px), rgb(0 0 0 / 0.18) calc(100% - 36px), transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, rgb(0 0 0 / 0.18) 18px, #000 84px, #000 calc(100% - 132px), rgb(0 0 0 / 0.18) calc(100% - 36px), transparent 100%);
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.message-fade-mask [data-slot="scroll-area-viewport"] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgb(0 0 0 / 0.10) 36px, rgb(0 0 0 / 0.42) 108px, rgb(0 0 0 / 0.78) 172px, #000 224px, #000 calc(100% - 132px), rgb(0 0 0 / 0.18) calc(100% - 36px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, rgb(0 0 0 / 0.10) 36px, rgb(0 0 0 / 0.42) 108px, rgb(0 0 0 / 0.78) 172px, #000 224px, #000 calc(100% - 132px), rgb(0 0 0 / 0.18) calc(100% - 36px), transparent 100%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 /* The custom app edge remains compact and independent from native window chrome. */
@@ -494,7 +499,7 @@
   inset: 0;
   border: 0;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.96), inset 0 0 0 2px rgb(255 255 255 / 0.18);
+  box-shadow: inset 0 0 0 1.25px rgb(0 0 0 / 0.96), inset 0 0 0 2.5px rgb(255 255 255 / 0.18);
   transform: translateZ(0);
 }
 /* Message actions are deliberately hover-only; an open reaction picker keeps its own tray present. */
@@ -513,8 +518,8 @@ body,
   background: transparent;
 }
 .app-frame::after {
-  inset: 1px;
-  border-radius: 9px;
+  inset: 1.25px;
+  border-radius: 8.75px;
 }
 /* Final material pass: a shared translucent layer so header, composer, reactions, and menus visibly refract what sits behind them. */
 :root {
@@ -593,7 +598,7 @@ body,
 .composer-surface {
   background: rgb(14 14 14 / 0.42) !important;
 }
-/* Surface edge construction: black outer edge, then a uniform white inset ring — no gradient. */
+/* Surface edge construction: black outer edge, then a uniform white inset ring â€” no gradient. */
 .surface-panel,
 .composer-action-tray,
 [data-slot="popover-content"],
@@ -713,7 +718,7 @@ body,
   .conversation-dock .dock-actions { margin-left: auto; }
   .conversation-dock .dock-actions .dock-join { max-width: 108px; padding-inline: 8px; }
   .window-controls-reveal { display: none; }
-  .message-fade-mask { -webkit-mask-image: none; mask-image: none; }
+  .message-fade-mask, .message-fade-mask [data-slot="scroll-area-viewport"] { -webkit-mask-image: none; mask-image: none; }
   .message-fade-mask [data-slot="scroll-area-viewport"] {
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
@@ -740,4 +745,28 @@ body,
   .conversation-dock .dock-profile { width: min(50vw, 172px); }
   .conversation-dock .dock-actions { gap: 0; }
   .conversation-dock .dock-actions [data-slot="button"] { padding-inline: 6px; }
+}
+.dock-actions [data-slot="button"] > svg { width: 16px !important; height: 16px !important; }
+
+/* The native window uses its own clean frame; only floating UI surfaces carry the two-tone edge. */
+.app-frame,
+.app-frame::after {
+  box-shadow: none !important;
+}
+.app-frame::after {
+  display: none !important;
+}
+
+/* One exact geometry for every clickable header icon action. */
+.header-action {
+  width: 36px !important;
+  min-width: 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 !important;
+  border-radius: 10px !important;
+}
+.header-action > svg {
+  width: 16px !important;
+  height: 16px !important;
 }

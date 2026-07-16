@@ -24,6 +24,8 @@ interface PreferencesState {
   soundboardVolume: number;
   pinnedSoundIds: string[];
   windowMaterial: WindowMaterial;
+  noiseSuppression: boolean;
+  noiseSuppressionEngine: "native" | "rnnoise";
 acrylicDim: number;
   globalVoiceShortcuts: boolean;
   keybinds: KeybindPreferences;
@@ -48,6 +50,8 @@ const defaults: PreferencesData = {
   soundboardVolume: 80,
   pinnedSoundIds: [],
   windowMaterial: "mica",
+  noiseSuppression: false,
+  noiseSuppressionEngine: "native",
 acrylicDim: 55,
   globalVoiceShortcuts: false,
   keybinds: {

@@ -4,6 +4,8 @@ import { isTauri } from "@/lib/tauri";
 import { usePreferences } from "@/stores/preferences";
 import { useVoice } from "@/stores/voice";
 
+let globalShortcutGeneration = 0;
+
 export function KeybindManager() {
   const globalVoiceShortcuts = usePreferences((state) => state.globalVoiceShortcuts);
   const keybinds = usePreferences((state) => state.keybinds);
@@ -15,14 +17,11 @@ export function KeybindManager() {
       if (!binding) return;
       const preferences = usePreferences.getState();
       const voice = useVoice.getState();
-      const nativeGlobal = isTauri && preferences.globalVoiceShortcuts;
 
       if (binding === preferences.keybinds.toggleMute) {
-        if (nativeGlobal) return;
         event.preventDefault();
         voice.toggleMute();
       } else if (binding === preferences.keybinds.toggleDeafen) {
-        if (nativeGlobal) return;
         event.preventDefault();
         voice.toggleDeafen();
       } else if (binding === preferences.keybinds.leaveVoice && voice.activeConversationId) {
@@ -41,29 +40,36 @@ export function KeybindManager() {
   }, []);
 
   useEffect(() => {
-    if (!isTauri || !globalVoiceShortcuts) return;
-    let disposed = false;
-    const bindings = [
-      { binding: globalKeybind(keybinds.toggleMute), action: "mute" },
-      { binding: globalKeybind(keybinds.toggleDeafen), action: "deafen" },
-    ].filter((entry): entry is { binding: string; action: "mute" | "deafen" } => Boolean(entry.binding));
+    if (!isTauri) return;
 
-    void import("@tauri-apps/plugin-global-shortcut").then(async ({ register, unregisterAll }) => {
-      await unregisterAll();
-      if (disposed || bindings.length === 0) return;
-      await register(bindings.map((entry) => entry.binding), (event) => {
-        if (event.state !== "Pressed") return;
-        const action = bindings.find((entry) => entry.binding.toLowerCase() === event.shortcut.toLowerCase())?.action;
-        if (action === "mute") useVoice.getState().toggleMute();
-        if (action === "deafen") useVoice.getState().toggleDeafen();
-      });
-    }).catch((error) => console.warn("Global shortcuts unavailable", error));
+    const generation = ++globalShortcutGeneration;
+    const bindings = globalVoiceShortcuts
+      ? [
+          { binding: globalKeybind(keybinds.toggleMute), action: "mute" as const },
+          { binding: globalKeybind(keybinds.toggleDeafen), action: "deafen" as const },
+        ].filter((entry): entry is { binding: string; action: "mute" | "deafen" } => Boolean(entry.binding))
+      : [];
+
+    void import("@tauri-apps/plugin-global-shortcut")
+      .then(async ({ register, unregisterAll }) => {
+        // Reconcile from one current generation. Do not unregister in effect cleanup:
+        // React Strict Mode can otherwise remove a freshly registered native shortcut.
+        await unregisterAll();
+        if (generation !== globalShortcutGeneration) return;
+
+        for (const entry of bindings) {
+          await register(entry.binding, (event) => {
+            if (event.state !== "Pressed") return;
+            if (entry.action === "mute") useVoice.getState().toggleMute();
+            if (entry.action === "deafen") useVoice.getState().toggleDeafen();
+          });
+        }
+      })
+      .catch((error) => console.warn("Global shortcuts unavailable", error));
 
     return () => {
-      disposed = true;
-      void import("@tauri-apps/plugin-global-shortcut")
-        .then(({ unregisterAll }) => unregisterAll())
-        .catch(() => undefined);
+      // The following effect invocation performs the reconciliation. Keeping this
+      // cleanup inert prevents an asynchronous stale unregister from winning.
     };
   }, [globalVoiceShortcuts, keybinds]);
 

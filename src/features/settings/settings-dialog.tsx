@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   CameraIcon,
@@ -18,6 +18,7 @@ import {
   PlayIcon,
   InfoIcon,
   RefreshCwIcon,
+  SearchIcon,
   XIcon,
   UserRoundIcon,
   Volume2Icon,
@@ -42,21 +43,29 @@ import {
 } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UserAvatar } from "@/components/user-avatar";
+import { DecoratedText, type TextDecoration } from "@/components/decorated-text";
 import {
   clearLocalMediaCache,
   mediaCacheStats,
   type MediaCacheStats,
 } from "@/lib/media-cache";
 import { playAppSound } from "@/lib/app-sounds";
+import {
+  configureRemoteAudio,
+  createMicrophonePipeline,
+  createRemoteAudioElement,
+  stopMicrophonePipeline,
+  type MicrophonePipeline,
+} from "@/lib/voice-media";
 import { eventKeybind, keybindLabel } from "@/lib/keybinds";
 import { formattedBytes, prepareAnimatedAvatar, prepareAvatar } from "@/lib/media";
 import { NAME_COLOR_OPTIONS, nameColorClass } from "@/lib/name-colors";
-import { AVATAR_DECORATIONS } from "@/lib/avatar-decorations";
+import { AVATAR_DECORATIONS, decorationUrl, fetchLiveAvatarDecorations } from "@/lib/avatar-decorations";
 import { supabase } from "@/lib/supabase";
 import { isTauri } from "@/lib/tauri";
 import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
-import type { NameColor, NameFont, NameWeight } from "@/lib/types";
+import type { NameColor, NameFont, NameWeight, Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/stores/auth";
 import { usePreferences, type KeybindPreferences } from "@/stores/preferences";
@@ -74,6 +83,9 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   const [displayName, setDisplayName] = useState("");
   const [nameColor, setNameColor] = useState<NameColor>("default");
   const [decoration, setDecoration] = useState<string | null>(null);
+  const [decorationPickerOpen, setDecorationPickerOpen] = useState(false);
+  const [decorationSearch, setDecorationSearch] = useState("");
+  const [availableDecorations, setAvailableDecorations] = useState(AVATAR_DECORATIONS);
   const [nameDecoration, setNameDecoration] = useState<string | null>(null);
   const [nameFont, setNameFont] = useState<NameFont>("sans");
   const [nameWeight, setNameWeight] = useState<NameWeight>("medium");
@@ -116,6 +128,21 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
     }
   }, [open, userId]);
 
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const live = await fetchLiveAvatarDecorations();
+        if (!cancelled && live.length) setAvailableDecorations(live);
+      } catch {
+        // Cloudinary list delivery can be intentionally restricted; retain the shipped live fallback.
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 65_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [open]);
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     const name = displayName.trim();
@@ -222,6 +249,15 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   const profileChanged =
     displayName.trim() !== (profile?.display_name ?? "") ||
     nameColor !== (profile?.name_color ?? "default") || decoration !== (profile?.avatar_decoration ?? null) || nameDecoration !== (profile?.name_decoration ?? null) || nameFont !== (profile?.name_font ?? "sans") || nameWeight !== (profile?.name_weight ?? "medium");
+  const previewProfile = useMemo<Profile | null>(() => {
+    if (!profile) return null;
+    return { ...profile, display_name: displayName.trim() || profile.display_name, name_color: nameColor, avatar_decoration: decoration, name_decoration: nameDecoration, name_font: nameFont, name_weight: nameWeight };
+  }, [decoration, displayName, nameColor, nameDecoration, nameFont, nameWeight, profile]);
+  const filteredDecorations = useMemo(() => {
+    const query = decorationSearch.trim().toLowerCase();
+    if (!query) return availableDecorations;
+    return availableDecorations.filter((item) => item.label.toLowerCase().includes(query) || item.id.includes(query));
+  }, [availableDecorations, decorationSearch]);
 
   return (
     <Dialog
@@ -322,18 +358,23 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                 <div>
                   <h2 className="text-lg font-semibold">My Account</h2>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Changes are pushed live to friends and active conversations.
+                    Preview changes instantly here, then save to share them with friends and active conversations.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3 rounded-xl border border-white/[0.14] bg-card p-4">
-                  <UserAvatar profile={profile} size="lg" />
+                <div className="sticky top-0 z-20 flex items-center gap-3 rounded-xl border border-white/[0.16] bg-card p-4 shadow-[0_10px_24px_rgb(0_0_0_/_0.28)]">
+                  <UserAvatar profile={previewProfile} size="lg" animated playOnHover={false} />
                   <div className="min-w-0 flex-1">
-                    <p className={cn("truncate text-sm font-medium", nameColorClass(nameColor))}>
-                      {displayName.trim() || profile?.display_name}
+                    <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
+                      Live preview
+                    </p>
+                    <p className={cn("truncate text-sm", nameColorClass(nameColor))}>
+                      <DecoratedText effect={nameDecoration as TextDecoration | null} font={nameFont} weight={nameWeight}>
+                        {displayName.trim() || profile?.display_name || "Your display name"}
+                      </DecoratedText>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      512px WebP, compressed locally
+                      @{profile?.username ?? "username"} · Updates as you edit
                     </p>
                   </div>
                   <input
@@ -392,15 +433,48 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                     </div>
                   )}
                 </div>
-                <div className="space-y-2 rounded-xl border border-white/[0.14] bg-card p-4">
-                  <Label>Avatar decoration</Label>
-                  <div className="grid grid-cols-5 gap-2">
-                    <button type="button" onClick={() => setDecoration(null)} className={cn("rounded-md border p-1 text-[10px]", !decoration && "border-white/50")}>None</button>
-                    {AVATAR_DECORATIONS.map(([id, label]) => <button key={id} type="button" title={label} onClick={() => setDecoration(id)} className={cn("relative aspect-square overflow-visible rounded-md border", decoration === id && "border-white/60 bg-white/10")}><img src={`/decorations/${id}.png`} alt={label} className="absolute -inset-2 size-[calc(100%+1rem)] max-w-none" /></button>)}
+                <div className="space-y-3 rounded-xl border border-white/[0.14] bg-card p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <Label>Avatar decoration</Label>
+                      <p className="mt-1 text-xs text-muted-foreground">Browse the collection without turning this page into an endless grid.</p>
+                    </div>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setDecorationPickerOpen(true)}>
+                      Browse {availableDecorations.length}
+                    </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">Animated in your user panel and the partner header; static elsewhere until hover.</p>
+                  <div className="flex items-center gap-3 rounded-lg border border-white/[0.10] bg-black/10 p-2.5">
+                    <div className="relative size-11 shrink-0 overflow-visible">
+                      {decoration ? <img src={decorationUrl(decoration, false) ?? undefined} alt="Selected decoration" className="absolute -inset-2 size-[calc(100%+1rem)] max-w-none object-contain" /> : <div className="grid size-full place-items-center rounded-full border border-dashed border-white/20 text-[10px] text-muted-foreground">None</div>}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{availableDecorations.find((item) => item.id === decoration)?.label ?? (decoration ? "Legacy decoration" : "No decoration")}</p>
+                      <p className="text-xs text-muted-foreground">{decoration ? "Live in the preview above" : "Select one to personalize your avatar"}</p>
+                    </div>
+                    {decoration && <Button type="button" variant="ghost" size="sm" onClick={() => setDecoration(null)}>Clear</Button>}
+                  </div>
                 </div>
-<div className="space-y-3 rounded-xl border border-white/[0.14] bg-card p-4"><div><Label>Name font</Label><div className="mt-2 grid grid-cols-4 gap-2">{(["sans", "rounded", "serif", "mono"] as NameFont[]).map((font) => <button key={font} type="button" onClick={() => setNameFont(font)} className={cn("rounded-md border px-2 py-1.5 text-xs capitalize", nameFont === font && "border-white/60 bg-white/10")}>{font}</button>)}</div></div><div><Label>Name weight</Label><div className="mt-2 grid grid-cols-4 gap-2">{(["regular", "medium", "bold", "black"] as NameWeight[]).map((weight) => <button key={weight} type="button" onClick={() => setNameWeight(weight)} className={cn("rounded-md border px-2 py-1.5 text-xs capitalize", nameWeight === weight && "border-white/60 bg-white/10")}>{weight}</button>)}</div></div></div>
+
+                <Dialog open={decorationPickerOpen} onOpenChange={setDecorationPickerOpen}>
+                  <DialogContent className="surface-panel max-w-[720px] border-white/[0.18] bg-[#202020] p-0">
+                    <DialogHeader className="border-b border-white/[0.10] p-5 pb-4">
+                      <DialogTitle>Choose an avatar decoration</DialogTitle>
+                      <DialogDescription>Static previews keep browsing light; your selected decoration animates in the live preview.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 p-5 pt-4">
+                      <div className="relative">
+                        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input value={decorationSearch} onChange={(event) => setDecorationSearch(event.target.value)} placeholder="Search decorations" className="pl-9" autoFocus />
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground"><span>{filteredDecorations.length} decorations</span><button type="button" onClick={() => setDecoration(null)} className="hover:text-foreground">Use none</button></div>
+                      <div className="grid max-h-[52vh] grid-cols-4 gap-x-5 gap-y-6 overflow-y-auto px-2 py-3 sm:grid-cols-6">
+                        {filteredDecorations.map((item) => <button key={item.id} type="button" title={item.label} aria-label={item.label} onClick={() => { setDecoration(item.id); setDecorationPickerOpen(false); }} className={cn("group relative aspect-square rounded-lg border border-white/[0.12] bg-black/15 transition-colors hover:border-white/[0.32] hover:bg-white/[0.08]", decoration === item.id && "border-white/70 bg-white/[0.12] ring-1 ring-white/[0.18]")}><img src={decorationUrl(item.id, false) ?? undefined} alt="" className="absolute -inset-1 size-[calc(100%+0.5rem)] max-w-none object-contain" loading="lazy" /></button>)}
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                <div className="space-y-3 rounded-xl border border-white/[0.14] bg-card p-4"><div><Label>Name font</Label><div className="mt-2 grid grid-cols-4 gap-2">{(["sans", "rounded", "serif", "mono"] as NameFont[]).map((font) => <button key={font} type="button" onClick={() => setNameFont(font)} className={cn("rounded-md border px-2 py-1.5 text-xs capitalize", nameFont === font && "border-white/60 bg-white/10")}>{font}</button>)}</div></div><div><Label>Name weight</Label><div className="mt-2 grid grid-cols-4 gap-2">{(["regular", "medium", "bold", "black"] as NameWeight[]).map((weight) => <button key={weight} type="button" onClick={() => setNameWeight(weight)} className={cn("rounded-md border px-2 py-1.5 text-xs capitalize", nameWeight === weight && "border-white/60 bg-white/10")}>{weight}</button>)}</div></div></div>
                 <div className="space-y-2 rounded-xl border border-white/[0.14] bg-card p-4"><Label>Name effect</Label><div className="grid grid-cols-4 gap-2">{["fuzzy","sparkles","resize","bouncy","wavy","gradient","glitch","particle"].map((effect) => <button key={effect} type="button" onClick={() => setNameDecoration(effect)} className={cn("rounded-md border px-2 py-1 text-xs capitalize", nameDecoration === effect && "border-white/60 bg-white/10")}>{effect}</button>)}<button type="button" onClick={() => setNameDecoration(null)} className="rounded-md border px-2 py-1 text-xs">None</button></div></div>                <form onSubmit={save} className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="settings-displayname">Display name</Label>
@@ -552,6 +626,18 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                     label="Input volume"
                     value={preferences.inputVolume}
                     onChange={(value) => preferences.setPreference("inputVolume", value)}
+                  />
+                  <div className="rounded-md border border-white/[0.11] bg-muted/20 px-3 py-3">
+                    <ToggleRow title="Noise suppression" description="Off by default. Echo cancellation and automatic gain are always disabled." checked={preferences.noiseSuppression} onChange={(value) => preferences.setPreference("noiseSuppression", value)} />
+                    {preferences.noiseSuppression && <div className="mt-3 flex items-center gap-2"><span className="text-xs text-muted-foreground">Engine</span><Button type="button" size="sm" variant="secondary">WebRTC native</Button><Button type="button" size="sm" variant="ghost" disabled>RNNoise (soon)</Button></div>}
+                  </div>
+                  <MicrophoneTest
+                    active={open && tab === "voice"}
+                    inputDeviceId={preferences.inputDeviceId}
+                    inputVolume={preferences.inputVolume}
+                    noiseSuppression={preferences.noiseSuppression}
+                    outputDeviceId={preferences.outputDeviceId}
+                    outputVolume={preferences.outputVolume}
                   />
                   <Separator />
                   <DeviceSelect
@@ -818,7 +904,7 @@ function KeybindRow({
         className="min-w-40 font-normal"
         onClick={() => setRecording(true)}
       >
-        {recording ? "Press a combinationÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦" : value ? keybindLabel(value) : "Not set"}
+        {recording ? "Press a combinationÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦" : value ? keybindLabel(value) : "Not set"}
       </Button>
     </div>
   );
@@ -883,6 +969,99 @@ function ToggleRow({
   );
 }
 
+function MicrophoneTest({
+  active,
+  inputDeviceId,
+  inputVolume,
+  noiseSuppression,
+  outputDeviceId,
+  outputVolume,
+}: {
+  active: boolean;
+  inputDeviceId: string;
+  inputVolume: number;
+  noiseSuppression: boolean;
+  outputDeviceId: string;
+  outputVolume: number;
+}) {
+  const monitorRef = useRef<{ pipeline: MicrophonePipeline; audio: HTMLAudioElement } | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  const stopTest = useCallback(async () => {
+    const monitor = monitorRef.current;
+    if (!monitor) return;
+    monitorRef.current = null;
+    monitor.audio.pause();
+    monitor.audio.srcObject = null;
+    monitor.audio.remove();
+    await stopMicrophonePipeline(monitor.pipeline);
+    setTesting(false);
+  }, []);
+
+  useEffect(() => {
+    if (active) return;
+    void stopTest();
+  }, [active, stopTest]);
+
+  useEffect(() => () => {
+    const monitor = monitorRef.current;
+    if (!monitor) return;
+    monitorRef.current = null;
+    monitor.audio.pause();
+    monitor.audio.srcObject = null;
+    monitor.audio.remove();
+    void stopMicrophonePipeline(monitor.pipeline);
+  }, []);
+
+  const toggleTest = async () => {
+    if (monitorRef.current) {
+      await stopTest();
+      return;
+    }
+
+    try {
+      const pipeline = await createMicrophonePipeline(inputDeviceId, inputVolume, noiseSuppression);
+      const audio = createRemoteAudioElement();
+      monitorRef.current = { pipeline, audio };
+      await configureRemoteAudio(audio, {
+        stream: pipeline.outputStream,
+        outputVolume,
+        outputDeviceId,
+        deafened: false,
+      });
+      setTesting(true);
+    } catch (error) {
+      const monitor = monitorRef.current;
+      monitorRef.current = null;
+      if (monitor) {
+        monitor.audio.remove();
+        await stopMicrophonePipeline(monitor.pipeline);
+      }
+      toast.error(error instanceof Error ? error.message : "Couldn't start the microphone test.");
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-md border border-white/[0.11] bg-muted/20 px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-xs font-medium">Microphone test</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          {testing
+            ? "You are hearing your current input settings. Use headphones to prevent feedback."
+            : "Listen to your microphone with the selected input volume and suppression setting."}
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant={testing ? "destructive" : "outline"}
+        size="sm"
+        onClick={() => void toggleTest()}
+      >
+        {testing ? "Stop test" : "Test microphone"}
+      </Button>
+    </div>
+  );
+}
 function DeviceSelect({
   id,
   label,

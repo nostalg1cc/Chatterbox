@@ -525,7 +525,8 @@ async function createPreferredMicrophone(): Promise<MicrophonePipeline> {
   const preferences = usePreferences.getState();
   const pipeline = await createMicrophonePipeline(
     preferences.inputDeviceId,
-    preferences.inputVolume
+    preferences.inputVolume,
+    preferences.noiseSuppression
   );
   if (pipeline.fellBackToDefault) {
     toast.info("The selected microphone is unavailable; using the Windows default.");

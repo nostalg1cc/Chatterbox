@@ -40,17 +40,15 @@ export function ChatSwitcher({ conversationId }: { conversationId: string }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="dock-profile app-control flex h-9 w-[164px] shrink-0 items-center gap-2 px-2 text-left transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          className="dock-profile app-control flex h-9 w-auto max-w-[220px] shrink-0 items-center gap-2 px-2 text-left transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
           aria-label="Open chats and channels"
         >
           <UserAvatar profile={friend} online={online} size="sm" animated />
-          <span className="min-w-0 flex-1 leading-[1.05]">
-            <span className={cn("block truncate text-sm font-medium", nameColorClass(friend?.name_color))}>
+          <span className="min-w-0 self-stretch flex flex-1 items-center leading-none">
+            <span className={cn("inline-flex h-4 items-center relative -top-px truncate text-sm font-medium", nameColorClass(friend?.name_color))}>
               <DecoratedText effect={friend?.name_decoration as never} font={friend?.name_font} weight={friend?.name_weight} active>{friend?.display_name ?? "..."}</DecoratedText>
             </span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {channel === "media" ? "Media channel" : online ? "Online" : "Offline"}
-            </span>
+
           </span>
           <ChevronDownIcon className="mr-1 size-3.5 shrink-0 text-muted-foreground" />
         </button>
@@ -130,7 +128,7 @@ function ConversationChoice({ conversationId }: { conversationId: string }) {
     >
       <UserAvatar profile={friend} online={online} size="sm" />
       <span className="min-w-0 flex-1">
-        <span className={cn("block truncate text-sm font-medium", nameColorClass(friend?.name_color))}><DecoratedText effect={friend?.name_decoration as never} font={friend?.name_font} weight={friend?.name_weight} active>{friend?.display_name ?? "..."}</DecoratedText></span>
+        <span className={cn("inline-flex h-4 items-center relative -top-px truncate text-sm font-medium", nameColorClass(friend?.name_color))}><DecoratedText effect={friend?.name_decoration as never} font={friend?.name_font} weight={friend?.name_weight} active>{friend?.display_name ?? "..."}</DecoratedText></span>
         <span className="block truncate text-[11px] text-muted-foreground">{overview?.content || "Say hi."}</span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">

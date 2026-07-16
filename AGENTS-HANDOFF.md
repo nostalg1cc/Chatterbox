@@ -433,3 +433,50 @@ npx tsc --noEmit      # typecheck
 - [x] Built and manually signed NSIS/MSI artifacts after Tauri's build process could not read the passwordless signing key environment.
 - [x] Published GitHub release 0.1.9 with installers, signatures, and verified updater manifest.
 - [x] Deployed the matching web build to Vercel production (https://dislight.vercel.app).
+
+### Phase 47 - My Account live profile preview (July 16)
+- [x] Added a sticky live account preview so avatar decoration, display name, name color, font, weight, and text effect render immediately while their selectors are changed.
+- [x] The preview remains visible while scrolling the account form and uses the same animated avatar/text components as the chat UI.
+- [x] Verified with `npx tsc --noEmit` and `git diff --check`.
+
+### Phase 48 - Cloud decoration catalogue and picker (July 16)
+- [x] Replaced the old user-facing 20-item decoration list with a 639-item manifest-backed catalogue.
+- [x] Added a searchable, lazy-loading picker in My Account with an internal scroll area, so the account form and Save action never sit below an endless thumbnail grid.
+- [x] Added Cloudinary on-demand delivery; the first 70 assets are imported and unimported entries temporarily fall back to their original public source URL while staged import continues.
+- [x] Kept legacy local files as a compatibility fallback for existing profile selections; they are no longer shown in the picker.
+- [x] Verified type checking, diff whitespace, HTTP 200 dev server, and a running native development window.
+
+### Phase 49 - Cloud decoration profile persistence (July 16)
+- [x] Fixed profile saves for the new avatar-decoration catalogue: the production `profiles_avatar_decoration_check` now accepts three-digit catalogue IDs as well as legacy values.
+- [x] Created and applied `20260716174037_allow_cloud_avatar_decorations.sql`; verified the live constraint and retained ownership-scoped `profiles_update_own` RLS policy.
+- [x] Supabase security advisor was checked after DDL; reported warnings predate this change and concern existing RPC functions/Auth protection, not profile-decoration access.
+
+### Phase 50 - Cloud decoration initial live set (July 16)
+- [x] Reset the Cloudinary decoration folder and uploaded only IDs 001–010 from the source manifest.
+- [x] Restricted the app picker and delivery layer to those ten Cloudinary-hosted APNG decorations; removed local/original-source fallback from selectable items.
+
+### Phase 51 - Live Cloudinary decoration discovery (July 16)
+- [x] Added Cloudinary-tag catalogue discovery to the decoration picker, with a shipped fallback for the initial set and a 65-second refresh while My Account is open.
+- [x] Selection/display always delivers the APNG original directly from Cloudinary so active contexts retain animation; picker thumbnails remain static first frames.
+- [x] Ignored `stuff/new deco/` so the 639 source APNG files are never committed or packaged.
+- [ ] Enable Cloudinary Settings > Security > Restricted media types > Resource list before the public tag list endpoint can serve live additions/removals to clients.
+
+### Phase 52 - Complete Cloud avatar-decoration import (July 16)
+- [x] Imported and reconciled all 639 APNG decorations to Cloudinary under `dislight/avatar-decorations`.
+- [x] Verified the hosted catalogue contains exactly IDs 001–639, with no missing IDs or extras.
+- [x] The raw `stuff/new deco/` sources remain Git-ignored; all clients use Cloudinary delivery instead.
+
+- [x] Voice capture: fixed noise suppression argument propagation; off is now the safe default, with echo cancellation and automatic gain disabled.
+
+- [x] Chat initial load: retry scroll-to-latest after the real scroll viewport mounts.
+- [x] Voice settings: local microphone monitor test using the production voice capture pipeline and selected output device.
+
+- [x] Header controls: fixed 3x36px geometry by removing accidental flex gaps; initial chat scroll now also follows late content resizing.
+
+- [x] Message fade: mask now applies directly to the scroll viewport; top fade increased to 136px.
+
+- [x] Message fade: increased top viewport fade again; content reaches full opacity at 224px.
+
+- [x] Global voice keybinds: replaced cleanup-race registration with generation-safe native shortcut reconciliation; mute/deafen each use a dedicated native handler.
+
+- [!] 0.1.10 release: installer/MSI built. GitHub updater signing is pending the password for the configured C288F8A63AA90C24 key; do not rotate the updater pubkey to an older signing key.

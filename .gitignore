@@ -27,3 +27,6 @@ npm-debug.log*
 .env*
 
 supabase/.temp/
+
+# Large source library; avatar decorations are delivered from Cloudinary.
+stuff/new deco/

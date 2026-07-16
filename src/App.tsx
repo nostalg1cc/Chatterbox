@@ -17,6 +17,11 @@ export default function App() {
   const backdropDim = windowMaterial === "acrylic" ? acrylicDim : 12;
 
   useEffect(() => {
+    // One-time preference migration: Mica is the default material going forward.
+    if (window.localStorage.getItem("dislight-mica-default-v1") !== "1") {
+      usePreferences.getState().setPreference("windowMaterial", "mica");
+      window.localStorage.setItem("dislight-mica-default-v1", "1");
+    }
     useAuth.getState().init();
     void applyWindowMaterial(
       usePreferences.getState().windowMaterial,

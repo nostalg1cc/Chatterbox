@@ -13,24 +13,24 @@ type SinkCapableAudio = HTMLAudioElement & {
   setSinkId?: (sinkId: string) => Promise<void>;
 };
 
-function audioConstraints(deviceId: string): MediaTrackConstraints {
+function audioConstraints(deviceId: string, noiseSuppression: boolean): MediaTrackConstraints {
   return {
     deviceId: deviceId === "default" ? undefined : { exact: deviceId },
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
+    echoCancellation: false,
+    noiseSuppression,
+    autoGainControl: false,
     channelCount: 1,
   };
 }
 
-async function captureMicrophone(deviceId: string): Promise<{
+async function captureMicrophone(deviceId: string, noiseSuppression: boolean): Promise<{
   stream: MediaStream;
   fellBackToDefault: boolean;
 }> {
   try {
     return {
       stream: await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints(deviceId),
+        audio: audioConstraints(deviceId, noiseSuppression),
         video: false,
       }),
       fellBackToDefault: false,
@@ -39,7 +39,7 @@ async function captureMicrophone(deviceId: string): Promise<{
     if (deviceId === "default") throw error;
     return {
       stream: await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints("default"),
+        audio: audioConstraints("default", noiseSuppression),
         video: false,
       }),
       fellBackToDefault: true,
@@ -49,13 +49,14 @@ async function captureMicrophone(deviceId: string): Promise<{
 
 export async function createMicrophonePipeline(
   deviceId: string,
-  inputVolume: number
+  inputVolume: number,
+  noiseSuppression = false
 ): Promise<MicrophonePipeline> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error("Microphone capture is unavailable in this WebView.");
   }
 
-  const { stream, fellBackToDefault } = await captureMicrophone(deviceId);
+  const { stream, fellBackToDefault } = await captureMicrophone(deviceId, noiseSuppression);
   const rawTrack = stream.getAudioTracks()[0];
   if (!rawTrack) {
     for (const track of stream.getTracks()) track.stop();

@@ -62,6 +62,7 @@ export function MessageList({
   const atBottomRef = useRef(true);
   const lastCountRef = useRef(0);
   const [newBelow, setNewBelow] = useState(false);
+  const initialScrollConversationRef = useRef<string | null>(null);
 
   useEffect(() => {
     const vp = rootRef.current?.querySelector<HTMLDivElement>(
@@ -77,6 +78,44 @@ export function MessageList({
     vp.addEventListener("scroll", onScroll);
     return () => vp.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!messages || initialScrollConversationRef.current === conversationId) return;
+
+    let cancelled = false;
+    const delays = [0, 40, 120, 280, 560, 1_000];
+    let observer: ResizeObserver | null = null;
+    const attachResizeObserver = () => {
+      const vp = rootRef.current?.querySelector<HTMLDivElement>(
+        '[data-slot="scroll-area-viewport"]'
+      );
+      if (!vp || observer) return;
+      observer = new ResizeObserver(() => {
+        if (!cancelled) vp.scrollTop = vp.scrollHeight;
+      });
+      observer.observe(vp);
+      if (vp.firstElementChild) observer.observe(vp.firstElementChild);
+    };
+
+    const observerTimer = window.setTimeout(attachResizeObserver, 0);
+    const timers = delays.map((delay, index) => window.setTimeout(() => {
+      if (cancelled) return;
+      const vp = rootRef.current?.querySelector<HTMLDivElement>(
+        '[data-slot="scroll-area-viewport"]'
+      );
+      if (!vp) return;
+      viewportRef.current = vp;
+      vp.scrollTop = vp.scrollHeight;
+      if (index === delays.length - 1) initialScrollConversationRef.current = conversationId;
+    }, delay));
+
+    return () => {
+      cancelled = true;
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.clearTimeout(observerTimer);
+      observer?.disconnect();
+    };
+  }, [conversationId, messages]);
 
   // Autoscroll: on first load, when already at the bottom, or on own sends.
   useEffect(() => {

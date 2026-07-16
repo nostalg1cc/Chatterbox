@@ -27,7 +27,7 @@ export function WindowControls() {
   if (!isTauri) return null;
 
   return (
-    <div className="window-controls flex h-full items-center gap-1" aria-label="Window controls">
+    <div className="window-controls flex h-full items-center gap-0" aria-label="Window controls">
       <Button variant="ghost" aria-label="Minimize" className="window-control" onClick={() => void appWindow().minimize()}>
         <MinusIcon className="size-3.5" />
       </Button>

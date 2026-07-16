@@ -30,7 +30,7 @@ export function SoundboardPopover({ conversationId, partnerName }: SoundboardPop
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="Open shared soundboard" className="dock-icon text-muted-foreground"><Music2Icon /></Button></PopoverTrigger>
+      <PopoverTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="Open shared soundboard" className="header-action text-muted-foreground"><Music2Icon /></Button></PopoverTrigger>
       <PopoverContent align="end" className="w-96 border border-white/[0.16] p-3">
         <PopoverHeader><PopoverTitle>Shared soundboard</PopoverTitle><PopoverDescription>Your library and {partnerName}&apos;s - playable by either of you.</PopoverDescription></PopoverHeader>
         {loading ? <div className="flex h-28 items-center justify-center"><Loader2Icon className="size-4 animate-spin text-muted-foreground" /></div> : sounds.length ? <div className="max-h-80 space-y-4 overflow-y-auto pr-1"><SoundGroup title="Yours" sounds={ownSounds} pinned={pinnedSoundIds} onTogglePin={togglePin} /><SoundGroup title={partnerName + "'s"} sounds={partnerSounds} pinned={pinnedSoundIds} onTogglePin={togglePin} /></div> : <p className="rounded-md border border-dashed border-white/[0.13] p-5 text-center text-xs text-muted-foreground">Neither of you has added a sound yet. Add yours in User Settings.</p>}
