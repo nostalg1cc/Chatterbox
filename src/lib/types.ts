@@ -147,4 +147,5 @@ export type VoiceSignal =
       toSessionId?: string;
       type: "ice-candidate";
       candidate: RTCIceCandidateInit;
-    };
+    }  | { version: 1; generation: string; fromSessionId: string; toSessionId?: string; type: "screen-published"; cloudflareSessionId: string; trackName: string; }
+  | { version: 1; generation: string; fromSessionId: string; toSessionId?: string; type: "screen-stopped"; };

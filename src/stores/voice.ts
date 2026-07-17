@@ -12,6 +12,7 @@ import {
 } from "@/lib/voice-media";
 import { playAppSound } from "@/lib/app-sounds";
 import { playSoundboardUrl } from "@/lib/soundboard-audio";
+import { createCloudflareScreenPublisher, createCloudflareScreenSubscriber } from "@/lib/cloudflare-realtime";
 import { supabase } from "@/lib/supabase";
 import type {
   VoiceConnectionStatus,
@@ -71,6 +72,7 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: ["stun:stun.cloudflare.com:3478"] },
 ];
 const HEARTBEAT_MS = 45_000;
+const TURN_CREDENTIAL_TTL_SAFETY_MS = 10 * 60_000;
 const CHANNEL_TIMEOUT_MS = 12_000;
 
 let currentUserId: string | null = null;
@@ -82,6 +84,7 @@ let peerConnection: RTCPeerConnection | null = null;
 let remoteAudio: HTMLAudioElement | null = null;
 let localScreenStream: MediaStream | null = null;
 let localScreenTrack: MediaStreamTrack | null = null;
+let cloudflareScreenConnection: RTCPeerConnection | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let preferencesUnsubscribe: (() => void) | null = null;
@@ -95,6 +98,8 @@ let restartAttempted = false;
 let disconnecting = false;
 let pendingCandidates: RTCIceCandidateInit[] = [];
 let lastRemoteSoundboardAt = 0;
+let activeIceServers: RTCIceServer[] = ICE_SERVERS;
+let turnCredentialsExpireAt = 0;
 
 export const useVoice = create<VoiceState>()((set, get) => ({
   rooms: {},
@@ -195,6 +200,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
         error: null,
       }));
 
+      await refreshTurnCredentials();
       await connectRoomChannel(room, sessionId);
       playAppSound("call_join");
     } catch (error) {
@@ -259,8 +265,12 @@ export const useVoice = create<VoiceState>()((set, get) => ({
         void stopLocalScreen(true);
       };
 
-      if (peerConnection) {
-        await addScreenTrack(peerConnection, stream, track);
+      try {
+        const cloudflare = await createCloudflareScreenPublisher(get().activeConversationId!, stream, track);
+        cloudflareScreenConnection = cloudflare.connection;
+        sendScreenPublished(cloudflare.sessionId, cloudflare.trackName);
+      } catch {
+        if (peerConnection) await addScreenTrack(peerConnection, stream, track);
       }
 
       set({ sharingScreen: true });
@@ -285,6 +295,28 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   },
 }));
 
+async function refreshTurnCredentials(): Promise<void> {
+  const state = useVoice.getState();
+  if (!state.activeConversationId || (turnCredentialsExpireAt - Date.now()) > TURN_CREDENTIAL_TTL_SAFETY_MS) return;
+  const { data, error } = await supabase.functions.invoke("realtime-credentials", {
+    body: { conversationId: state.activeConversationId },
+  });
+  const candidate = data as { iceServers?: unknown; expiresAt?: unknown } | null;
+  if (error || !Array.isArray(candidate?.iceServers)) {
+    activeIceServers = ICE_SERVERS;
+    turnCredentialsExpireAt = 0;
+    console.info("Cloudflare TURN is unavailable; continuing with direct WebRTC.");
+    return;
+  }
+  const servers = candidate.iceServers.filter((server): server is RTCIceServer => {
+    if (!server || typeof server !== "object") return false;
+    const value = server as RTCIceServer;
+    return typeof value.urls === "string" || Array.isArray(value.urls);
+  });
+  if (!servers.length) return;
+  activeIceServers = servers;
+  turnCredentialsExpireAt = typeof candidate.expiresAt === "number" ? candidate.expiresAt : Date.now() + 12 * 60 * 60_000;
+}
 function initializeVoice(userId: string): () => void {
   currentUserId = userId;
   void loadVoiceDiscovery();
@@ -689,7 +721,7 @@ function ensurePeerConnection(remoteUserId: string): void {
   pendingCandidates = [];
 
   const connection = new RTCPeerConnection({
-    iceServers: ICE_SERVERS,
+    iceServers: activeIceServers,
     iceCandidatePoolSize: 4,
   });
   peerConnection = connection;
@@ -742,6 +774,10 @@ function ensurePeerConnection(remoteUserId: string): void {
   };
 
   useVoice.setState({ status: "connecting", error: null });
+  // A direct ICE path can remain in "new"/"connecting" indefinitely when a
+  // VPN or restrictive network blocks UDP. Do not leave the call UI stuck:
+  // try one ICE restart, then surface the actionable TURN-relay explanation.
+  scheduleConnectionFailure();
   sendReady();
 }
 
@@ -764,6 +800,20 @@ async function handleSignal(raw: unknown): Promise<void> {
     return;
   }
 
+  if (signal.type === "screen-published") {
+    try {
+      cloudflareScreenConnection?.close();
+      cloudflareScreenConnection = await createCloudflareScreenSubscriber(conversationId, signal.cloudflareSessionId, signal.trackName, (stream) => useVoice.setState({ remoteScreenStream: stream }));
+    } catch {
+      // The matching P2P screen track remains available as a compatibility fallback.
+    }
+    return;
+  }
+  if (signal.type === "screen-stopped") {
+    useVoice.setState({ remoteScreenStream: null });
+    cloudflareScreenConnection?.close(); cloudflareScreenConnection = null;
+    return;
+  }
   remoteSessionId = signal.fromSessionId;
   const remoteUserId = voicePartnerId(conversationId);
   if (!remoteUserId) return;
@@ -849,6 +899,16 @@ function handleRemoteTrack(event: RTCTrackEvent): void {
   }
 }
 
+function sendScreenPublished(cloudflareSessionId: string, trackName: string): void {
+  const signal = buildSignal({ type: "screen-published", cloudflareSessionId, trackName });
+  if (signal) sendSignal(signal);
+}
+
+function sendScreenStopped(): void {
+  const signal = buildSignal({ type: "screen-stopped" });
+  if (signal) sendSignal(signal);
+}
+
 function sendReady(): void {
   const signal = buildSignal({ type: "ready" });
   if (signal) sendSignal(signal);
@@ -869,6 +929,8 @@ function buildSignal(
     | { type: "ready" }
     | { type: "description"; description: RTCSessionDescriptionInit }
     | { type: "ice-candidate"; candidate: RTCIceCandidateInit }
+    | { type: "screen-published"; cloudflareSessionId: string; trackName: string }
+    | { type: "screen-stopped" }
 ): VoiceSignal | null {
   const state = useVoice.getState();
   const conversationId = state.activeConversationId;
@@ -886,7 +948,9 @@ function buildSignal(
   if (payload.type === "description") {
     return { ...base, type: "description", description: payload.description };
   }
-  return { ...base, type: "ice-candidate", candidate: payload.candidate };
+  if (payload.type === "ice-candidate") return { ...base, type: "ice-candidate", candidate: payload.candidate };
+  if (payload.type === "screen-published") return { ...base, ...payload };
+  return { ...base, type: "screen-stopped" };
 }
 
 function sendSignal(signal: VoiceSignal): void {
@@ -1055,6 +1119,9 @@ async function stopLocalScreen(updateServer: boolean): Promise<void> {
   }
   localScreenStream = null;
   localScreenTrack = null;
+  cloudflareScreenConnection?.close();
+  cloudflareScreenConnection = null;
+  sendScreenStopped();
   useVoice.setState({ sharingScreen: false });
 
   if (updateServer) {

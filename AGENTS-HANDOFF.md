@@ -482,3 +482,14 @@ npx tsc --noEmit      # typecheck
 - [!] 0.1.10 release: installer/MSI built. GitHub updater signing is pending the password for the configured C288F8A63AA90C24 key; do not rotate the updater pubkey to an older signing key.
 
 - [x] 0.1.11 hotfix: Tauri CSP now permits Cloudinary image delivery and live catalogue fetches; packaged decoration picker loads all live entries instead of ten blocked fallback previews.
+
+- [x] Voice VPN connection guard: ICE setup now times out, attempts one restart, then shows the existing TURN-relay error instead of remaining in Connecting forever. A real TURN service is still required for VPN/restrictive-network media relay.
+
+### Phase 53 - Cloudflare TURN fallback and voice overdrive (July 17)
+- [x] Added a JWT-protected Supabase `realtime-credentials` broker that validates an active voice participant before issuing 12-hour Cloudflare TURN credentials; credentials never enter the bundle or repository.
+- [x] Voice now preserves direct P2P as its default and retries failed ICE with fresh relay credentials when available; it remains direct-only if relay secrets are not configured.
+- [x] Raised Settings output volume to 300% via a local Web Audio gain stage, with normal 100% behavior unchanged and a clipping warning for boosted output.
+- [ ] Add `CLOUDFLARE_TURN_KEY_ID` and `CLOUDFLARE_TURN_KEY_SECRET` as Supabase Edge Function secrets before TURN fallback can become active in production.
+- [ ] Cloudflare SFU screen-share route requires the supplied Calls App credentials to be stored as server-side secrets and Cloudflare account API reauthorization for app-side verification; do not place either token in the client.
+
+- [x] Deployed authenticated Cloudflare Calls broker (`cloudflare-realtime`) and routed screen-share publishing/subscription through the SFU, with the existing direct screen route retained as automatic compatibility fallback.

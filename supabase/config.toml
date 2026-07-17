@@ -15,3 +15,15 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/soundboard-storage/deno.json"
 entrypoint = "./functions/soundboard-storage/index.ts"
+
+[functions.realtime-credentials]
+enabled = true
+verify_jwt = true
+import_map = "./functions/realtime-credentials/deno.json"
+entrypoint = "./functions/realtime-credentials/index.ts"
+
+[functions.cloudflare-realtime]
+enabled = true
+verify_jwt = true
+import_map = "./functions/cloudflare-realtime/deno.json"
+entrypoint = "./functions/cloudflare-realtime/index.ts"

@@ -53,6 +53,7 @@ import { playAppSound } from "@/lib/app-sounds";
 import {
   configureRemoteAudio,
   createMicrophonePipeline,
+  disposeRemoteAudio,
   createRemoteAudioElement,
   stopMicrophonePipeline,
   type MicrophonePipeline,
@@ -652,8 +653,12 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                   <VolumeSetting
                     label="Output volume"
                     value={preferences.outputVolume}
+                    max={300}
                     onChange={(value) => preferences.setPreference("outputVolume", value)}
                   />
+                  <p className="-mt-1 text-[11px] text-muted-foreground">
+                    Above 100% applies a local voice boost. Loud sources can clip at higher levels.
+                  </p>
                   <div className="flex items-center justify-between rounded-md border border-white/[0.11] bg-muted/20 px-3 py-2">
                     <div>
                       <p className="text-xs font-medium">Output test</p>
@@ -991,9 +996,7 @@ function MicrophoneTest({
     const monitor = monitorRef.current;
     if (!monitor) return;
     monitorRef.current = null;
-    monitor.audio.pause();
-    monitor.audio.srcObject = null;
-    monitor.audio.remove();
+    await disposeRemoteAudio(monitor.audio);
     await stopMicrophonePipeline(monitor.pipeline);
     setTesting(false);
   }, []);
@@ -1007,9 +1010,7 @@ function MicrophoneTest({
     const monitor = monitorRef.current;
     if (!monitor) return;
     monitorRef.current = null;
-    monitor.audio.pause();
-    monitor.audio.srcObject = null;
-    monitor.audio.remove();
+    void disposeRemoteAudio(monitor.audio);
     void stopMicrophonePipeline(monitor.pipeline);
   }, []);
 
@@ -1034,7 +1035,7 @@ function MicrophoneTest({
       const monitor = monitorRef.current;
       monitorRef.current = null;
       if (monitor) {
-        monitor.audio.remove();
+        await disposeRemoteAudio(monitor.audio);
         await stopMicrophonePipeline(monitor.pipeline);
       }
       toast.error(error instanceof Error ? error.message : "Couldn't start the microphone test.");
@@ -1105,10 +1106,12 @@ function DeviceSelect({
 function VolumeSetting({
   label,
   value,
+  max = 100,
   onChange,
 }: {
   label: string;
   value: number;
+  max?: number;
   onChange: (value: number) => void;
 }) {
   return (
@@ -1120,7 +1123,7 @@ function VolumeSetting({
       <input
         type="range"
         min={0}
-        max={100}
+        max={max}
         value={value}
         aria-label={label}
         className="w-full accent-foreground"
