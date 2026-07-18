@@ -497,4 +497,4 @@ npx tsc --noEmit      # typecheck
 ### Phase 54 - Composer clipboard media and focus (July 18)
 - [x] Added image/video paste support in chat. Clipboard files now use the existing local WebP/WebM preparation and attachment pipeline before send.
 - [x] Restored composer focus after a successful message send, including attachment sends, so typing can continue immediately.
-- [x] Verified TypeScript and whitespace checks.
+- [x] Verified TypeScript and whitespace checks.- [x] Added a protected drag-and-drop target on the composer for images and videos, reusing the same preparation pipeline and preventing file drops from navigating the WebView.

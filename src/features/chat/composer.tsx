@@ -42,6 +42,7 @@ export function Composer({
   const [preparing, setPreparing] = useState(false);
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isDraggingMedia, setIsDraggingMedia] = useState(false);
   const enterToSend = usePreferences((state) => state.enterToSend);
   const composerHintVisible = usePreferences((state) => state.composerHintVisible);
   const replyTo = useChat((state) => state.replyTo);
@@ -128,6 +129,22 @@ export function Composer({
     void selectMedia(file);
   };
 
+  const dropMedia = (event: React.DragEvent<HTMLDivElement>) => {
+    const files = Array.from(event.dataTransfer.files);
+    if (!files.length) return;
+    event.preventDefault();
+    setIsDraggingMedia(false);
+    if (preparing || sending) return;
+    const file = files.find((candidate) =>
+      candidate.type.startsWith("image/") || candidate.type.startsWith("video/")
+    );
+    if (!file) {
+      toast.error("Drop an image or video to attach it.");
+      return;
+    }
+    void selectMedia(file);
+  };
+
   return (
     <div className="shrink-0 px-0 pb-0">
       {replyTo && (
@@ -196,7 +213,26 @@ export function Composer({
         </div>
       )}
 
-      <div className="surface-panel composer-surface floating-surface flex items-center gap-2 p-1.5 shadow-[0_10px_26px_rgb(0_0_0_/_0.20)] transition-colors focus-within:border-white/[0.28]">
+      <div
+        className={
+          "surface-panel composer-surface floating-surface flex items-center gap-2 p-1.5 shadow-[0_10px_26px_rgb(0_0_0_/_0.20)] transition-colors focus-within:border-white/[0.28] " +
+          (isDraggingMedia ? "border-emerald-300/70 bg-emerald-400/[0.08]" : "")
+        }
+        onDragEnter={(event) => {
+          if (Array.from(event.dataTransfer.types).includes("Files")) setIsDraggingMedia(true);
+        }}
+        onDragOver={(event) => {
+          if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setIsDraggingMedia(false);
+          }
+        }}
+        onDrop={dropMedia}
+      >
         <input
           ref={fileRef}
           type="file"
