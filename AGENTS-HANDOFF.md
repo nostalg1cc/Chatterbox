@@ -493,3 +493,8 @@ npx tsc --noEmit      # typecheck
 - [ ] Cloudflare SFU screen-share route requires the supplied Calls App credentials to be stored as server-side secrets and Cloudflare account API reauthorization for app-side verification; do not place either token in the client.
 
 - [x] Deployed authenticated Cloudflare Calls broker (`cloudflare-realtime`) and routed screen-share publishing/subscription through the SFU, with the existing direct screen route retained as automatic compatibility fallback.
+
+### Phase 54 - Composer clipboard media and focus (July 18)
+- [x] Added image/video paste support in chat. Clipboard files now use the existing local WebP/WebM preparation and attachment pipeline before send.
+- [x] Restored composer focus after a successful message send, including attachment sends, so typing can continue immediately.
+- [x] Verified TypeScript and whitespace checks.

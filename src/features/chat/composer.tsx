@@ -94,6 +94,7 @@ export function Composer({
     setSending(false);
     if (!sent) return;
     useChat.getState().setReplyTo(null);
+    restoreFocusRef.current = true;
     setValue("");
     setMedia(null);
     setProgress(0);
@@ -115,6 +116,16 @@ export function Composer({
       setPreparing(false);
       if (fileRef.current) fileRef.current.value = "";
     }
+  };
+
+  const pasteMedia = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = Array.from(event.clipboardData.files).find((candidate) =>
+      candidate.type.startsWith("image/") || candidate.type.startsWith("video/")
+    );
+    if (!file) return;
+    event.preventDefault();
+    if (preparing || sending) return;
+    void selectMedia(file);
   };
 
   return (
@@ -243,6 +254,7 @@ export function Composer({
             resize();
             useChat.getState().notifyTyping(conversationId);
           }}
+          onPaste={pasteMedia}
           onKeyDown={(event) => {
             const shortcutSend = event.ctrlKey || event.metaKey;
             if (
