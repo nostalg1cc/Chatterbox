@@ -289,9 +289,8 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   retryConnection: () => {
     if (!peerConnection || !remoteSessionId) return;
     restartAttempted = false;
-    set({ status: "reconnecting", error: null });
-    peerConnection.restartIce();
-    scheduleConnectionFailure();
+    useVoice.setState({ status: "reconnecting", error: null });
+    void attemptIceRestart();
   },
 }));
 
@@ -1133,20 +1132,20 @@ async function stopLocalScreen(updateServer: boolean): Promise<void> {
 function scheduleConnectionFailure(): void {
   clearDisconnectTimer();
   disconnectTimer = setTimeout(() => {
-    attemptIceRestart();
+    if (peerConnection && peerConnection.connectionState !== "connected") void attemptIceRestart();
   }, 10_000);
 }
 
-function attemptIceRestart(): void {
-  if (!peerConnection || !remoteSessionId) return;
+async function attemptIceRestart(): Promise<void> {
+  if (!peerConnection || !remoteSessionId || peerConnection.connectionState === "connected") return;
   if (!restartAttempted) {
     restartAttempted = true;
     useVoice.setState({ status: "reconnecting", error: null });
-    peerConnection.restartIce();
+    await refreshTurnCredentials();
+    peerConnection?.setConfiguration({ iceServers: activeIceServers });
+    peerConnection?.restartIce();
     clearDisconnectTimer();
-    disconnectTimer = setTimeout(() => {
-      markConnectionFailed();
-    }, 20_000);
+    disconnectTimer = setTimeout(() => markConnectionFailed(), 20_000);
     return;
   }
   markConnectionFailed();

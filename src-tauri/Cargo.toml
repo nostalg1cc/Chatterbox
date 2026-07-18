@@ -1,6 +1,6 @@
 [package]
 name = "dislight"
-version = "0.1.13"
+version = "0.1.14"
 description = "Dislight - minimal 1:1 chat"
 authors = ["Dislight"]
 edition = "2021"

@@ -51,16 +51,19 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
     return json({ error: "Cloudflare relay credentials could not be issued." }, 503);
   }
 
-  const payload = await response.json() as { iceServers?: { urls?: unknown; username?: unknown; credential?: unknown } };
-  const urls = Array.isArray(payload.iceServers?.urls) ? payload.iceServers.urls.filter(validTurnUrl) : [];
-  if (!urls.length || typeof payload.iceServers?.username !== "string" || typeof payload.iceServers?.credential !== "string") {
+  const payload = await response.json() as { iceServers?: Array<{ urls?: unknown; username?: unknown; credential?: unknown }> };
+  const relay = payload.iceServers?.find((entry) =>
+    Array.isArray(entry.urls) && typeof entry.username === "string" && typeof entry.credential === "string"
+  );
+  const urls = Array.isArray(relay?.urls) ? relay.urls.filter(validTurnUrl) : [];
+  if (!relay || !urls.length) {
     return json({ error: "Cloudflare returned invalid relay credentials." }, 503);
   }
 
   return json({
     iceServers: [
       { urls: ["stun:stun.cloudflare.com:3478"] },
-      { urls, username: payload.iceServers.username, credential: payload.iceServers.credential, credentialType: "password" },
+      { urls, username: relay.username, credential: relay.credential, credentialType: "password" },
     ],
     expiresAt: Date.now() + 43_200_000,
   });
