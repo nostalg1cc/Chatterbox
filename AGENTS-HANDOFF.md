@@ -498,3 +498,7 @@ npx tsc --noEmit      # typecheck
 - [x] Added image/video paste support in chat. Clipboard files now use the existing local WebP/WebM preparation and attachment pipeline before send.
 - [x] Restored composer focus after a successful message send, including attachment sends, so typing can continue immediately.
 - [x] Verified TypeScript and whitespace checks.- [x] Added a protected drag-and-drop target on the composer for images and videos, reusing the same preparation pipeline and preventing file drops from navigating the WebView.
+### Phase 55 - v0.1.15 chat media release (July 18)
+- [x] Released a standalone Windows NSIS installer with chat clipboard paste, composer drag-and-drop, local attachment compression, and composer focus retention.
+- [x] Published GitHub release `v0.1.15` with `Dislight_0.1.15_x64-setup.exe`.
+- [!] The installer is intentionally standalone: updater signature generation remains blocked by the configured private-key password mismatch.
