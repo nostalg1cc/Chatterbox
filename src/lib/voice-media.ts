@@ -137,16 +137,8 @@ export async function stopMicrophonePipeline(
   await pipeline.context?.close().catch(() => undefined);
 }
 
-type AmplifiedAudioElement = HTMLAudioElement & {
-  __dislightAudioContext?: AudioContext;
-  __dislightAudioSource?: MediaStreamAudioSourceNode;
-  __dislightAudioGain?: GainNode;
-  __dislightAudioDestination?: MediaStreamAudioDestinationNode;
-  __dislightAudioStream?: MediaStream;
-};
-
 export function createRemoteAudioElement(): HTMLAudioElement {
-  const element = document.createElement("audio") as AmplifiedAudioElement;
+  const element = document.createElement("audio");
   element.autoplay = true;
   element.preload = "auto";
   element.setAttribute("aria-hidden", "true");
@@ -169,44 +161,8 @@ export async function configureRemoteAudio(
     deafened: boolean;
   }
 ): Promise<void> {
-  const amplified = element as AmplifiedAudioElement;
-  if (stream && amplified.__dislightAudioStream !== stream) {
-    amplified.__dislightAudioSource?.disconnect();
-    amplified.__dislightAudioGain?.disconnect();
-    amplified.__dislightAudioDestination?.disconnect();
-    amplified.__dislightAudioStream = stream;
-
-    try {
-      const context = amplified.__dislightAudioContext ?? new AudioContext({ latencyHint: "interactive" });
-      amplified.__dislightAudioContext = context;
-      await context.resume();
-      const source = context.createMediaStreamSource(stream);
-      const gain = context.createGain();
-      const destination = context.createMediaStreamDestination();
-      source.connect(gain);
-      gain.connect(destination);
-      amplified.__dislightAudioSource = source;
-      amplified.__dislightAudioGain = gain;
-      amplified.__dislightAudioDestination = destination;
-      element.srcObject = destination.stream;
-      element.volume = 1;
-    } catch {
-      // Keep the original media element path when Web Audio is unavailable.
-      element.srcObject = stream;
-    }
-  }
-
-  const gain = Math.max(0, Math.min(3, outputVolume / 100));
-  if (amplified.__dislightAudioGain && amplified.__dislightAudioContext) {
-    amplified.__dislightAudioGain.gain.setTargetAtTime(
-      deafened ? 0 : gain,
-      amplified.__dislightAudioContext.currentTime,
-      0.015
-    );
-    element.volume = 1;
-  } else {
-    element.volume = Math.max(0, Math.min(1, gain));
-  }
+  if (stream) element.srcObject = stream;
+  element.volume = Math.max(0, Math.min(1, outputVolume / 100));
   element.muted = deafened;
 
   const sinkAudio = element as SinkCapableAudio;
@@ -228,13 +184,8 @@ export async function configureRemoteAudio(
 }
 
 export async function disposeRemoteAudio(element: HTMLAudioElement): Promise<void> {
-  const amplified = element as AmplifiedAudioElement;
   element.pause();
   element.srcObject = null;
-  amplified.__dislightAudioSource?.disconnect();
-  amplified.__dislightAudioGain?.disconnect();
-  amplified.__dislightAudioDestination?.disconnect();
-  await amplified.__dislightAudioContext?.close().catch(() => undefined);
   element.remove();
 }
 function armPlaybackRetry(element: HTMLAudioElement): void {
