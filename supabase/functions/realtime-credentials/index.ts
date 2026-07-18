@@ -51,8 +51,9 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
     return json({ error: "Cloudflare relay credentials could not be issued." }, 503);
   }
 
-  const payload = await response.json() as { iceServers?: Array<{ urls?: unknown; username?: unknown; credential?: unknown }> };
-  const relay = payload.iceServers?.find((entry) =>
+  const payload = await response.json() as { iceServers?: { urls?: unknown; username?: unknown; credential?: unknown } | Array<{ urls?: unknown; username?: unknown; credential?: unknown }> };
+  const servers = Array.isArray(payload.iceServers) ? payload.iceServers : payload.iceServers ? [payload.iceServers] : [];
+  const relay = servers.find((entry) =>
     Array.isArray(entry.urls) && typeof entry.username === "string" && typeof entry.credential === "string"
   );
   const urls = Array.isArray(relay?.urls) ? relay.urls.filter(validTurnUrl) : [];
