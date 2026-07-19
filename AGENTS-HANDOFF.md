@@ -524,3 +524,4 @@ npx tsc --noEmit      # typecheck
 - [x] Created a new password-protected signing identity and a Git-ignored root recovery file (`UPDATER-RECOVERY.local.txt`) containing the encrypted key backup, password, public key, and endpoint. Never commit or share it.
 - [x] Configured NSIS current-user installation and updater `quiet` mode; the new identity means v0.1.16 is the one-time manual bridge release, and later releases can update it in place.
 - [x] Built signed v0.1.16 NSIS installer and `.sig` updater artifact from the final source.
+- [x] Published GitHub release `v0.1.16` with the NSIS installer, signature, and live `latest.json` manifest; verified the public endpoint returns the expected version, URL, and signature.
