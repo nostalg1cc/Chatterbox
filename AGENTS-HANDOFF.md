@@ -529,3 +529,6 @@ npx tsc --noEmit      # typecheck
 - [x] Prepared v0.1.17 as a signed updater test release so an installed v0.1.16 client can exercise the complete real update path.
 - [x] Added the actual updater failure message to About & Updates, so any remaining check/install failure is diagnosable without guessing from a generic toast.
 - [x] Published signed GitHub release `v0.1.17` with a verified live manifest and installer URL; it is the controlled update target for v0.1.16.
+### Phase 61 - Updater manifest encoding hotfix (July 19)
+- [x] Identified a UTF-8 BOM in the original GitHub `latest.json` asset as the likely native updater parse failure.
+- [x] Release manifests are now written as clean UTF-8 without a BOM. v0.1.18 is the fresh-URL bridge release, avoiding GitHub CDN retention of the previously uploaded v0.1.17 asset.
