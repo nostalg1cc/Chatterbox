@@ -517,3 +517,4 @@ npx tsc --noEmit      # typecheck
 - [x] Cache eviction is usage-aware: frequently played clips are retained first, then oldest least-used clips are removed only when required. Clips outside the durable budget remain available in the short-lived 32 MiB session cache.
 - [x] Replaced coarse `timeupdate` progress with a requestAnimationFrame playback clock backed by each sound's known duration, so the progress fill starts immediately and advances smoothly.
 - [x] Verified TypeScript and the production web build.
+- [x] Removed the numeric percentage label and moved the fill to GPU-friendly linear transform interpolation for visibly smoother progress.

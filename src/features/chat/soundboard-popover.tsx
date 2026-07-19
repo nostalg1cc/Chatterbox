@@ -136,8 +136,8 @@ function SoundGroup({
             >
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 left-0 -z-10 bg-white/[0.15] transition-[width] duration-150"
-                style={{ width: `${isPlaying ? Math.max(3, playbackProgress * 100) : 0}%` }}
+                className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-full origin-left bg-white/[0.15] transition-transform duration-100 ease-linear will-change-transform"
+                style={{ transform: `scaleX(${isPlaying ? Math.max(0, playbackProgress) : 0})` }}
               />
               <Button
                 variant="ghost"
@@ -160,10 +160,7 @@ function SoundGroup({
                 onClick={() => void useSoundboard.getState().play(sound.id)}
               >
                 <span className="block truncate text-xs font-medium text-foreground/90">{sound.name}</span>
-                <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <span>{(sound.duration_ms / 1000).toFixed(1)}s</span>
-                  {isPlaying && <span>{Math.round(playbackProgress * 100)}%</span>}
-                </span>
+                <span className="mt-0.5 block text-[10px] text-muted-foreground">{(sound.duration_ms / 1000).toFixed(1)}s</span>
               </button>
               <Button
                 variant="ghost"
