@@ -528,3 +528,4 @@ npx tsc --noEmit      # typecheck
 ### Phase 60 - Updater validation bridge (July 19)
 - [x] Prepared v0.1.17 as a signed updater test release so an installed v0.1.16 client can exercise the complete real update path.
 - [x] Added the actual updater failure message to About & Updates, so any remaining check/install failure is diagnosable without guessing from a generic toast.
+- [x] Published signed GitHub release `v0.1.17` with a verified live manifest and installer URL; it is the controlled update target for v0.1.16.
