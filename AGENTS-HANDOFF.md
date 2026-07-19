@@ -511,4 +511,4 @@ npx tsc --noEmit      # typecheck
 ### Phase 57 - Soundboard playback surface (July 19)
 - [x] Reworked in-call sound rows into a clear transport layout: real play/pause control at left, star pin at right, and a subtle live playback-progress fill behind the row.
 - [x] Added local pause/resume state for the playing clip while retaining the existing broadcast-on-initial-play behavior for the partner.
-- [x] Verified TypeScript, whitespace, and production build.
+- [x] Verified TypeScript, whitespace, and production build.- [x] Refined the Phase 57 transport after review: the active control is now Stop/reset (not Pause), the progress fill is a sharp white 15% bar with no gradient, and clips use a compact two-column grid.

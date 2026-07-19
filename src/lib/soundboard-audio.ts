@@ -169,8 +169,6 @@ export function preloadSoundboardClips(clips: Array<{ id: string; signedUrl: str
 }
 
 export interface SoundboardPlayback {
-  pause: () => void;
-  resume: () => void;
   stop: () => void;
 }
 
@@ -216,17 +214,6 @@ export async function playSoundboardUrl(
   timer = window.setTimeout(start, Math.max(0, playAt - Date.now()));
 
   return {
-    pause: () => {
-      if (finished) return;
-      if (timer !== null) {
-        window.clearTimeout(timer);
-        timer = null;
-      }
-      audio.pause();
-    },
-    resume: () => {
-      if (!finished) void audio.play().catch(() => finish());
-    },
     stop: () => {
       if (finished) return;
       audio.pause();

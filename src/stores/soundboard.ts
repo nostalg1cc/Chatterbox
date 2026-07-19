@@ -24,7 +24,6 @@ interface SoundboardState {
   signedUrls: Record<string, string>;
   playingSoundId: string | null;
   playbackProgress: number;
-  playbackPaused: boolean;
   load: () => Promise<void>;
   loadAvailable: (conversationId: string) => Promise<void>;
   upload: (file: File, name: string) => Promise<void>;
@@ -52,7 +51,6 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   signedUrls: {},
   playingSoundId: null,
   playbackProgress: 0,
-  playbackPaused: false,
 
   load: async () => {
     set({ loading: true });
@@ -144,13 +142,9 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
 
   play: async (soundId) => {
     if (get().playingSoundId === soundId && localPlayback) {
-      if (get().playbackPaused) {
-        localPlayback.resume();
-        set({ playbackPaused: false });
-      } else {
-        localPlayback.pause();
-        set({ playbackPaused: true });
-      }
+      localPlayback.stop();
+      localPlayback = null;
+      set({ playingSoundId: null, playbackProgress: 0 });
       return;
     }
 
@@ -192,7 +186,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
       const previous = localPlayback;
       localPlayback = null;
       previous?.stop();
-      set({ playingSoundId: payload.id, playbackProgress: 0, playbackPaused: false });
+      set({ playingSoundId: payload.id, playbackProgress: 0 });
       localPlayback = await playSoundboardUrl(
         payload.id,
         payload.signedUrl,
@@ -206,7 +200,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
           onEnded: () => {
             if (get().playingSoundId === payload.id) {
               localPlayback = null;
-              set({ playingSoundId: null, playbackProgress: 0, playbackPaused: false });
+              set({ playingSoundId: null, playbackProgress: 0 });
             }
           },
         }
@@ -214,7 +208,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
     } catch (error) {
       if (get().playingSoundId === soundId) {
         localPlayback = null;
-        set({ playingSoundId: null, playbackProgress: 0, playbackPaused: false });
+        set({ playingSoundId: null, playbackProgress: 0 });
       }
       toast.error(error instanceof Error ? error.message : "Sound could not play.");
     }

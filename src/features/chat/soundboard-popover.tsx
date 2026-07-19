@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2Icon, Music2Icon, PauseIcon, PlayIcon, StarIcon } from "lucide-react";
+import { Loader2Icon, Music2Icon, PlayIcon, SquareIcon, StarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -24,7 +24,6 @@ export function SoundboardPopover({ conversationId, partnerName }: SoundboardPop
   const loading = useSoundboard((state) => state.loading);
   const playingSoundId = useSoundboard((state) => state.playingSoundId);
   const playbackProgress = useSoundboard((state) => state.playbackProgress);
-  const playbackPaused = useSoundboard((state) => state.playbackPaused);
   const pinnedSoundIds = usePreferences((state) => state.pinnedSoundIds);
   const setPreference = usePreferences((state) => state.setPreference);
   const [open, setOpen] = useState(false);
@@ -63,7 +62,6 @@ export function SoundboardPopover({ conversationId, partnerName }: SoundboardPop
     onTogglePin: togglePin,
     playingSoundId,
     playbackProgress,
-    playbackPaused,
   };
 
   return (
@@ -111,7 +109,6 @@ function SoundGroup({
   onTogglePin,
   playingSoundId,
   playbackProgress,
-  playbackPaused,
 }: {
   title: string;
   sounds: SoundboardSound[];
@@ -119,7 +116,6 @@ function SoundGroup({
   onTogglePin: (id: string) => void;
   playingSoundId: string | null;
   playbackProgress: number;
-  playbackPaused: boolean;
 }) {
   if (!sounds.length) return null;
 
@@ -128,11 +124,11 @@ function SoundGroup({
       <h3 className="mb-1.5 px-0.5 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
         {title}
       </h3>
-      <div className="space-y-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
         {sounds.map((sound) => {
           const isPinned = pinned.includes(sound.id);
           const isPlaying = playingSoundId === sound.id;
-          const playLabel = isPlaying && !playbackPaused ? "Pause" : "Play";
+          const playLabel = isPlaying ? "Stop" : "Play";
           return (
             <div
               key={sound.id}
@@ -140,7 +136,7 @@ function SoundGroup({
             >
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 left-0 -z-10 bg-gradient-to-r from-emerald-400/[0.18] via-emerald-300/[0.10] to-transparent transition-[width] duration-150"
+                className="pointer-events-none absolute inset-y-0 left-0 -z-10 bg-white/[0.15] transition-[width] duration-150"
                 style={{ width: `${isPlaying ? Math.max(3, playbackProgress * 100) : 0}%` }}
               />
               <Button
@@ -149,13 +145,13 @@ function SoundGroup({
                 aria-label={`${playLabel} ${sound.name}`}
                 className={
                   "m-1 shrink-0 rounded-md " +
-                  (isPlaying && !playbackPaused
-                    ? "bg-emerald-400/15 text-emerald-200 hover:bg-emerald-400/25 hover:text-emerald-100"
+                  (isPlaying
+                    ? "bg-white/[0.12] text-foreground hover:bg-white/[0.18]"
                     : "text-foreground/80 hover:bg-white/[0.08]")
                 }
                 onClick={() => void useSoundboard.getState().play(sound.id)}
               >
-                {isPlaying && !playbackPaused ? <PauseIcon /> : <PlayIcon />}
+                {isPlaying ? <SquareIcon className="fill-current" /> : <PlayIcon />}
               </Button>
               <button
                 type="button"
@@ -166,7 +162,7 @@ function SoundGroup({
                 <span className="block truncate text-xs font-medium text-foreground/90">{sound.name}</span>
                 <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
                   <span>{(sound.duration_ms / 1000).toFixed(1)}s</span>
-                  {isPlaying && <span>{playbackPaused ? "Paused" : `${Math.round(playbackProgress * 100)}%`}</span>}
+                  {isPlaying && <span>{Math.round(playbackProgress * 100)}%</span>}
                 </span>
               </button>
               <Button
