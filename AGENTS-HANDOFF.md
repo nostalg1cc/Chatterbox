@@ -525,3 +525,6 @@ npx tsc --noEmit      # typecheck
 - [x] Configured NSIS current-user installation and updater `quiet` mode; the new identity means v0.1.16 is the one-time manual bridge release, and later releases can update it in place.
 - [x] Built signed v0.1.16 NSIS installer and `.sig` updater artifact from the final source.
 - [x] Published GitHub release `v0.1.16` with the NSIS installer, signature, and live `latest.json` manifest; verified the public endpoint returns the expected version, URL, and signature.
+### Phase 60 - Updater validation bridge (July 19)
+- [x] Prepared v0.1.17 as a signed updater test release so an installed v0.1.16 client can exercise the complete real update path.
+- [x] Added the actual updater failure message to About & Updates, so any remaining check/install failure is diagnosable without guessing from a generic toast.

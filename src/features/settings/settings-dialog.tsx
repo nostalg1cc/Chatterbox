@@ -106,6 +106,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   const [availableVersion, setAvailableVersion] = useState<string | null>(null);
   const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
   const [updateProgress, setUpdateProgress] = useState<number | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   const sounds = useSoundboard((state) => state.sounds);
   const soundUploading = useSoundboard((state) => state.uploading);
   const SOUND_STORAGE_LIMIT = 16 * 1024 * 1024;
@@ -226,13 +227,15 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
     if (!isTauri) { setUpdateStatus("current"); return; }
     setUpdateStatus("checking");
     setUpdateProgress(null);
+    setUpdateError(null);
     try {
       const update = await check();
       setPendingUpdate(update);
       setAvailableVersion(update?.version ?? null);
       setUpdateStatus(update ? "available" : "current");
-    } catch {
+    } catch (error) {
       setPendingUpdate(null);
+      setUpdateError(error instanceof Error ? error.message : "Unknown updater error.");
       setUpdateStatus("error");
     }
   };
@@ -241,6 +244,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
     if (!isTauri) return;
     setUpdateStatus("downloading");
     setUpdateProgress(0);
+    setUpdateError(null);
     let receivedBytes = 0;
     let totalBytes = 0;
     try {
@@ -263,7 +267,8 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
         }
       });
       await invoke("restart_app");
-    } catch {
+    } catch (error) {
+      setUpdateError(error instanceof Error ? error.message : "Unknown updater error.");
       setUpdateStatus("error");
       setUpdateProgress(null);
     }
@@ -884,7 +889,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                       <p className="mt-2 text-xs text-muted-foreground">Downloading signed update{updateProgress === null ? "…" : ` · ${updateProgress}%`}</p>
                     </div>
                   )}
-                  {updateStatus !== "downloading" && <p className="mt-4 text-xs text-muted-foreground">{updateStatus === "available" ? "Update " + availableVersion + " is ready to install in place." : updateStatus === "current" ? "You are up to date." : updateStatus === "error" ? "Could not check for updates right now. Try again shortly." : "Dislight checks automatically when it starts. You can also check manually here."}</p>}
+                  {updateStatus !== "downloading" && <p className="mt-4 text-xs text-muted-foreground">{updateStatus === "available" ? "Update " + availableVersion + " is ready to install in place." : updateStatus === "current" ? "You are up to date." : updateStatus === "error" ? "Could not check for updates: " + (updateError ?? "Unknown updater error.") : "Dislight checks automatically when it starts. You can also check manually here."}</p>}
                 </div>
               </section>
             </TabsContent>
