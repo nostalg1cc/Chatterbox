@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Maximize2Icon, MonitorUpIcon, ShrinkIcon } from "lucide-react";
+import { Maximize2Icon, MonitorUpIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useVoice } from "@/stores/voice";
@@ -68,7 +68,7 @@ export function ScreenSharePreview({ source = "remote" }: { source?: ScreenShare
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-1.5 bg-gradient-to-b from-black/75 to-transparent px-2 py-1.5 text-[10px] text-white/85 opacity-0 transition-opacity group-hover:opacity-100">
         <MonitorUpIcon className="size-3" />
         {label}
-        <span className="ml-auto">{expanded ? "Click to return to compact view" : "Click to expand"}</span>
+
       </div>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -88,12 +88,7 @@ export function ScreenSharePreview({ source = "remote" }: { source?: ScreenShare
         </TooltipTrigger>
         <TooltipContent>Fullscreen</TooltipContent>
       </Tooltip>
-      {expanded && (
-        <div className="pointer-events-none absolute right-2 bottom-2 rounded-md bg-black/60 px-2 py-1 text-[10px] text-white/80">
-          <ShrinkIcon className="mr-1 inline size-3" />
-          Click anywhere to return
-        </div>
-      )}
+
     </div>
   );
 }

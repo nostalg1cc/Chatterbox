@@ -540,3 +540,5 @@ npx tsc --noEmit      # typecheck
 - Generate `latest.json` from the generated `.sig`, with `version`, `notes`, `pub_date`, and `platforms.windows-x86_64.url/signature`. Write it with `new Text.UTF8Encoding($false)` — **never** Windows PowerShell `Set-Content -Encoding utf8`, which writes a BOM and makes the native Tauri updater fail parsing.
 - Upload an asset actually named `latest.json` to the newest non-prerelease GitHub release. Verify via `curl -L` that the first bytes are `7B 0D 0A` or another normal JSON start (never `EF BB BF`), that the manifest version is correct, that a signature exists, and that the installer URL returns HTTP 200.
 - Updater configuration is intentionally current-user NSIS plus updater Windows `quiet` mode: updates replace the app in place and restart without installer UI or elevation prompts. Do not change the configured public key: existing installs trust it.
+### Phase 62 - Expanded screen-share cleanup (July 19)
+- [x] Removed both redundant expanded-PiP helper prompts; the stream remains clickable for compact/expanded switching and retains the fullscreen control.
