@@ -56,6 +56,7 @@ interface VoiceState {
   muted: boolean;
   deafened: boolean;
   sharingScreen: boolean;
+  localScreenStream: MediaStream | null;
   remoteScreenStream: MediaStream | null;
   error: string | null;
   init: (userId: string) => () => void;
@@ -82,6 +83,7 @@ let roomSubscribed = false;
 let microphone: MicrophonePipeline | null = null;
 let peerConnection: RTCPeerConnection | null = null;
 let remoteAudio: HTMLAudioElement | null = null;
+let remoteAudioStream: MediaStream | null = null;
 let localScreenStream: MediaStream | null = null;
 let localScreenTrack: MediaStreamTrack | null = null;
 let cloudflareScreenConnection: RTCPeerConnection | null = null;
@@ -110,6 +112,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   muted: false,
   deafened: false,
   sharingScreen: false,
+  localScreenStream: null,
   remoteScreenStream: null,
   error: null,
 
@@ -264,19 +267,27 @@ export const useVoice = create<VoiceState>()((set, get) => ({
       track.onended = () => {
         void stopLocalScreen(true);
       };
+      set({ sharingScreen: true, localScreenStream: stream });
+
+      // Keep the established call peer as the reliable stream path. Cloudflare is
+      // an optional enhancement; a subscriber-side SFU failure must not black-hole a share.
+      if (peerConnection) await addScreenTracks(peerConnection, stream);
 
       try {
         const cloudflare = await createCloudflareScreenPublisher(get().activeConversationId!, stream, track);
         cloudflareScreenConnection = cloudflare.connection;
         sendScreenPublished(cloudflare.sessionId, cloudflare.trackName);
       } catch {
-        if (peerConnection) await addScreenTrack(peerConnection, stream, track);
+        // The direct track above remains the automatic compatibility fallback.
       }
 
-      set({ sharingScreen: true });
+      if (!stream.getAudioTracks().length) {
+        toast.info("This source did not include audio. Enable Share system audio in the capture picker when available.");
+      }
       await updateRoomPresence();
       await sendHeartbeat();
     } catch (error) {
+      await stopLocalScreen(false);
       if (error instanceof DOMException && error.name === "NotAllowedError") return;
       toast.error(
         error instanceof Error ? error.message : "Screen sharing could not start."
@@ -728,7 +739,7 @@ function ensurePeerConnection(remoteUserId: string): void {
   const audioTrack = microphone.outputStream.getAudioTracks()[0];
   if (audioTrack) connection.addTrack(audioTrack, microphone.outputStream);
   if (localScreenTrack && localScreenStream) {
-    void addScreenTrack(connection, localScreenStream, localScreenTrack);
+    void addScreenTracks(connection, localScreenStream);
   }
 
   connection.onicecandidate = (event) => {
@@ -879,14 +890,19 @@ function handleRemoteTrack(event: RTCTrackEvent): void {
   const stream = event.streams[0] ?? new MediaStream([event.track]);
   if (event.track.kind === "audio") {
     remoteAudio ??= createRemoteAudioElement();
+    remoteAudioStream ??= new MediaStream();
+    if (!remoteAudioStream.getAudioTracks().some((track) => track.id === event.track.id)) {
+      remoteAudioStream.addTrack(event.track);
+    }
     void configureRemoteAudio(remoteAudio, {
-      stream,
+      stream: remoteAudioStream,
       outputVolume: usePreferences.getState().outputVolume,
       outputDeviceId: usePreferences.getState().outputDeviceId,
       deafened: useVoice.getState().deafened,
     });
     event.track.onended = () => {
-      if (remoteAudio?.srcObject === stream) remoteAudio.srcObject = null;
+      remoteAudioStream?.removeTrack(event.track);
+      if (!remoteAudioStream?.getAudioTracks().length && remoteAudio) remoteAudio.srcObject = null;
     };
   } else if (event.track.kind === "video") {
     useVoice.setState({ remoteScreenStream: stream });
@@ -1088,18 +1104,20 @@ function applyRemoteAudioPreferences(): void {
   });
 }
 
-async function addScreenTrack(
+async function addScreenTracks(
   connection: RTCPeerConnection,
-  stream: MediaStream,
-  track: MediaStreamTrack
+  stream: MediaStream
 ): Promise<void> {
-  const sender = connection.addTrack(track, stream);
-  const parameters = sender.getParameters();
-  if (parameters.encodings.length > 0) {
-    parameters.degradationPreference = "maintain-framerate";
-    parameters.encodings[0].maxBitrate = 8_000_000;
-    parameters.encodings[0].maxFramerate = 60;
-    await sender.setParameters(parameters).catch(() => undefined);
+  for (const track of stream.getTracks()) {
+    const sender = connection.addTrack(track, stream);
+    if (track.kind !== "video") continue;
+    const parameters = sender.getParameters();
+    if (parameters.encodings.length > 0) {
+      parameters.degradationPreference = "maintain-framerate";
+      parameters.encodings[0].maxBitrate = 8_000_000;
+      parameters.encodings[0].maxFramerate = 60;
+      await sender.setParameters(parameters).catch(() => undefined);
+    }
   }
 }
 
@@ -1107,10 +1125,10 @@ async function stopLocalScreen(updateServer: boolean): Promise<void> {
   const track = localScreenTrack;
   if (!track) return;
 
-  const sender = peerConnection
-    ?.getSenders()
-    .find((entry) => entry.track === track);
-  if (sender && peerConnection) peerConnection.removeTrack(sender);
+  const screenTracks = new Set(localScreenStream?.getTracks() ?? []);
+  for (const sender of peerConnection?.getSenders() ?? []) {
+    if (sender.track && screenTracks.has(sender.track)) peerConnection?.removeTrack(sender);
+  }
 
   track.onended = null;
   for (const mediaTrack of localScreenStream?.getTracks() ?? []) {
@@ -1121,7 +1139,7 @@ async function stopLocalScreen(updateServer: boolean): Promise<void> {
   cloudflareScreenConnection?.close();
   cloudflareScreenConnection = null;
   sendScreenStopped();
-  useVoice.setState({ sharingScreen: false });
+  useVoice.setState({ sharingScreen: false, localScreenStream: null });
 
   if (updateServer) {
     await updateRoomPresence();
@@ -1185,6 +1203,7 @@ function closePeerConnection(setSolo = true): void {
     remoteAudio.pause();
     remoteAudio.srcObject = null;
   }
+  remoteAudioStream = null;
   remoteSessionId = null;
   pendingCandidates = [];
   makingOffer = false;
@@ -1251,6 +1270,7 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
       activeConversationId: null,
       sessionId: null,
       sharingScreen: false,
+      localScreenStream: null,
       remoteScreenStream: null,
       error: null,
     };

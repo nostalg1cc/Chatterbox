@@ -502,3 +502,9 @@ npx tsc --noEmit      # typecheck
 - [x] Released a standalone Windows NSIS installer with chat clipboard paste, composer drag-and-drop, local attachment compression, and composer focus retention.
 - [x] Published GitHub release `v0.1.15` with `Dislight_0.1.15_x64-setup.exe`.
 - [!] The installer is intentionally standalone: updater signature generation remains blocked by the configured private-key password mismatch.
+### Phase 56 - Screen-share reliability, preview, and audio (July 19)
+- [x] Diagnosed the live screen-share failure: Cloudflare publisher requests succeeded, but the partner subscription returned 502, leaving no usable media path.
+- [x] Kept direct WebRTC screen tracks active as the reliable route even when Cloudflare publish/subscribe is attempted, so an SFU failure cannot leave a false Streaming state.
+- [x] Added separate own (left) and partner (right) screen previews, each with compact, expanded, and fullscreen views.
+- [x] Requested display-capture audio and mix received screen audio with voice rather than replacing it; sources that do not offer audio now explain how to enable it in the picker.
+- [x] Verified TypeScript, whitespace, and production build.

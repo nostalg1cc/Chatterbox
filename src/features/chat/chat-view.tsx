@@ -221,7 +221,8 @@ export function ChatView({ conversationId }: { conversationId: string }) {
             Media channel
           </div>
         )}
-        <ScreenSharePreview />
+        <ScreenSharePreview source="local" />
+        <ScreenSharePreview source="remote" />
       </div>
     </div>
   );

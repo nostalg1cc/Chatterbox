@@ -214,6 +214,10 @@ export async function captureScreen(): Promise<MediaStream> {
       height: { ideal: 720, max: 720 },
       frameRate: { ideal: 60, max: 60 },
     },
-    audio: false,
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    },
   });
 }
