@@ -30,3 +30,7 @@ supabase/.temp/
 
 # Large source library; avatar decorations are delivered from Cloudinary.
 stuff/new deco/
+# Local updater signing material and emergency recovery backup.
+.dislight-updater.key.local
+.dislight-updater.key.local.pub
+UPDATER-RECOVERY.local.txt

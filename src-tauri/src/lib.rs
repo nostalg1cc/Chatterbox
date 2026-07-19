@@ -57,6 +57,10 @@ fn set_window_material(
     }
 }
 
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -81,7 +85,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![set_window_material])
+        .invoke_handler(tauri::generate_handler![set_window_material, restart_app])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

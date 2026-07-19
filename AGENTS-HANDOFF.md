@@ -518,3 +518,9 @@ npx tsc --noEmit      # typecheck
 - [x] Replaced coarse `timeupdate` progress with a requestAnimationFrame playback clock backed by each sound's known duration, so the progress fill starts immediately and advances smoothly.
 - [x] Verified TypeScript and the production web build.
 - [x] Removed the numeric percentage label and moved the fill to GPU-friendly linear transform interpolation for visibly smoother progress.
+### Phase 59 - Signed silent updater (July 19)
+- [x] Replaced the stalled manual update toast with a signed Tauri updater flow: desktop startup checks, downloads, installs quietly per-user, then restarts in place.
+- [x] Added a functional About & Updates surface: manual check, version availability, install action, download progress, and clean restart handoff.
+- [x] Created a new password-protected signing identity and a Git-ignored root recovery file (`UPDATER-RECOVERY.local.txt`) containing the encrypted key backup, password, public key, and endpoint. Never commit or share it.
+- [x] Configured NSIS current-user installation and updater `quiet` mode; the new identity means v0.1.16 is the one-time manual bridge release, and later releases can update it in place.
+- [x] Built signed v0.1.16 NSIS installer and `.sig` updater artifact from the final source.

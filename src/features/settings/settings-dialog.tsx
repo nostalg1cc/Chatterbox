@@ -65,7 +65,8 @@ import { AVATAR_DECORATIONS, decorationUrl, fetchLiveAvatarDecorations } from "@
 import { supabase } from "@/lib/supabase";
 import { isTauri } from "@/lib/tauri";
 import { getVersion } from "@tauri-apps/api/app";
-import { check } from "@tauri-apps/plugin-updater";
+import { invoke } from "@tauri-apps/api/core";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import type { NameColor, NameFont, NameWeight, Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/stores/auth";
@@ -101,8 +102,10 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   const [renamingSoundId, setRenamingSoundId] = useState<string | null>(null);
   const [renamingSoundName, setRenamingSoundName] = useState("");
   const [appVersion, setAppVersion] = useState("0.1.7");
-  const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "current" | "available" | "error">("idle");
+  const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "current" | "available" | "downloading" | "error">("idle");
   const [availableVersion, setAvailableVersion] = useState<string | null>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
   const sounds = useSoundboard((state) => state.sounds);
   const soundUploading = useSoundboard((state) => state.uploading);
   const SOUND_STORAGE_LIMIT = 16 * 1024 * 1024;
@@ -222,15 +225,49 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
   const checkForUpdates = async () => {
     if (!isTauri) { setUpdateStatus("current"); return; }
     setUpdateStatus("checking");
+    setUpdateProgress(null);
     try {
       const update = await check();
+      setPendingUpdate(update);
       setAvailableVersion(update?.version ?? null);
       setUpdateStatus(update ? "available" : "current");
     } catch {
+      setPendingUpdate(null);
       setUpdateStatus("error");
     }
   };
 
+  const installUpdate = async () => {
+    if (!isTauri) return;
+    setUpdateStatus("downloading");
+    setUpdateProgress(0);
+    let receivedBytes = 0;
+    let totalBytes = 0;
+    try {
+      const update = pendingUpdate ?? await check();
+      if (!update) {
+        setUpdateStatus("current");
+        setUpdateProgress(null);
+        return;
+      }
+      setPendingUpdate(update);
+      setAvailableVersion(update.version);
+      await update.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          totalBytes = event.data.contentLength ?? 0;
+        } else if (event.event === "Progress") {
+          receivedBytes += event.data.chunkLength;
+          if (totalBytes > 0) setUpdateProgress(Math.min(100, Math.round((receivedBytes / totalBytes) * 100)));
+        } else if (event.event === "Finished") {
+          setUpdateProgress(100);
+        }
+      });
+      await invoke("restart_app");
+    } catch {
+      setUpdateStatus("error");
+      setUpdateProgress(null);
+    }
+  };
   const clearCache = async () => {
     if (!userId) return;
     setClearingCache(true);
@@ -826,10 +863,28 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                 <SettingsHeading title="About Dislight" description="A focused space for one-to-one chat, voice, and shared moments." />
                 <div className="surface-panel rounded-[14px] border-white/[0.14] bg-white/[0.025] p-5">
                   <div className="flex items-start justify-between gap-4">
-                    <div><p className="text-sm font-medium">Dislight {appVersion}</p><p className="mt-1 text-xs text-muted-foreground">{isTauri ? "Desktop release channel" : "Web app"}</p></div>
-                    <Button variant="secondary" size="sm" disabled={updateStatus === "checking"} onClick={() => void checkForUpdates()}><RefreshCwIcon className={cn(updateStatus === "checking" && "animate-spin")} />Check for updates</Button>
+                    <div>
+                      <p className="text-sm font-medium">Dislight {appVersion}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{isTauri ? "Desktop release channel · signed updates" : "Web app"}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button variant="secondary" size="sm" disabled={updateStatus === "checking" || updateStatus === "downloading"} onClick={() => void checkForUpdates()}>
+                        <RefreshCwIcon className={cn(updateStatus === "checking" && "animate-spin")} />Check now
+                      </Button>
+                      {updateStatus === "available" && (
+                        <Button size="sm" onClick={() => void installUpdate()}>Install {availableVersion}</Button>
+                      )}
+                    </div>
                   </div>
-                  <p className="mt-4 text-xs text-muted-foreground">{updateStatus === "available" ? "Update " + availableVersion + " is available. Restart after installing it from the release page." : updateStatus === "current" ? "You are up to date." : updateStatus === "error" ? "Could not check for updates right now." : "Check for the latest desktop release whenever you like."}</p>
+                  {updateStatus === "downloading" && (
+                    <div className="mt-4">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+                        <div className="h-full bg-white/[0.65] transition-[width] duration-150" style={{ width: `${updateProgress ?? 0}%` }} />
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">Downloading signed update{updateProgress === null ? "…" : ` · ${updateProgress}%`}</p>
+                    </div>
+                  )}
+                  {updateStatus !== "downloading" && <p className="mt-4 text-xs text-muted-foreground">{updateStatus === "available" ? "Update " + availableVersion + " is ready to install in place." : updateStatus === "current" ? "You are up to date." : updateStatus === "error" ? "Could not check for updates right now. Try again shortly." : "Dislight checks automatically when it starts. You can also check manually here."}</p>}
                 </div>
               </section>
             </TabsContent>

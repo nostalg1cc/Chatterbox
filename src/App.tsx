@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { toast } from "sonner";
+import { invoke } from "@tauri-apps/api/core";
+
 import { Titlebar } from "@/components/titlebar";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -41,22 +42,12 @@ export default function App() {
         const { check } = await import("@tauri-apps/plugin-updater");
         const update = await check();
         if (!update || disposed) return;
-
-        toast("Dislight " + update.version + " is ready", {
-          description: "Download and install the signed update now.",
-          duration: Infinity,
-          action: {
-            label: "Install now",
-            onClick: () => {
-              void update.downloadAndInstall().catch((error) => {
-                console.warn("Update installation failed", error);
-                toast.error("Couldn't install the update. Please try again later.");
-              });
-            },
-          },
-        });
+        await update.downloadAndInstall();
+        if (!disposed) await invoke("restart_app");
       } catch (error) {
-        console.warn("Update check failed", error);
+        // Updates are intentionally quiet at startup. The About page remains
+        // available for a manual retry if a network or release check fails.
+        console.warn("Automatic update failed", error);
       }
     })();
 
