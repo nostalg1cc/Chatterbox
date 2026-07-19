@@ -452,7 +452,7 @@ npx tsc --noEmit      # typecheck
 - [x] Supabase security advisor was checked after DDL; reported warnings predate this change and concern existing RPC functions/Auth protection, not profile-decoration access.
 
 ### Phase 50 - Cloud decoration initial live set (July 16)
-- [x] Reset the Cloudinary decoration folder and uploaded only IDs 001–010 from the source manifest.
+- [x] Reset the Cloudinary decoration folder and uploaded only IDs 001ï¿½010 from the source manifest.
 - [x] Restricted the app picker and delivery layer to those ten Cloudinary-hosted APNG decorations; removed local/original-source fallback from selectable items.
 
 ### Phase 51 - Live Cloudinary decoration discovery (July 16)
@@ -463,7 +463,7 @@ npx tsc --noEmit      # typecheck
 
 ### Phase 52 - Complete Cloud avatar-decoration import (July 16)
 - [x] Imported and reconciled all 639 APNG decorations to Cloudinary under `dislight/avatar-decorations`.
-- [x] Verified the hosted catalogue contains exactly IDs 001–639, with no missing IDs or extras.
+- [x] Verified the hosted catalogue contains exactly IDs 001ï¿½639, with no missing IDs or extras.
 - [x] The raw `stuff/new deco/` sources remain Git-ignored; all clients use Cloudinary delivery instead.
 
 - [x] Voice capture: fixed noise suppression argument propagation; off is now the safe default, with echo cancellation and automatic gain disabled.
@@ -512,3 +512,8 @@ npx tsc --noEmit      # typecheck
 - [x] Reworked in-call sound rows into a clear transport layout: real play/pause control at left, star pin at right, and a subtle live playback-progress fill behind the row.
 - [x] Added local pause/resume state for the playing clip while retaining the existing broadcast-on-initial-play behavior for the partner.
 - [x] Verified TypeScript, whitespace, and production build.- [x] Refined the Phase 57 transport after review: the active control is now Stop/reset (not Pause), the progress fill is a sharp white 15% bar with no gradient, and clips use a compact two-column grid.
+### Phase 58 - Persistent soundboard cache and smooth progress (July 19)
+- [x] Added a durable IndexedDB sound cache with a strict 16 MiB budget; cache hits survive app restarts and are warmed automatically when a voice room's shared soundboard loads.
+- [x] Cache eviction is usage-aware: frequently played clips are retained first, then oldest least-used clips are removed only when required. Clips outside the durable budget remain available in the short-lived 32 MiB session cache.
+- [x] Replaced coarse `timeupdate` progress with a requestAnimationFrame playback clock backed by each sound's known duration, so the progress fill starts immediately and advances smoothly.
+- [x] Verified TypeScript and the production web build.

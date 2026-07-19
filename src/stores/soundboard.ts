@@ -194,6 +194,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
         usePreferences.getState().soundboardVolume,
         usePreferences.getState().outputDeviceId,
         {
+          durationMs: sound.duration_ms,
           onProgress: (playbackProgress) => {
             if (get().playingSoundId === payload.id) set({ playbackProgress });
           },

@@ -109,15 +109,122 @@ async function encodeOpus(buffer: AudioBuffer): Promise<Blob> {
 }
 
 const MAX_PLAYBACK_CACHE_BYTES = 32 * 1024 * 1024;
+const MAX_PERSISTENT_CACHE_BYTES = 16 * 1024 * 1024;
+const PERSISTENT_CACHE_DATABASE = "dislight-soundboard-cache";
+const PERSISTENT_CACHE_STORE = "clips";
 
 interface CachedClip {
   blob: Blob;
   lastUsedAt: number;
 }
 
+interface PersistedClip extends CachedClip {
+  id: string;
+  size: number;
+  useCount: number;
+}
+
 const playbackCache = new Map<string, CachedClip>();
 const pendingDownloads = new Map<string, Promise<Blob>>();
 let playbackCacheBytes = 0;
+let persistentDatabase: Promise<IDBDatabase | null> | null = null;
+let persistentWriteQueue = Promise.resolve();
+
+function openPersistentCache(): Promise<IDBDatabase | null> {
+  if (persistentDatabase) return persistentDatabase;
+  persistentDatabase = new Promise((resolve) => {
+    if (!("indexedDB" in window)) {
+      resolve(null);
+      return;
+    }
+    try {
+      const request = window.indexedDB.open(PERSISTENT_CACHE_DATABASE, 1);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(PERSISTENT_CACHE_STORE)) {
+          request.result.createObjectStore(PERSISTENT_CACHE_STORE, { keyPath: "id" });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+  return persistentDatabase;
+}
+
+function requestResult<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed."));
+  });
+}
+
+function transactionDone(transaction: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed."));
+    transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted."));
+  });
+}
+
+function queuePersistentWrite(task: () => Promise<void>): void {
+  persistentWriteQueue = persistentWriteQueue.then(task, task).catch(() => undefined);
+}
+
+async function getPersistentClip(cacheKey: string, markUsed: boolean): Promise<Blob | null> {
+  const database = await openPersistentCache();
+  if (!database) return null;
+  try {
+    const transaction = database.transaction(PERSISTENT_CACHE_STORE, markUsed ? "readwrite" : "readonly");
+    const store = transaction.objectStore(PERSISTENT_CACHE_STORE);
+    const record = await requestResult(store.get(cacheKey) as IDBRequest<PersistedClip | undefined>);
+    if (!record) return null;
+    if (markUsed) {
+      record.lastUsedAt = Date.now();
+      record.useCount += 1;
+      store.put(record);
+    }
+    await transactionDone(transaction);
+    return record.blob;
+  } catch {
+    return null;
+  }
+}
+
+async function persistClip(cacheKey: string, blob: Blob, markUsed: boolean): Promise<void> {
+  if (blob.size > MAX_PERSISTENT_CACHE_BYTES) return;
+  const database = await openPersistentCache();
+  if (!database) return;
+  const now = Date.now();
+  const readTransaction = database.transaction(PERSISTENT_CACHE_STORE, "readonly");
+  const existing = await requestResult(readTransaction.objectStore(PERSISTENT_CACHE_STORE).get(cacheKey) as IDBRequest<PersistedClip | undefined>);
+  await transactionDone(readTransaction);
+
+  const writeTransaction = database.transaction(PERSISTENT_CACHE_STORE, "readwrite");
+  const store = writeTransaction.objectStore(PERSISTENT_CACHE_STORE);
+  const records = await requestResult(store.getAll() as IDBRequest<PersistedClip[]>);
+  let totalBytes = records.reduce((total, record) => total + record.size, 0) - (existing?.size ?? 0);
+  const evictable = records
+    .filter((record) => record.id !== cacheKey)
+    .sort((left, right) => left.useCount - right.useCount || left.lastUsedAt - right.lastUsedAt);
+  for (const record of evictable) {
+    if (totalBytes + blob.size <= MAX_PERSISTENT_CACHE_BYTES) break;
+    store.delete(record.id);
+    totalBytes -= record.size;
+  }
+
+  if (totalBytes + blob.size <= MAX_PERSISTENT_CACHE_BYTES) {
+    store.put({
+      id: cacheKey,
+      blob,
+      size: blob.size,
+      lastUsedAt: now,
+      useCount: (existing?.useCount ?? 0) + (markUsed ? 1 : 0),
+    } satisfies PersistedClip);
+  }
+  await transactionDone(writeTransaction);
+}
 
 function cacheClip(cacheKey: string, blob: Blob): Blob {
   const previous = playbackCache.get(cacheKey);
@@ -135,20 +242,40 @@ function cacheClip(cacheKey: string, blob: Blob): Blob {
   return blob;
 }
 
-async function loadClip(cacheKey: string, signedUrl: string): Promise<Blob> {
+async function loadClip(cacheKey: string, signedUrl: string, markUsed = false): Promise<Blob> {
   const cached = playbackCache.get(cacheKey);
   if (cached) {
     cached.lastUsedAt = Date.now();
+    if (markUsed) {
+      queuePersistentWrite(async () => {
+        const persistent = await getPersistentClip(cacheKey, true);
+        if (!persistent) await persistClip(cacheKey, cached.blob, true);
+      });
+    }
     return cached.blob;
   }
 
+  const persisted = await getPersistentClip(cacheKey, markUsed);
+  if (persisted) return cacheClip(cacheKey, persisted);
+
   const pending = pendingDownloads.get(cacheKey);
-  if (pending) return pending;
+  if (pending) {
+    const blob = await pending;
+    if (markUsed) {
+      queuePersistentWrite(async () => {
+        const persistent = await getPersistentClip(cacheKey, true);
+        if (!persistent) await persistClip(cacheKey, blob, true);
+      });
+    }
+    return blob;
+  }
 
   const download = fetch(signedUrl)
     .then(async (response) => {
       if (!response.ok) throw new Error("Soundboard clip could not be downloaded.");
-      return cacheClip(cacheKey, await response.blob());
+      const blob = cacheClip(cacheKey, await response.blob());
+      queuePersistentWrite(() => persistClip(cacheKey, blob, markUsed));
+      return blob;
     })
     .finally(() => pendingDownloads.delete(cacheKey));
   pendingDownloads.set(cacheKey, download);
@@ -156,8 +283,8 @@ async function loadClip(cacheKey: string, signedUrl: string): Promise<Blob> {
 }
 
 export function preloadSoundboardClips(clips: Array<{ id: string; signedUrl: string }>): void {
-  // Clips are tiny (max 512 KiB) and retained only for this app session. Warming
-  // the shared library removes the download from the click-to-play path.
+  // Join-time warming keeps a durable 16 MiB, usage-aware offline cache. Any
+  // clips outside that budget stay in the short-lived session cache instead.
   const queue = [...clips];
   const worker = async () => {
     while (queue.length) {
@@ -167,7 +294,6 @@ export function preloadSoundboardClips(clips: Array<{ id: string; signedUrl: str
   };
   for (let index = 0; index < Math.min(4, queue.length); index += 1) void worker();
 }
-
 export interface SoundboardPlayback {
   stop: () => void;
 }
@@ -179,11 +305,12 @@ export async function playSoundboardUrl(
   volume: number,
   outputDeviceId: string,
   callbacks?: {
+    durationMs?: number;
     onProgress?: (progress: number) => void;
     onEnded?: () => void;
   }
 ): Promise<SoundboardPlayback> {
-  const blob = await loadClip(cacheKey, signedUrl);
+  const blob = await loadClip(cacheKey, signedUrl, true);
   const url = URL.createObjectURL(blob);
   const audio = new Audio(url);
   audio.preload = "auto";
@@ -191,12 +318,28 @@ export async function playSoundboardUrl(
   await routeSoundboardAudio(audio, outputDeviceId);
 
   let timer: number | null = null;
+  let animationFrame: number | null = null;
+  let startedAt = 0;
   let finished = false;
+  const reportProgress = () => {
+    if (finished) return;
+    const mediaDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0;
+    const expectedDuration = callbacks?.durationMs ? callbacks.durationMs / 1000 : 0;
+    const duration = mediaDuration || expectedDuration;
+    if (duration > 0 && startedAt > 0) {
+      const elapsed = (performance.now() - startedAt) / 1000;
+      const position = Math.max(audio.currentTime, elapsed);
+      callbacks?.onProgress?.(Math.max(0, Math.min(1, position / duration)));
+    }
+    animationFrame = window.requestAnimationFrame(reportProgress);
+  };
   const finish = () => {
     if (finished) return;
     finished = true;
     if (timer !== null) window.clearTimeout(timer);
+    if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
     timer = null;
+    animationFrame = null;
     URL.revokeObjectURL(url);
     callbacks?.onEnded?.();
   };
@@ -205,10 +348,9 @@ export async function playSoundboardUrl(
     void audio.play().catch(() => finish());
   };
 
-  audio.addEventListener("timeupdate", () => {
-    if (audio.duration > 0 && Number.isFinite(audio.duration)) {
-      callbacks?.onProgress?.(Math.max(0, Math.min(1, audio.currentTime / audio.duration)));
-    }
+  audio.addEventListener("play", () => {
+    startedAt = performance.now() - audio.currentTime * 1000;
+    if (animationFrame === null) animationFrame = window.requestAnimationFrame(reportProgress);
   });
   audio.addEventListener("ended", finish, { once: true });
   timer = window.setTimeout(start, Math.max(0, playAt - Date.now()));
