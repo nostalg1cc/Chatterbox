@@ -508,3 +508,7 @@ npx tsc --noEmit      # typecheck
 - [x] Added separate own (left) and partner (right) screen previews, each with compact, expanded, and fullscreen views.
 - [x] Requested display-capture audio and mix received screen audio with voice rather than replacing it; sources that do not offer audio now explain how to enable it in the picker.
 - [x] Verified TypeScript, whitespace, and production build.
+### Phase 57 - Soundboard playback surface (July 19)
+- [x] Reworked in-call sound rows into a clear transport layout: real play/pause control at left, star pin at right, and a subtle live playback-progress fill behind the row.
+- [x] Added local pause/resume state for the playing clip while retaining the existing broadcast-on-initial-play behavior for the partner.
+- [x] Verified TypeScript, whitespace, and production build.

@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { create } from "zustand";
-import { prepareSoundboardAudio, playSoundboardUrl, preloadSoundboardClips } from "@/lib/soundboard-audio";
+import { prepareSoundboardAudio, playSoundboardUrl, preloadSoundboardClips, type SoundboardPlayback } from "@/lib/soundboard-audio";
 import { supabase } from "@/lib/supabase";
 import { usePreferences } from "./preferences";
 import { broadcastVoiceSoundboard, useVoice } from "./voice";
@@ -22,6 +22,9 @@ interface SoundboardState {
   uploading: boolean;
   cooldownUntil: number;
   signedUrls: Record<string, string>;
+  playingSoundId: string | null;
+  playbackProgress: number;
+  playbackPaused: boolean;
   load: () => Promise<void>;
   loadAvailable: (conversationId: string) => Promise<void>;
   upload: (file: File, name: string) => Promise<void>;
@@ -30,6 +33,8 @@ interface SoundboardState {
   play: (soundId: string) => Promise<void>;
   preview: (soundId: string) => Promise<void>;
 }
+
+let localPlayback: SoundboardPlayback | null = null;
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("soundboard-storage", { body });
@@ -45,6 +50,9 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   uploading: false,
   cooldownUntil: 0,
   signedUrls: {},
+  playingSoundId: null,
+  playbackProgress: 0,
+  playbackPaused: false,
 
   load: async () => {
     set({ loading: true });
@@ -135,6 +143,17 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   },
 
   play: async (soundId) => {
+    if (get().playingSoundId === soundId && localPlayback) {
+      if (get().playbackPaused) {
+        localPlayback.resume();
+        set({ playbackPaused: false });
+      } else {
+        localPlayback.pause();
+        set({ playbackPaused: true });
+      }
+      return;
+    }
+
     const voice = useVoice.getState();
     if (!voice.activeConversationId) {
       toast.info("Join voice to use the soundboard.");
@@ -142,24 +161,61 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
     }
     if (Date.now() < get().cooldownUntil) return;
     set({ cooldownUntil: Date.now() + 600 });
+
     try {
       let signedUrl = get().signedUrls[soundId];
-      const sound = get().availableSounds.find((entry) => entry.id === soundId);
+      let sound = get().availableSounds.find((entry) => entry.id === soundId);
       let playAt = Date.now() + 120;
+
       if (!signedUrl || !sound) {
-        const data = await invoke<{ sound: { id: string; owner_id: string; name: string; duration_ms: number }; signedUrl: string; playAt: number }>({ mode: "play", soundId, conversationId: voice.activeConversationId });
+        const data = await invoke<{
+          sound: { id: string; owner_id: string; name: string; duration_ms: number };
+          signedUrl: string;
+          playAt: number;
+        }>({ mode: "play", soundId, conversationId: voice.activeConversationId });
         signedUrl = data.signedUrl;
         playAt = data.playAt;
+        sound = data.sound as SoundboardSound;
         set((state) => ({ signedUrls: { ...state.signedUrls, [soundId]: signedUrl! } }));
-        const payload = { version: 1 as const, id: data.sound.id, name: data.sound.name, signedUrl, playAt, nonce: crypto.randomUUID() };
-        broadcastVoiceSoundboard(payload);
-        await playSoundboardUrl(payload.id, payload.signedUrl, payload.playAt, usePreferences.getState().soundboardVolume, usePreferences.getState().outputDeviceId);
-        return;
       }
-      const payload = { version: 1 as const, id: sound.id, name: sound.name, signedUrl, playAt, nonce: crypto.randomUUID() };
+
+      const payload = {
+        version: 1 as const,
+        id: sound.id,
+        name: sound.name,
+        signedUrl,
+        playAt,
+        nonce: crypto.randomUUID(),
+      };
       broadcastVoiceSoundboard(payload);
-      await playSoundboardUrl(payload.id, payload.signedUrl, payload.playAt, usePreferences.getState().soundboardVolume, usePreferences.getState().outputDeviceId);
+
+      const previous = localPlayback;
+      localPlayback = null;
+      previous?.stop();
+      set({ playingSoundId: payload.id, playbackProgress: 0, playbackPaused: false });
+      localPlayback = await playSoundboardUrl(
+        payload.id,
+        payload.signedUrl,
+        payload.playAt,
+        usePreferences.getState().soundboardVolume,
+        usePreferences.getState().outputDeviceId,
+        {
+          onProgress: (playbackProgress) => {
+            if (get().playingSoundId === payload.id) set({ playbackProgress });
+          },
+          onEnded: () => {
+            if (get().playingSoundId === payload.id) {
+              localPlayback = null;
+              set({ playingSoundId: null, playbackProgress: 0, playbackPaused: false });
+            }
+          },
+        }
+      );
     } catch (error) {
+      if (get().playingSoundId === soundId) {
+        localPlayback = null;
+        set({ playingSoundId: null, playbackProgress: 0, playbackPaused: false });
+      }
       toast.error(error instanceof Error ? error.message : "Sound could not play.");
     }
   },

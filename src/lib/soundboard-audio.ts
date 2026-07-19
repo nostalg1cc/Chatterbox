@@ -168,24 +168,71 @@ export function preloadSoundboardClips(clips: Array<{ id: string; signedUrl: str
   for (let index = 0; index < Math.min(4, queue.length); index += 1) void worker();
 }
 
+export interface SoundboardPlayback {
+  pause: () => void;
+  resume: () => void;
+  stop: () => void;
+}
+
 export async function playSoundboardUrl(
   cacheKey: string,
   signedUrl: string,
   playAt: number,
-volume: number,
-  outputDeviceId: string
-): Promise<void> {
+  volume: number,
+  outputDeviceId: string,
+  callbacks?: {
+    onProgress?: (progress: number) => void;
+    onEnded?: () => void;
+  }
+): Promise<SoundboardPlayback> {
   const blob = await loadClip(cacheKey, signedUrl);
   const url = URL.createObjectURL(blob);
-const audio = new Audio(url);
+  const audio = new Audio(url);
   audio.preload = "auto";
   audio.volume = Math.min(1, Math.max(0, volume / 100));
   await routeSoundboardAudio(audio, outputDeviceId);
-  const delay = Math.max(0, playAt - Date.now());
-  window.setTimeout(() => {
-    void audio.play().catch(() => undefined);
-    audio.onended = () => URL.revokeObjectURL(url);
-  }, delay);
+
+  let timer: number | null = null;
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    if (timer !== null) window.clearTimeout(timer);
+    timer = null;
+    URL.revokeObjectURL(url);
+    callbacks?.onEnded?.();
+  };
+  const start = () => {
+    timer = null;
+    void audio.play().catch(() => finish());
+  };
+
+  audio.addEventListener("timeupdate", () => {
+    if (audio.duration > 0 && Number.isFinite(audio.duration)) {
+      callbacks?.onProgress?.(Math.max(0, Math.min(1, audio.currentTime / audio.duration)));
+    }
+  });
+  audio.addEventListener("ended", finish, { once: true });
+  timer = window.setTimeout(start, Math.max(0, playAt - Date.now()));
+
+  return {
+    pause: () => {
+      if (finished) return;
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      audio.pause();
+    },
+    resume: () => {
+      if (!finished) void audio.play().catch(() => finish());
+    },
+    stop: () => {
+      if (finished) return;
+      audio.pause();
+      finish();
+    },
+  };
 }
 type SinkAudio = HTMLAudioElement & {
   setSinkId?: (sinkId: string) => Promise<void>;
