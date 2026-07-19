@@ -532,3 +532,4 @@ npx tsc --noEmit      # typecheck
 ### Phase 61 - Updater manifest encoding hotfix (July 19)
 - [x] Identified a UTF-8 BOM in the original GitHub `latest.json` asset as the likely native updater parse failure.
 - [x] Release manifests are now written as clean UTF-8 without a BOM. v0.1.18 is the fresh-URL bridge release, avoiding GitHub CDN retention of the previously uploaded v0.1.17 asset.
+- [x] Published signed GitHub release `v0.1.18`; verified its public `latest.json` begins without a BOM, parses as valid JSON, and references a reachable signed installer.
