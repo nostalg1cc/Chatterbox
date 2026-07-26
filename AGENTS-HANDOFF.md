@@ -555,3 +555,7 @@ npx tsc --noEmit      # typecheck
 - [x] Added a compact centered status treatment in the message timeline, with a timestamp and no avatar/actions; status rows always break normal message grouping.
 - [x] Applied `20260726155712_voice_call_status_events.sql` to Supabase, verified the new columns/functions, and confirmed no new security-advisor warnings.
 - [x] Verified TypeScript and the production web build.
+### Phase 66 - v0.1.20 voice session status release (July 26)
+- [x] Built and signed the v0.1.20 NSIS installer.
+- [x] Published GitHub release `v0.1.20` with the installer, signature, and verified no-BOM `latest.json` updater manifest.
+- [x] Deployed the matching web build to `https://dislight.vercel.app`.
