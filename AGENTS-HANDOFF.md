@@ -568,3 +568,7 @@ npx tsc --noEmit      # typecheck
 - [x] Kept the private Supabase broadcast path as a fallback while peer media/data is connecting or unavailable.
 - [x] Retained nonce-scoped cancellation so stale/cancelled clips cannot begin after delayed fetches.
 - [x] Verified TypeScript and the production build.
+### Phase 69 - v0.1.21 low-latency soundboard release (July 26)
+- [x] Built and signed the v0.1.21 NSIS installer.
+- [x] Published GitHub release `v0.1.21` with the installer, signature, and verified no-BOM `latest.json` updater manifest.
+- [x] Deployed the matching production web build to `https://dislight.vercel.app`.
