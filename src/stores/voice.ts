@@ -11,7 +11,7 @@ import {
   type MicrophonePipeline,
 } from "@/lib/voice-media";
 import { playAppSound } from "@/lib/app-sounds";
-import { playSoundboardUrl } from "@/lib/soundboard-audio";
+import { playSoundboardUrl, type SoundboardPlayback } from "@/lib/soundboard-audio";
 import { createCloudflareScreenPublisher, createCloudflareScreenSubscriber } from "@/lib/cloudflare-realtime";
 import { supabase } from "@/lib/supabase";
 import type {
@@ -82,6 +82,7 @@ let roomChannel: RealtimeChannel | null = null;
 let roomSubscribed = false;
 let microphone: MicrophonePipeline | null = null;
 let peerConnection: RTCPeerConnection | null = null;
+let soundboardDataChannel: RTCDataChannel | null = null;
 let remoteAudio: HTMLAudioElement | null = null;
 let remoteAudioStream: MediaStream | null = null;
 let localScreenStream: MediaStream | null = null;
@@ -100,6 +101,8 @@ let restartAttempted = false;
 let disconnecting = false;
 let pendingCandidates: RTCIceCandidateInit[] = [];
 let lastRemoteSoundboardAt = 0;
+const remoteSoundboardPlaybacks = new Map<string, SoundboardPlayback>();
+const cancelledRemoteSoundboardPlaybacks = new Set<string>();
 let activeIceServers: RTCIceServer[] = ICE_SERVERS;
 let turnCredentialsExpireAt = 0;
 
@@ -624,24 +627,10 @@ async function connectRoomChannel(
       void handleSignal(message.payload);
     })
     .on("broadcast", { event: "soundboard" }, (message) => {
-      const payload = message.payload as Partial<VoiceSoundboardPayload>;
-      if (
-        payload.version !== 1 ||
-        typeof payload.id !== "string" ||
-        typeof payload.signedUrl !== "string" ||
-        typeof payload.playAt !== "number" ||
-        !isTrustedSoundboardUrl(payload.signedUrl) ||
-        useVoice.getState().deafened ||
-        Date.now() - lastRemoteSoundboardAt < 750
-      ) return;
-      lastRemoteSoundboardAt = Date.now();
-      void playSoundboardUrl(
-        payload.id,
-        payload.signedUrl,
-payload.playAt,
-        usePreferences.getState().soundboardVolume,
-        usePreferences.getState().outputDeviceId
-      ).catch((error) => console.warn("Soundboard playback failed", error));
+      handleRemoteSoundboardPlay(message.payload);
+    })
+    .on("broadcast", { event: "soundboard-stop" }, (message) => {
+      handleRemoteSoundboardStop(message.payload);
     })
     .on("presence", { event: "sync" }, () => {
       syncRoomPresence();
@@ -742,6 +731,14 @@ function ensurePeerConnection(remoteUserId: string): void {
     void addScreenTracks(connection, localScreenStream);
   }
 
+  connection.ondatachannel = (event) => {
+    if (event.channel.label === "dislight-soundboard") configureSoundboardDataChannel(event.channel);
+  };
+  // Exactly one side creates the ordered reliable channel; the peer receives it
+  // through ondatachannel, avoiding a second negotiation and duplicate commands.
+  if (!polite) {
+    configureSoundboardDataChannel(connection.createDataChannel("dislight-soundboard", { ordered: true }));
+  }
   connection.onicecandidate = (event) => {
     if (event.candidate) sendCandidate(event.candidate.toJSON());
   };
@@ -1196,8 +1193,12 @@ function closePeerConnection(setSolo = true): void {
     connection.onnegotiationneeded = null;
     connection.ontrack = null;
     connection.onconnectionstatechange = null;
+    connection.ondatachannel = null;
     connection.close();
   }
+
+  soundboardDataChannel?.close();
+  soundboardDataChannel = null;
 
   if (remoteAudio) {
     remoteAudio.pause();
@@ -1280,6 +1281,75 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
 }
 
 
+type VoiceDataMessage =
+  | { type: "soundboard"; payload: VoiceSoundboardPayload }
+  | { type: "soundboard-stop"; payload: VoiceSoundboardStopPayload };
+
+function configureSoundboardDataChannel(channel: RTCDataChannel): void {
+  soundboardDataChannel?.close();
+  soundboardDataChannel = channel;
+  channel.onmessage = (event) => {
+    if (typeof event.data !== "string") return;
+    try {
+      const message = JSON.parse(event.data) as Partial<VoiceDataMessage>;
+      if (message.type === "soundboard") handleRemoteSoundboardPlay(message.payload);
+      if (message.type === "soundboard-stop") handleRemoteSoundboardStop(message.payload);
+    } catch {
+      // Ignore malformed peer data; it is never allowed to affect call state.
+    }
+  };
+  channel.onclose = () => {
+    if (soundboardDataChannel === channel) soundboardDataChannel = null;
+  };
+}
+
+function sendSoundboardData(message: VoiceDataMessage): boolean {
+  if (soundboardDataChannel?.readyState !== "open") return false;
+  try {
+    soundboardDataChannel.send(JSON.stringify(message));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function handleRemoteSoundboardPlay(raw: unknown): void {
+  const payload = raw as Partial<VoiceSoundboardPayload>;
+  if (
+    payload.version !== 1 ||
+    typeof payload.id !== "string" ||
+    typeof payload.nonce !== "string" ||
+    typeof payload.signedUrl !== "string" ||
+    typeof payload.playAt !== "number" ||
+    !isTrustedSoundboardUrl(payload.signedUrl) ||
+    useVoice.getState().deafened ||
+    Date.now() - lastRemoteSoundboardAt < 750
+  ) return;
+
+  lastRemoteSoundboardAt = Date.now();
+  const playbackKey = soundboardPlaybackKey(payload.id, payload.nonce);
+  cancelledRemoteSoundboardPlaybacks.delete(playbackKey);
+  void playSoundboardUrl(
+    payload.id,
+    payload.signedUrl,
+    payload.playAt,
+    usePreferences.getState().soundboardVolume,
+    usePreferences.getState().outputDeviceId,
+    { onEnded: () => remoteSoundboardPlaybacks.delete(playbackKey) }
+  ).then((playback) => {
+    if (cancelledRemoteSoundboardPlaybacks.delete(playbackKey)) {
+      playback.stop();
+      return;
+    }
+    remoteSoundboardPlaybacks.set(playbackKey, playback);
+  }).catch((error) => console.warn("Soundboard playback failed", error));
+}
+
+function handleRemoteSoundboardStop(raw: unknown): void {
+  const payload = raw as Partial<VoiceSoundboardStopPayload>;
+  if (payload.version !== 1 || typeof payload.id !== "string" || typeof payload.nonce !== "string") return;
+  stopRemoteSoundboardPlayback(soundboardPlaybackKey(payload.id, payload.nonce));
+}
 function isTrustedSoundboardUrl(value: string): boolean {
   try {
     const url = new URL(value);
@@ -1301,13 +1371,32 @@ export interface VoiceSoundboardPayload {
   nonce: string;
 }
 
+export interface VoiceSoundboardStopPayload {
+  version: 1;
+  id: string;
+  nonce: string;
+}
+
+function soundboardPlaybackKey(id: string, nonce: string): string {
+  return `${id}:${nonce}`;
+}
+
+function stopRemoteSoundboardPlayback(playbackKey: string): void {
+  cancelledRemoteSoundboardPlaybacks.add(playbackKey);
+  remoteSoundboardPlaybacks.get(playbackKey)?.stop();
+  remoteSoundboardPlaybacks.delete(playbackKey);
+}
+
 export function broadcastVoiceSoundboard(payload: VoiceSoundboardPayload): void {
+  if (sendSoundboardData({ type: "soundboard", payload })) return;
   if (!roomChannel || !roomSubscribed || !useVoice.getState().activeConversationId) return;
-  void roomChannel.send({
-    type: "broadcast",
-    event: "soundboard",
-    payload,
-  });
+  void roomChannel.send({ type: "broadcast", event: "soundboard", payload });
+}
+
+export function broadcastVoiceSoundboardStop(payload: VoiceSoundboardStopPayload): void {
+  if (sendSoundboardData({ type: "soundboard-stop", payload })) return;
+  if (!roomChannel || !roomSubscribed || !useVoice.getState().activeConversationId) return;
+  void roomChannel.send({ type: "broadcast", event: "soundboard-stop", payload });
 }
 export function formatVoiceElapsed(
   startedAt: string | undefined,

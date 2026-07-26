@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { prepareSoundboardAudio, playSoundboardUrl, preloadSoundboardClips, type SoundboardPlayback } from "@/lib/soundboard-audio";
 import { supabase } from "@/lib/supabase";
 import { usePreferences } from "./preferences";
-import { broadcastVoiceSoundboard, useVoice } from "./voice";
+import { broadcastVoiceSoundboard, broadcastVoiceSoundboardStop, useVoice } from "./voice";
 
 export interface SoundboardSound {
   id: string;
@@ -33,7 +33,8 @@ interface SoundboardState {
   preview: (soundId: string) => Promise<void>;
 }
 
-let localPlayback: SoundboardPlayback | null = null;
+let localPlayback: { playback: SoundboardPlayback; id: string; nonce: string } | null = null;
+let activeLocalPlayback: { id: string; nonce: string } | null = null;
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("soundboard-storage", { body });
@@ -141,8 +142,11 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   },
 
   play: async (soundId) => {
-    if (get().playingSoundId === soundId && localPlayback) {
-      localPlayback.stop();
+    if (get().playingSoundId === soundId && activeLocalPlayback) {
+      const active = activeLocalPlayback;
+      activeLocalPlayback = null;
+      broadcastVoiceSoundboardStop({ version: 1, id: active.id, nonce: active.nonce });
+      localPlayback?.playback.stop();
       localPlayback = null;
       set({ playingSoundId: null, playbackProgress: 0 });
       return;
@@ -181,13 +185,17 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
         playAt,
         nonce: crypto.randomUUID(),
       };
-      broadcastVoiceSoundboard(payload);
-
-      const previous = localPlayback;
+      const previous = activeLocalPlayback;
+      const previousPlayback = localPlayback;
+      activeLocalPlayback = { id: payload.id, nonce: payload.nonce };
       localPlayback = null;
-      previous?.stop();
+      if (previous) {
+        broadcastVoiceSoundboardStop({ version: 1, id: previous.id, nonce: previous.nonce });
+        previousPlayback?.playback.stop();
+      }
+      broadcastVoiceSoundboard(payload);
       set({ playingSoundId: payload.id, playbackProgress: 0 });
-      localPlayback = await playSoundboardUrl(
+      const playback = await playSoundboardUrl(
         payload.id,
         payload.signedUrl,
         payload.playAt,
@@ -196,19 +204,26 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
         {
           durationMs: sound.duration_ms,
           onProgress: (playbackProgress) => {
-            if (get().playingSoundId === payload.id) set({ playbackProgress });
+            if (localPlayback?.nonce === payload.nonce) set({ playbackProgress });
           },
           onEnded: () => {
-            if (get().playingSoundId === payload.id) {
+            if (localPlayback?.nonce === payload.nonce) {
               localPlayback = null;
+              activeLocalPlayback = null;
               set({ playingSoundId: null, playbackProgress: 0 });
             }
           },
         }
       );
+      if (activeLocalPlayback?.nonce !== payload.nonce) {
+        playback.stop();
+        return;
+      }
+      localPlayback = { playback, id: payload.id, nonce: payload.nonce };
     } catch (error) {
       if (get().playingSoundId === soundId) {
         localPlayback = null;
+        activeLocalPlayback = null;
         set({ playingSoundId: null, playbackProgress: 0 });
       }
       toast.error(error instanceof Error ? error.message : "Sound could not play.");

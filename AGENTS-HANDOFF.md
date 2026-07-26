@@ -559,3 +559,12 @@ npx tsc --noEmit      # typecheck
 - [x] Built and signed the v0.1.20 NSIS installer.
 - [x] Published GitHub release `v0.1.20` with the installer, signature, and verified no-BOM `latest.json` updater manifest.
 - [x] Deployed the matching web build to `https://dislight.vercel.app`.
+### Phase 67 - Synchronized soundboard stop (July 26)
+- [x] Added a nonce-scoped `soundboard-stop` Realtime broadcast. Stopping a clip now stops the exact matching playback on the partner as well as locally.
+- [x] Covers rapid stop-before-load and switching from one clip to another, preventing a late download from beginning after its playback was cancelled.
+- [x] Verified TypeScript and production build.
+### Phase 68 - Low-latency soundboard transport (July 26)
+- [x] Moved in-call soundboard play/stop commands onto an ordered reliable WebRTC data channel already negotiated with the voice peer.
+- [x] Kept the private Supabase broadcast path as a fallback while peer media/data is connecting or unavailable.
+- [x] Retained nonce-scoped cancellation so stale/cancelled clips cannot begin after delayed fetches.
+- [x] Verified TypeScript and the production build.
