@@ -550,3 +550,8 @@ npx tsc --noEmit      # typecheck
 - [x] Built the signed v0.1.19 NSIS installer and matching updater signature after the Cloudflare negotiation repair.
 - [x] Published GitHub release `v0.1.19` with the installer, `.sig`, and clean no-BOM `latest.json` updater manifest.
 - [x] Deployed the matching production web build to Vercel and verified the deployment is ready on commit `d00f931`.
+### Phase 65 - Durable voice-session status entries (July 26)
+- [x] Added database-owned `voice_started` and `voice_ended` chat status rows. A room start posts one status; only the final deliberate participant leave posts `Call lasted M:SS` (or H:MM:SS), so a one-sided leave or reconnect does not falsely end the session.
+- [x] Added a compact centered status treatment in the message timeline, with a timestamp and no avatar/actions; status rows always break normal message grouping.
+- [x] Applied `20260726155712_voice_call_status_events.sql` to Supabase, verified the new columns/functions, and confirmed no new security-advisor warnings.
+- [x] Verified TypeScript and the production web build.

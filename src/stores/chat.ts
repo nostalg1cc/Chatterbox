@@ -258,6 +258,8 @@ export const useChat = create<ChatState>()((set, get) => ({
       media_expires_at: media ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString() : null,
       media_deleted_at: null,
       reply_to_message_id: replyToMessageId,
+      message_kind: "chat",
+      voice_duration_seconds: null,
       pending: true,
     };
 

@@ -6,6 +6,8 @@ import {
   ImageOffIcon,
   Loader2Icon,
   PencilIcon,
+  PhoneCallIcon,
+  PhoneOffIcon,
   ReplyIcon,
   SmilePlusIcon,
   Trash2Icon,
@@ -101,6 +103,10 @@ export function MessageItem({
     }
     return [...byEmoji.entries()];
   }, [reactions, myId]);
+
+  if (message.message_kind === "voice_started" || message.message_kind === "voice_ended") {
+    return <VoiceSessionStatus message={message} />;
+  }
 
   return (
     <div
@@ -274,6 +280,32 @@ export function MessageItem({
   );
 }
 
+function VoiceSessionStatus({ message }: { message: Message }) {
+  const ended = message.message_kind === "voice_ended";
+  const duration = Math.max(0, message.voice_duration_seconds ?? 0);
+  const hours = Math.floor(duration / 3600);
+  const minutes = Math.floor((duration % 3600) / 60);
+  const seconds = duration % 60;
+  const durationLabel = hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    : `${minutes}:${String(seconds).padStart(2, "0")}`;
+
+  return (
+    <div id={`message-${message.id}`} className="mx-auto flex w-full max-w-[1120px] justify-center px-5 py-2">
+      <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-black/20 px-3 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur-md">
+        {ended ? <PhoneOffIcon className="size-3.5" /> : <PhoneCallIcon className="size-3.5" />}
+        <span>{ended ? `Call lasted ${durationLabel}` : "Voicechat started"}</span>
+        <span aria-hidden="true" className="text-muted-foreground/45">{"\u00b7"}</span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <time className="tabular-nums text-muted-foreground/70">{timeOfDay(message.created_at)}</time>
+          </TooltipTrigger>
+          <TooltipContent>{fullTimestamp(message.created_at)}</TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
+  );
+}
 function ReplyPreview({
   target,
   senderName,

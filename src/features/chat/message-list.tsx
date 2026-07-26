@@ -35,8 +35,12 @@ export function MessageList({
     for (let index = 0; index < (messages?.length ?? 0); index += 1) {
       const message = messages![index];
       const previous = messages![index - 1];
+      const messageIsChat = (message.message_kind ?? "chat") === "chat";
+      const previousIsChat = (previous?.message_kind ?? "chat") === "chat";
       const startsNewGroup =
+        !messageIsChat ||
         !previous ||
+        !previousIsChat ||
         !sameDay(previous.created_at, message.created_at) ||
         previous.sender_id !== message.sender_id ||
         new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() >=
@@ -44,7 +48,7 @@ export function MessageList({
 
       if (startsNewGroup) currentHeaderId = message.id;
       headerIdByMessageId.set(message.id, currentHeaderId!);
-      latestHeaderIdBySenderId.set(message.sender_id, currentHeaderId!);
+      if (messageIsChat) latestHeaderIdBySenderId.set(message.sender_id, currentHeaderId!);
     }
 
     return {
@@ -218,8 +222,12 @@ export function MessageList({
           )}
           {messages.map((msg, i) => {
             const prev = messages[i - 1];
+            const messageIsChat = (msg.message_kind ?? "chat") === "chat";
+            const previousIsChat = (prev?.message_kind ?? "chat") === "chat";
             const newDay = !prev || !sameDay(prev.created_at, msg.created_at);
             const grouped =
+              messageIsChat &&
+              previousIsChat &&
               !newDay &&
               prev !== undefined &&
               prev.sender_id === msg.sender_id &&

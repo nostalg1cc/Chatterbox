@@ -48,6 +48,7 @@ export interface Conversation {
 }
 
 export type MediaKind = "image" | "video";
+export type MessageKind = "chat" | "voice_started" | "voice_ended";
 
 export interface Message {
   id: string;
@@ -67,6 +68,8 @@ export interface Message {
   media_expires_at: string | null;
   media_deleted_at: string | null;
   reply_to_message_id: string | null;
+  message_kind: MessageKind;
+  voice_duration_seconds: number | null;
   /** Client-only: true while an optimistic send is in flight. */
   pending?: boolean;
 }
