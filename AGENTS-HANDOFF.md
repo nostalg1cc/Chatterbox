@@ -542,3 +542,7 @@ npx tsc --noEmit      # typecheck
 - Updater configuration is intentionally current-user NSIS plus updater Windows `quiet` mode: updates replace the app in place and restart without installer UI or elevation prompts. Do not change the configured public key: existing installs trust it.
 ### Phase 62 - Expanded screen-share cleanup (July 19)
 - [x] Removed both redundant expanded-PiP helper prompts; the stream remains clickable for compact/expanded switching and retains the fullscreen control.
+### Phase 63 - Cloudflare screen-share negotiation repair (July 26)
+- [x] Diagnosed a successful Cloudflare session creation that did not progress to a usable published track; the prior publisher attached display media before creating/connecting its Calls session, which is outside Cloudflare's documented session-then-track lifecycle.
+- [x] Reordered the publisher and subscriber flow: create session, wait for WebRTC connectivity, then publish/subscribe; added Cloudflare STUN and more reliable ICE gathering waits. Direct P2P screen tracks remain the compatibility path if SFU negotiation fails.
+- [x] Verified `npx tsc --noEmit`.
