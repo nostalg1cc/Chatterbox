@@ -546,3 +546,7 @@ npx tsc --noEmit      # typecheck
 - [x] Diagnosed a successful Cloudflare session creation that did not progress to a usable published track; the prior publisher attached display media before creating/connecting its Calls session, which is outside Cloudflare's documented session-then-track lifecycle.
 - [x] Reordered the publisher and subscriber flow: create session, wait for WebRTC connectivity, then publish/subscribe; added Cloudflare STUN and more reliable ICE gathering waits. Direct P2P screen tracks remain the compatibility path if SFU negotiation fails.
 - [x] Verified `npx tsc --noEmit`.
+### Phase 64 - v0.1.19 screen-share repair release (July 26)
+- [x] Built the signed v0.1.19 NSIS installer and matching updater signature after the Cloudflare negotiation repair.
+- [x] Published GitHub release `v0.1.19` with the installer, `.sig`, and clean no-BOM `latest.json` updater manifest.
+- [x] Deployed the matching production web build to Vercel and verified the deployment is ready on commit `d00f931`.
