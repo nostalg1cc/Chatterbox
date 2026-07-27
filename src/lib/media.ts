@@ -4,14 +4,21 @@ import { GIFEncoder, applyPalette, quantize } from "gifenc";
 const MEBIBYTE = 1024 * 1024;
 const CHAT_IMAGE_TARGET_BYTES = 3 * MEBIBYTE;
 const AVATAR_TARGET_BYTES = 512 * 1024;
-export const CHAT_MEDIA_MAX_BYTES = 50 * MEBIBYTE;
+export const CHAT_MEDIA_MAX_BYTES = 100 * MEBIBYTE;
+export const CLOUDINARY_IMAGE_MAX_BYTES = 10 * MEBIBYTE;
 export const CHAT_VIDEO_MAX_SECONDS = 120;
+
+export type ChatMediaProvider = "storage" | "cloudinary";
 
 export interface PreparedMedia {
   kind: MediaKind;
   blob: Blob;
-  mimeType: "image/webp" | "video/webm";
-  extension: "webp" | "webm";
+  /** MIME type delivered to the recipient after Cloudinary/legacy processing. */
+  mimeType: "image/webp" | "video/webm" | "video/mp4";
+  /** MIME type of the bytes sent to the current upload provider. */
+  uploadMimeType: string;
+  extension: "webp" | "webm" | "mp4";
+  provider: ChatMediaProvider;
   width: number;
   height: number;
   durationSeconds: number | null;
@@ -93,7 +100,9 @@ export async function prepareChatImage(file: File): Promise<PreparedMedia> {
       kind: "image",
       blob: result.blob,
       mimeType: "image/webp",
+      uploadMimeType: "image/webp",
       extension: "webp",
+      provider: "storage",
       width: result.width,
       height: result.height,
       durationSeconds: null,
@@ -309,7 +318,7 @@ export async function prepareAvatar(file: File): Promise<Blob> {
 function loadVideo(file: File): Promise<{ video: HTMLVideoElement; url: string }> {
   const url = URL.createObjectURL(file);
   const video = document.createElement("video");
-  video.preload = "auto";
+  video.preload = "metadata";
   video.playsInline = true;
   video.muted = true;
   video.src = url;
@@ -437,7 +446,9 @@ export async function prepareChatVideo(
       kind: "video",
       blob,
       mimeType: "video/webm",
+      uploadMimeType: "video/webm",
       extension: "webm",
+      provider: "storage",
       width: dimensions.width,
       height: dimensions.height,
       durationSeconds: Math.round(duration * 1000) / 1000,
@@ -453,15 +464,87 @@ export async function prepareChatVideo(
   }
 }
 
-export async function prepareChatMedia(
+async function prepareCloudinaryImage(file: File): Promise<PreparedMedia> {
+  if (file.size > CLOUDINARY_IMAGE_MAX_BYTES) {
+    throw new Error("Images can be up to 10 MiB before Cloudinary optimization.");
+  }
+  const bitmap = await imageBitmap(file);
+  try {
+    if (bitmap.width * bitmap.height > 25_000_000) {
+      throw new Error("Images can be up to 25 megapixels.");
+    }
+    return {
+      kind: "image",
+      blob: file,
+      mimeType: "image/webp",
+      uploadMimeType: file.type || "image/*",
+      extension: "webp",
+      provider: "cloudinary",
+      width: bitmap.width,
+      height: bitmap.height,
+      durationSeconds: null,
+      originalName: file.name,
+    };
+  } finally {
+    bitmap.close();
+  }
+}
+
+async function prepareCloudinaryVideo(
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<PreparedMedia> {
+  if (file.size > CHAT_MEDIA_MAX_BYTES) {
+    throw new Error("Videos can be up to 100 MiB before Cloudinary optimization.");
+  }
+  onProgress?.(0.15);
+  const { video, url } = await loadVideo(file);
+  try {
+    const duration = video.duration;
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error("The video duration is invalid.");
+    if (duration > CHAT_VIDEO_MAX_SECONDS) {
+      throw new Error("Videos must be " + CHAT_VIDEO_MAX_SECONDS + " seconds or shorter.");
+    }
+    const dimensions = fitWithin(video.videoWidth, video.videoHeight, 1280, 720);
+    onProgress?.(1);
+    return {
+      kind: "video",
+      blob: file,
+      mimeType: "video/mp4",
+      uploadMimeType: file.type || "video/*",
+      extension: "mp4",
+      provider: "cloudinary",
+      width: dimensions.width,
+      height: dimensions.height,
+      durationSeconds: Math.round(duration * 1000) / 1000,
+      originalName: file.name,
+    };
+  } finally {
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * The Cloudinary route preserves the source bytes and lets the media service
+ * produce the shared WebP / 720p H.264+Aac delivery rendition. Storage remains
+ * a compatible fallback until the server credentials are configured.
+ */
+export async function prepareChatMedia(
+  file: File,
+  onProgress?: (progress: number) => void,
+  provider: ChatMediaProvider = "storage"
+): Promise<PreparedMedia> {
+  if (provider === "cloudinary") {
+    if (file.type.startsWith("image/")) return prepareCloudinaryImage(file);
+    if (file.type.startsWith("video/")) return prepareCloudinaryVideo(file, onProgress);
+  }
   if (file.type.startsWith("image/")) return prepareChatImage(file);
   if (file.type.startsWith("video/")) return prepareChatVideo(file, onProgress);
   throw new Error("Only images and videos can be attached.");
 }
-
 export function formattedBytes(bytes: number) {
   if (bytes < MEBIBYTE) return Math.max(1, Math.round(bytes / 1024)) + " KiB";
   return (bytes / MEBIBYTE).toFixed(1) + " MiB";

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2Icon, Music2Icon, PlayIcon, SquareIcon, StarIcon, Volume2Icon, VolumeXIcon } from "lucide-react";
+import { AudioLinesIcon, ChevronDownIcon, Loader2Icon, Music2Icon, PlayIcon, SquareIcon, StarIcon, Volume2Icon, VolumeXIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -12,13 +12,17 @@ import {
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
 import { useSoundboard, type SoundboardSound } from "@/stores/soundboard";
+import { cn } from "@/lib/utils";
+import { playAppSound } from "@/lib/app-sounds";
 
 interface SoundboardPopoverProps {
   conversationId: string;
   partnerName: string;
+  triggerClassName?: string;
+  dropdownTrigger?: boolean;
 }
 
-export function SoundboardPopover({ conversationId, partnerName }: SoundboardPopoverProps) {
+export function SoundboardPopover({ conversationId, partnerName, triggerClassName, dropdownTrigger = false }: SoundboardPopoverProps) {
   const userId = useAuth((state) => state.userId);
   const sounds = useSoundboard((state) => state.availableSounds);
   const loading = useSoundboard((state) => state.loading);
@@ -66,24 +70,25 @@ export function SoundboardPopover({ conversationId, partnerName }: SoundboardPop
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(next) => { setOpen(next); playAppSound(next ? "ui_menu_open" : "ui_menu_close"); }}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="icon-sm"
           aria-label="Open shared soundboard"
-          className="header-action text-muted-foreground"
+          className={cn("header-action text-muted-foreground", dropdownTrigger && "v2-dropdown-button", triggerClassName)}
         >
-          <Music2Icon />
+          {dropdownTrigger ? <AudioLinesIcon /> : <Music2Icon />}
+          {dropdownTrigger && <ChevronDownIcon className={cn("v2-dropdown-chevron", open && "is-open")} />}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[25rem] border border-white/[0.16] p-3">
+      <PopoverContent align="end" bare={dropdownTrigger} className={dropdownTrigger ? "v2-control-menu v2-soundboard-menu w-[25rem] p-3" : "w-[25rem] border border-white/[0.16] p-3"}>
         <PopoverHeader>
           <PopoverTitle>Shared soundboard</PopoverTitle>
           <PopoverDescription>
             Your library and {partnerName}&apos;s — playable by either of you.
           </PopoverDescription>
-          <div className="mt-3 flex items-center gap-2 rounded-md border border-white/[0.12] bg-muted/25 px-2.5 py-2">
+          <div className={cn("mt-3 flex items-center gap-2 rounded-md border border-white/[0.12] bg-muted/25 px-2.5 py-2", dropdownTrigger && "v2-soundboard-volume")}>
             {soundboardVolume === 0 ? <VolumeXIcon className="size-3.5 shrink-0 text-muted-foreground" /> : <Volume2Icon className="size-3.5 shrink-0 text-muted-foreground" />}
             <input
               type="range"

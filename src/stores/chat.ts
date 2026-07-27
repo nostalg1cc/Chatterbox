@@ -270,30 +270,45 @@ export const useChat = create<ChatState>()((set, get) => ({
           {
             body: {
               mode: "reserve",
+              provider: media.provider,
               conversationId: convId,
               messageId: id,
               kind: media.kind,
               mimeType: media.mimeType,
+              uploadMimeType: media.uploadMimeType,
               sizeBytes: media.blob.size,
             },
           }
         );
-        if (
-          reservationError ||
-          typeof reservation?.path !== "string" ||
-          typeof reservation?.token !== "string"
-        ) {
+        if (reservationError || typeof reservation?.path !== "string") {
           throw new Error(reservationError?.message ?? reservation?.error ?? "Upload could not start.");
         }
 
         mediaPath = reservation.path;
-        const { error: uploadError } = await supabase.storage
-          .from("chat-media")
-          .uploadToSignedUrl(reservation.path, reservation.token, media.blob, {
-            contentType: media.mimeType,
-            cacheControl: "3600",
-          });
-        if (uploadError) throw new Error(uploadError.message);
+        if (reservation.provider === "cloudinary") {
+          if (typeof reservation.uploadUrl !== "string" || !reservation.fields || typeof reservation.publicId !== "string") {
+            throw new Error("Cloudinary upload could not start.");
+          }
+          const form = new FormData();
+          for (const [key, value] of Object.entries(reservation.fields as Record<string, string>)) {
+            form.append(key, value);
+          }
+          form.append("file", media.blob, media.originalName);
+          const response = await fetch(reservation.uploadUrl, { method: "POST", body: form });
+          const result = await response.json().catch(() => null) as { public_id?: string; error?: { message?: string } } | null;
+          if (!response.ok || result?.public_id !== reservation.publicId) {
+            throw new Error(result?.error?.message ?? "Cloudinary upload failed.");
+          }
+        } else {
+          if (typeof reservation.token !== "string") throw new Error("Upload could not start.");
+          const { error: uploadError } = await supabase.storage
+            .from("chat-media")
+            .uploadToSignedUrl(reservation.path, reservation.token, media.blob, {
+              contentType: media.mimeType,
+              cacheControl: "3600",
+            });
+          if (uploadError) throw new Error(uploadError.message);
+        }
         optimistic.media_path = mediaPath;
       }
 

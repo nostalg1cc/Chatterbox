@@ -60,7 +60,7 @@ export interface Message {
   deleted_at: string | null;
   media_kind: MediaKind | null;
   media_path: string | null;
-  media_mime_type: "image/webp" | "video/webm" | null;
+  media_mime_type: "image/webp" | "video/webm" | "video/mp4" | null;
   media_size_bytes: number | null;
   media_width: number | null;
   media_height: number | null;

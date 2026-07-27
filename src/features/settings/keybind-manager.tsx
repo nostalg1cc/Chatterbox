@@ -1,10 +1,11 @@
 import { useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { toast } from "sonner";
 import { eventKeybind, globalKeybind } from "@/lib/keybinds";
 import { isTauri } from "@/lib/tauri";
 import { usePreferences } from "@/stores/preferences";
 import { useVoice } from "@/stores/voice";
-
-let globalShortcutGeneration = 0;
 
 export function KeybindManager() {
   const globalVoiceShortcuts = usePreferences((state) => state.globalVoiceShortcuts);
@@ -19,9 +20,11 @@ export function KeybindManager() {
       const voice = useVoice.getState();
 
       if (binding === preferences.keybinds.toggleMute) {
+        if (isTauri && preferences.globalVoiceShortcuts) return;
         event.preventDefault();
         voice.toggleMute();
       } else if (binding === preferences.keybinds.toggleDeafen) {
+        if (isTauri && preferences.globalVoiceShortcuts) return;
         event.preventDefault();
         voice.toggleDeafen();
       } else if (binding === preferences.keybinds.leaveVoice && voice.activeConversationId) {
@@ -41,36 +44,43 @@ export function KeybindManager() {
 
   useEffect(() => {
     if (!isTauri) return;
+    let unlisten: UnlistenFn | undefined;
+    let disposed = false;
 
-    const generation = ++globalShortcutGeneration;
-    const bindings = globalVoiceShortcuts
-      ? [
-          { binding: globalKeybind(keybinds.toggleMute), action: "mute" as const },
-          { binding: globalKeybind(keybinds.toggleDeafen), action: "deafen" as const },
-        ].filter((entry): entry is { binding: string; action: "mute" | "deafen" } => Boolean(entry.binding))
-      : [];
-
-    void import("@tauri-apps/plugin-global-shortcut")
-      .then(async ({ register, unregisterAll }) => {
-        // Reconcile from one current generation. Do not unregister in effect cleanup:
-        // React Strict Mode can otherwise remove a freshly registered native shortcut.
-        await unregisterAll();
-        if (generation !== globalShortcutGeneration) return;
-
-        for (const entry of bindings) {
-          await register(entry.binding, (event) => {
-            if (event.state !== "Pressed") return;
-            if (entry.action === "mute") useVoice.getState().toggleMute();
-            if (entry.action === "deafen") useVoice.getState().toggleDeafen();
-          });
-        }
-      })
-      .catch((error) => console.warn("Global shortcuts unavailable", error));
+    void listen<string>("dislight:global-voice-shortcut", (event) => {
+      const voice = useVoice.getState();
+      if (!voice.activeConversationId) return;
+      if (event.payload === "mute") voice.toggleMute();
+      if (event.payload === "deafen") voice.toggleDeafen();
+    }).then((stop) => {
+      if (disposed) void stop();
+      else unlisten = stop;
+    }).catch((error) => console.warn("Global shortcut event listener unavailable", error));
 
     return () => {
-      // The following effect invocation performs the reconciliation. Keeping this
-      // cleanup inert prevents an asynchronous stale unregister from winning.
+      disposed = true;
+      if (unlisten) void unlisten();
     };
+  }, []);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    const muteShortcut = globalVoiceShortcuts ? globalKeybind(keybinds.toggleMute) : null;
+    const deafenShortcut = globalVoiceShortcuts ? globalKeybind(keybinds.toggleDeafen) : null;
+    let disposed = false;
+
+    void invoke("configure_global_voice_shortcuts", {
+      enabled: globalVoiceShortcuts,
+      muteShortcut,
+      deafenShortcut,
+    }).catch((error) => {
+      if (!disposed) {
+        console.warn("Global shortcuts unavailable", error);
+        toast.error(typeof error === "string" ? error : "Could not register global voice shortcuts.");
+      }
+    });
+
+    return () => { disposed = true; };
   }, [globalVoiceShortcuts, keybinds]);
 
   return null;

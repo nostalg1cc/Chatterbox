@@ -1,4 +1,6 @@
-use tauri::Manager;
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 #[cfg(target_os = "windows")]
 fn apply_native_corner_preference(window: &tauri::WebviewWindow) {
@@ -57,6 +59,69 @@ fn set_window_material(
     }
 }
 
+struct GlobalVoiceShortcuts(Mutex<Vec<String>>);
+
+fn clear_global_voice_shortcuts(app: &tauri::AppHandle) -> Result<(), String> {
+    let previous = {
+        let state = app.state::<GlobalVoiceShortcuts>();
+        let mut shortcuts = state.0.lock().map_err(|_| "Global shortcut state is unavailable.".to_string())?;
+        std::mem::take(&mut *shortcuts)
+    };
+    if !previous.is_empty() {
+        app.global_shortcut()
+            .unregister_multiple(previous.iter().map(String::as_str))
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+fn register_global_voice_shortcut(app: &tauri::AppHandle, shortcut: &str, action: &str) -> Result<(), String> {
+    let action = action.to_string();
+    app.global_shortcut()
+        .on_shortcut(shortcut, move |app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                let _ = app.emit("dislight:global-voice-shortcut", action.clone());
+            }
+        })
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn configure_global_voice_shortcuts(
+    app: tauri::AppHandle,
+    enabled: bool,
+    mute_shortcut: Option<String>,
+    deafen_shortcut: Option<String>,
+) -> Result<(), String> {
+    clear_global_voice_shortcuts(&app)?;
+    if !enabled {
+        return Ok(());
+    }
+
+    let mut registered = Vec::new();
+    let requested = [
+        (mute_shortcut.filter(|shortcut| !shortcut.trim().is_empty()), "mute"),
+        (deafen_shortcut.filter(|shortcut| !shortcut.trim().is_empty()), "deafen"),
+    ];
+    for (shortcut, action) in requested {
+        let Some(shortcut) = shortcut else { continue };
+        if registered.iter().any(|existing: &String| existing.eq_ignore_ascii_case(&shortcut)) {
+            let _ = app.global_shortcut().unregister_multiple(registered.iter().map(String::as_str));
+            return Err("Mute and deafen cannot use the same global shortcut.".to_string());
+        }
+        if let Err(error) = register_global_voice_shortcut(&app, &shortcut, action) {
+            let _ = app.global_shortcut().unregister_multiple(registered.iter().map(String::as_str));
+            return Err(format!("Could not register {shortcut}: {error}"));
+        }
+        registered.push(shortcut);
+    }
+
+    let state = app.state::<GlobalVoiceShortcuts>();
+    let mut shortcuts = state.0.lock().map_err(|_| "Global shortcut state is unavailable.".to_string())?;
+    *shortcuts = registered;
+    Ok(())
+}
+
 #[tauri::command]
 fn restart_app(app: tauri::AppHandle) {
     app.restart();
@@ -68,6 +133,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
+            app.manage(GlobalVoiceShortcuts(Mutex::new(Vec::new())));
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -85,7 +151,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![set_window_material, restart_app])
+        .invoke_handler(tauri::generate_handler![set_window_material, configure_global_voice_shortcuts, restart_app])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -770,3 +770,988 @@ body,
   width: 16px !important;
   height: 16px !important;
 }
+
+/* V2 design lab: floating controls use the button-study language while V1 remains unchanged. */
+.v2-canvas {
+  background:
+    radial-gradient(ellipse 82% 60% at 50% 32%, rgb(45 58 45 / 0.15), transparent 74%),
+    radial-gradient(ellipse 52% 46% at 12% 96%, rgb(255 255 255 / 0.018), transparent 76%);
+}
+.v2-floating-header { min-width: 0; }
+.v2-avatar-button,
+.v2-icon-button,
+.v2-account-button,
+.v2-input-bar {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1.25px solid rgb(0 0 0 / 0.80) !important;
+  background: rgb(12 12 12 / 0.34) !important;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12), 0 7px 18px rgb(0 0 0 / 0.24) !important;
+  backdrop-filter: blur(32px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.15) !important;
+}
+.v2-avatar-button::before,
+.v2-icon-button::before,
+.v2-account-button::before,
+.v2-input-bar::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.13) 46%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.v2-avatar-button {
+  height: 40px !important;
+  min-height: 40px !important;
+  max-width: 190px !important;
+  padding: 6px 10px 6px 6px !important;
+  border-radius: 25px !important;
+  color: rgb(232 232 232 / 0.90);
+}
+.v2-icon-button,
+.v2-account-button {
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 8px !important;
+  border-radius: 25px !important;
+  color: rgb(225 225 225 / 0.85) !important;
+  transition: transform 80ms ease-out, box-shadow 170ms ease, background 170ms ease;
+}
+.v2-account-button { display: grid; place-items: center; }
+.v2-avatar-button:hover,
+.v2-icon-button:hover,
+.v2-account-button:hover {
+  background: rgb(255 255 255 / 0.10) !important;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16), 0 10px 22px rgb(0 0 0 / 0.34) !important;
+}
+.v2-icon-button:active,
+.v2-account-button:active { transform: translateY(1px) scale(0.96); }
+.v2-icon-button:disabled { opacity: 0.42; }
+.v2-icon-button-active {
+  border-color: rgb(178 40 40 / 0.72) !important;
+  background: rgb(174 38 38 / 0.74) !important;
+  color: white !important;
+}
+.v2-input-bar {
+  border-radius: 25px !important;
+  min-height: 40px;
+  padding: 4px 6px !important;
+}
+.v2-input-bar [data-slot="button"] {
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  border-radius: 999px !important;
+}
+.v2-input-bar textarea {
+  min-height: 32px !important;
+  padding-block: 6px !important;
+}
+@media (max-width: 640px) {
+  .v2-floating-header { top: max(10px, env(safe-area-inset-top)) !important; left: 10px !important; gap: 6px; }
+  .v2-avatar-button { max-width: min(48vw, 180px) !important; }
+  .v2-canvas > .relative > .pointer-events-none.absolute { right: 10px !important; bottom: max(10px, env(safe-area-inset-bottom)) !important; left: 10px !important; }
+}
+/* V2 correction: decorations sit above the avatar button; they are never clipped by a glass shell. */
+.v2-avatar-button,
+.v2-account-button {
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 4px !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.v2-avatar-button::before,
+.v2-account-button::before { display: none !important; }
+.v2-avatar-button > span,
+.v2-avatar-button > svg { display: none !important; }
+.v2-avatar-button > div,
+.v2-account-button > div { position: relative; z-index: 1; }
+.v2-avatar-button:hover,
+.v2-account-button:hover { background: rgb(255 255 255 / 0.08) !important; box-shadow: none !important; }
+
+/* A compact split action: left toggles immediately, right chevron opens its real menu. */
+.v2-audio-dropdown-button,
+.v2-dropdown-button {
+  display: inline-flex;
+  width: 62px !important;
+  min-width: 62px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 9px !important;
+  overflow: hidden;
+  border: 1.25px solid rgb(0 0 0 / 0.80) !important;
+  border-radius: 25px !important;
+  color: rgb(225 225 225 / 0.85);
+  background: rgb(12 12 12 / 0.34) !important;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12), 0 7px 18px rgb(0 0 0 / 0.24) !important;
+  backdrop-filter: blur(32px) saturate(1.15);
+  -webkit-backdrop-filter: blur(32px) saturate(1.15);
+  transition: transform 80ms ease-out, box-shadow 170ms ease, background 170ms ease;
+}
+.v2-audio-dropdown-button:hover,
+.v2-dropdown-button:hover { background: rgb(255 255 255 / 0.10) !important; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16), 0 10px 22px rgb(0 0 0 / 0.34) !important; }
+.v2-audio-dropdown-button:active { transform: translateY(1px) scale(.96); }
+.v2-audio-dropdown-button:disabled { opacity: .42; }
+.v2-audio-dropdown-button > svg:first-child,
+.v2-dropdown-button > svg:first-child { width: 20px !important; height: 20px !important; }
+.v2-dropdown-chevron { width: 14px !important; height: 14px !important; transition: transform 150ms ease; }
+.v2-dropdown-chevron.is-open { transform: rotate(180deg); }
+.v2-control-menu { border-radius: 18px !important; }
+
+/* The V2 alert-bar visual is reused by durable call status entries. */
+.voice-session-alert {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1.25px solid rgb(0 0 0 / .78);
+  border-radius: 14px;
+  color: rgb(222 222 222 / .84);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  background: rgb(12 12 12 / .34);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12), 0 5px 14px rgb(0 0 0 / .18);
+  backdrop-filter: blur(28px) saturate(1.12);
+  -webkit-backdrop-filter: blur(28px) saturate(1.12);
+  transition: transform 80ms ease-out, background 160ms ease;
+}
+.voice-session-alert:hover { background: rgb(255 255 255 / .10); }
+.voice-session-alert:active { transform: translateY(1px) scale(.98); }
+.voice-session-alert > svg { width: 14px; height: 14px; opacity: .8; }
+/* Exact typeface and 40px avatar-control construction from the V2 button study. */
+@font-face {
+  font-family: "Dislight V2 Flex";
+  src: url("/fonts/google-sans-flex-400-wide.ttf") format("truetype");
+  font-weight: 400;
+  font-stretch: 112.5%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dislight V2 Flex";
+  src: url("/fonts/google-sans-flex-500-wide.ttf") format("truetype");
+  font-weight: 500;
+  font-stretch: 112.5%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dislight V2 Flex";
+  src: url("/fonts/google-sans-flex-600-wide.ttf") format("truetype");
+  font-weight: 600;
+  font-stretch: 112.5%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dislight V2 Flex";
+  src: url("/fonts/google-sans-flex-700-wide.ttf") format("truetype");
+  font-weight: 700;
+  font-stretch: 112.5%;
+  font-style: normal;
+  font-display: swap;
+}
+.v2-canvas,
+.v2-canvas button,
+.v2-canvas textarea,
+.v2-canvas input {
+  font-family: "Dislight V2 Flex", "Google Sans Flex Variable", "Segoe UI Variable", sans-serif;
+  font-stretch: 112.5%;
+}
+.v2-avatar-button,
+.v2-account-button { padding: 0 !important; }
+.v2-avatar-surface { overflow: visible !important; }
+.v2-avatar-surface [data-slot="avatar"] {
+  overflow: visible;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 5px 14px rgb(0 0 0 / .24);
+}
+.v2-avatar-surface [data-slot="avatar"]::before {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  padding: 1px;
+  border-radius: 999px;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgb(255 255 255 / .35), rgb(255 255 255 / .14) 46%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+/* V2 is intentionally opaque: no acrylic/mica treatment bleeds through this preview. */
+.v2-canvas {
+  background: #1e1e1e !important;
+}
+.v2-canvas .v2-icon-button,
+.v2-canvas .v2-audio-dropdown-button,
+.v2-canvas .v2-dropdown-button,
+.v2-canvas .v2-input-bar,
+.v2-canvas .voice-session-alert,
+.v2-canvas .v2-message-action-tray,
+.v2-canvas .window-control {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.v2-message { font-family: "Dislight V2 Flex", "Google Sans Flex Variable", sans-serif; font-stretch: 112.5%; }
+.v2-message-action-tray {
+  gap: 3px !important;
+  padding: 4px !important;
+  border: 1.25px solid rgb(0 0 0 / .80) !important;
+  border-radius: 18px !important;
+  background: #181818 !important;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12), 0 8px 18px rgb(0 0 0 / .28) !important;
+}
+.v2-message-action-tray .action-tray-button {
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  border-radius: 999px !important;
+}
+.v2-message-menu {
+  border: 1.25px solid rgb(0 0 0 / .80) !important;
+  border-radius: 18px !important;
+  background: #181818 !important;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12), 0 10px 22px rgb(0 0 0 / .28) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.v2-message-menu [data-slot="button"] { border-radius: 999px; }
+.v2-canvas .window-controls {
+  height: 40px;
+  gap: 8px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.v2-canvas .window-controls .window-control {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  border: 1.25px solid rgb(0 0 0 / .80);
+  border-radius: 999px;
+  color: rgb(225 225 225 / .84);
+  background: #181818;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12), 0 6px 16px rgb(0 0 0 / .22);
+}
+.v2-canvas .window-controls .window-control:hover { background: rgb(255 255 255 / .12); }
+.v2-canvas .window-controls .window-control-close:hover { background: #c43b31; }
+/* Centered V2 header keeps the compact, live voice state from V1 without reintroducing its shell. */
+.v2-floating-header { max-width: calc(100% - 132px); }
+.v2-voice-status {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 238px;
+  height: 40px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1.25px solid rgb(0 0 0 / .80);
+  border-radius: 25px;
+  color: rgb(225 225 225 / .84);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  background: #181818;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12), 0 7px 18px rgb(0 0 0 / .24);
+}
+.v2-voice-status > svg { width: 17px; height: 17px; flex: none; }
+.v2-voice-status > span { overflow: hidden; text-overflow: ellipsis; }
+.v2-voice-status.is-active { color: rgb(205 242 205 / .94); border-color: rgb(54 116 54 / .72); background: #193019; }
+
+/* Message actions are full V2 buttons, not the compact V1 tray. */
+.v2-message-action-tray {
+  gap: 6px !important;
+  padding: 5px !important;
+  border-radius: 25px !important;
+  background: #181818 !important;
+}
+.v2-message-action-tray .action-tray-button {
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  border: 1.25px solid rgb(0 0 0 / .78) !important;
+  border-radius: 999px !important;
+  background: #202020 !important;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .10) !important;
+}
+.v2-message-action-tray .action-tray-button:hover { background: rgb(255 255 255 / .12) !important; }
+.v2-message-menu { border-radius: 25px !important; padding: 5px !important; }
+.v2-message-menu [data-slot="button"] {
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  border: 1.25px solid rgb(0 0 0 / .78) !important;
+  background: #202020 !important;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .10) !important;
+}
+/* Final V2 control alignment: every header/composer control occupies one 40px visual row. */
+.v2-canvas .v2-floating-header { min-height: 40px; }
+.v2-canvas .v2-avatar-button,
+.v2-canvas .v2-account-button,
+.v2-canvas .v2-icon-button,
+.v2-canvas .v2-audio-dropdown-button,
+.v2-canvas .v2-dropdown-button,
+.v2-canvas .v2-voice-status,
+.v2-canvas .v2-input-bar {
+  box-sizing: border-box;
+  min-height: 40px !important;
+  height: 40px !important;
+}
+/* The app canvas is opaque; the controls themselves retain the prototype's 45px glass blur. */
+.v2-canvas .v2-icon-button,
+.v2-canvas .v2-audio-dropdown-button,
+.v2-canvas .v2-dropdown-button,
+.v2-canvas .v2-input-bar,
+.v2-canvas .v2-voice-status,
+.v2-canvas .voice-session-alert,
+.v2-canvas .v2-message-action-tray {
+  background: rgb(12 12 12 / .30) !important;
+  backdrop-filter: blur(45px) !important;
+  -webkit-backdrop-filter: blur(45px) !important;
+}
+/* Icon-button label construction from the button study; active voice only changes its fill. */
+.v2-voice-status {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  height: 40px;
+  gap: 7px;
+  padding: 8px 14px;
+  overflow: hidden;
+  border: 1.25px solid rgb(0 0 0 / .80);
+  border-radius: 25.01px;
+  color: #d9d9d9;
+  background: rgb(12 12 12 / .30) !important;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 4px 10px rgb(0 0 0 / .45);
+  text-shadow: 0 2px 2px rgb(0 0 0 / .35);
+}
+.v2-voice-status::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgb(255 255 255 / .35), rgb(255 255 255 / .16) 45%, rgb(255 255 255 / .05) 72%, transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.v2-voice-status:hover { box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 4px 10px rgb(0 0 0 / .45); }
+.v2-voice-status.is-active { background: #236a36 !important; border-color: rgb(0 0 0 / .80); color: #fff; }
+.v2-canvas .v2-input-bar { align-self: center; }
+.v2-canvas .v2-account-button { align-self: center; }
+/* V2 menus use the same opaque-glass control material as the floating controls. */
+.v2-canvas .v2-voice-status {
+  width: fit-content;
+  min-width: 184px;
+  max-width: 256px;
+}
+.v2-canvas .v2-voice-status > span {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.v2-canvas .v2-control-menu,
+.v2-canvas .v2-soundboard-menu {
+  border: 1.25px solid rgb(0 0 0 / .80) !important;
+  border-radius: 18px !important;
+  background: rgb(17 17 17 / .84) !important;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12), 0 12px 28px rgb(0 0 0 / .42) !important;
+  backdrop-filter: blur(45px) saturate(1.12) !important;
+  -webkit-backdrop-filter: blur(45px) saturate(1.12) !important;
+}
+.v2-soundboard-menu .text-muted-foreground { color: rgb(225 225 225 / .58) !important; }
+.v2-soundboard-menu .group {
+  border: 1.25px solid rgb(0 0 0 / .72) !important;
+  background: rgb(12 12 12 / .38) !important;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08);
+}
+.v2-soundboard-menu .group:hover { background: rgb(255 255 255 / .08) !important; }
+.v2-soundboard-volume { background: rgb(12 12 12 / .35) !important; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .06); }
+.v2-device-menu svg { width: 14px; height: 14px; }
+.v2-device-option {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+  padding: 7px 9px;
+  color: rgb(235 235 235 / .82);
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-device-option:hover,
+.v2-device-option.is-selected { background: rgb(255 255 255 / .10); color: #fff; }
+.v2-device-option.is-selected { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .10); }
+/* The action tray is one button-study shell; its individual actions stay deliberately lightweight. */
+.v2-canvas .v2-message-action-tray,
+.v2-canvas .v2-message-menu {
+  gap: 2px !important;
+  padding: 4px !important;
+  border: 1.25px solid rgb(0 0 0 / .80) !important;
+  border-radius: 25.01px !important;
+  background: rgb(12 12 12 / .30) !important;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 4px 10px rgb(0 0 0 / .45) !important;
+  backdrop-filter: blur(45px) saturate(1.12) !important;
+  -webkit-backdrop-filter: blur(45px) saturate(1.12) !important;
+}
+.v2-canvas .v2-message-action-tray::before,
+.v2-canvas .v2-message-menu::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgb(255 255 255 / .35), rgb(255 255 255 / .16) 45%, rgb(255 255 255 / .05) 72%, transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.v2-canvas .v2-message-action-tray .action-tray-button,
+.v2-canvas .v2-message-menu [data-slot="button"] {
+  position: relative;
+  z-index: 2;
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.v2-canvas .v2-message-action-tray .action-tray-button:hover,
+.v2-canvas .v2-message-menu [data-slot="button"]:hover { background: rgb(255 255 255 / .12) !important; }
+/* Exact sizing from the button-study: 20px action glyphs, 14px chevrons. */
+.v2-canvas .v2-icon-button > svg,
+.v2-canvas .v2-audio-dropdown-button > svg:first-child,
+.v2-canvas .v2-dropdown-button > svg:first-child,
+.v2-canvas .v2-voice-status > svg,
+.v2-canvas .v2-message-action-tray .action-tray-button > svg,
+.v2-canvas .v2-message-menu [data-slot="button"] > svg,
+.v2-canvas .window-control > svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+.v2-canvas .v2-dropdown-chevron { width: 14px !important; height: 14px !important; }
+/* Replying is another V2 input surface, not a legacy card. */
+.v2-canvas .v2-reply-banner {
+  position: relative;
+  min-height: 48px;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 25.01px !important;
+  color: #d9d9d9;
+  background: rgb(12 12 12 / .30) !important;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 4px 10px rgb(0 0 0 / .45) !important;
+  backdrop-filter: blur(45px) !important;
+  -webkit-backdrop-filter: blur(45px) !important;
+}
+.v2-canvas .v2-reply-banner::before {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgb(255 255 255 / .35), rgb(255 255 255 / .16) 45%, rgb(255 255 255 / .05) 72%, transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.v2-canvas .v2-reply-banner > * { position: relative; z-index: 4; }
+.v2-canvas .v2-reply-banner > svg { width: 20px; height: 20px; opacity: .8; filter: drop-shadow(0 2px 2px rgb(0 0 0 / .35)); }
+.v2-canvas .v2-reply-banner [data-slot="button"] {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+}
+.v2-canvas .v2-reply-banner [data-slot="button"]:hover { background: rgb(255 255 255 / .12); }
+.v2-canvas .v2-reply-banner [data-slot="button"] > svg { width: 20px; height: 20px; }
+/* Exact button-study material reset: one black outline at rest; elevation is hover-only. */
+.v2-canvas .v2-message-action-tray,
+.v2-canvas .v2-message-menu,
+.v2-canvas .v2-reply-banner {
+  position: relative;
+  isolation: isolate;
+  border: 0 !important;
+  background: rgb(12 12 12 / .30) !important;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80) !important;
+  transition: box-shadow 180ms ease-in-out, transform 80ms ease-out;
+  backdrop-filter: blur(45px) !important;
+  -webkit-backdrop-filter: blur(45px) !important;
+}
+.v2-canvas .v2-message-action-tray::before,
+.v2-canvas .v2-message-menu::before,
+.v2-canvas .v2-reply-banner::before {
+  z-index: 3;
+  padding: 1px;
+  background: linear-gradient(180deg, rgb(255 255 255 / .35) 0%, rgb(255 255 255 / .16) 45%, rgb(255 255 255 / .05) 72%, transparent 100%);
+}
+.v2-canvas .v2-message-action-tray::after,
+.v2-canvas .v2-message-menu::after,
+.v2-canvas .v2-reply-banner::after {
+  position: absolute;
+  z-index: 2;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: rgb(255 255 255 / .15);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.v2-canvas .v2-message-action-tray:hover,
+.v2-canvas .v2-message-menu:hover,
+.v2-canvas .v2-reply-banner:hover {
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 4px 10px rgb(0 0 0 / .45) !important;
+}
+.v2-canvas .v2-message-action-tray:hover::after,
+.v2-canvas .v2-message-menu:hover::after,
+.v2-canvas .v2-reply-banner:hover::after { opacity: 1; }
+.v2-canvas .v2-message-action-tray > *,
+.v2-canvas .v2-message-menu > *,
+.v2-canvas .v2-reply-banner > * { position: relative; z-index: 4; }
+/* Exact button-study microphone/deafen dropdowns. */
+.v2-canvas .v2-audio-dropdown-button {
+  position: relative;
+  isolation: isolate;
+  gap: 8px;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 25.01px !important;
+  color: #d9d9d9;
+  background: rgb(12 12 12 / .30) !important;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80) !important;
+  transition: box-shadow 180ms ease-in-out, transform 80ms ease-out, background 150ms ease;
+  backdrop-filter: blur(45px) !important;
+  -webkit-backdrop-filter: blur(45px) !important;
+}
+.v2-canvas .v2-audio-dropdown-button::before {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgb(255 255 255 / .35) 0%, rgb(255 255 255 / .16) 45%, rgb(255 255 255 / .05) 72%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.v2-canvas .v2-audio-dropdown-button::after {
+  position: absolute;
+  z-index: 2;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: rgb(255 255 255 / .15);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.v2-canvas .v2-audio-dropdown-button > svg { position: relative; z-index: 4; opacity: .8; filter: drop-shadow(0 2px 2px rgb(0 0 0 / .35)); }
+.v2-canvas .v2-audio-dropdown-button:hover { box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 4px 10px rgb(0 0 0 / .45) !important; }
+.v2-canvas .v2-audio-dropdown-button:hover::after { opacity: 1; }
+.v2-canvas .v2-audio-dropdown-button:active { transform: translateY(1px) scale(.96); }
+.v2-canvas .v2-audio-dropdown-button.v2-icon-button-active {
+  color: #fff !important;
+  background: #ff3333 !important;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80) !important;
+}
+/* Prevent legacy layout rules from stretching the compact V2 action shell. */
+.v2-canvas .v2-message-action-tray {
+  box-sizing: border-box;
+  width: fit-content !important;
+  min-width: 0 !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  align-self: auto !important;
+}
+/* Exact button-study label action: flat at rest, elevation only on hover. */
+.v2-canvas .v2-voice-status {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 25.01px !important;
+  background: rgb(12 12 12 / .30) !important;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80) !important;
+  transition: box-shadow 180ms ease-in-out, transform 80ms ease-out, background 150ms ease;
+}
+.v2-canvas .v2-voice-status::before {
+  z-index: 3;
+  padding: 1px;
+  background: linear-gradient(180deg, rgb(255 255 255 / .35) 0%, rgb(255 255 255 / .16) 45%, rgb(255 255 255 / .05) 72%, transparent 100%);
+}
+.v2-canvas .v2-voice-status::after {
+  position: absolute;
+  z-index: 2;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: rgb(255 255 255 / .15);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.v2-canvas .v2-voice-status > svg,
+.v2-canvas .v2-voice-status > span { position: relative; z-index: 4; opacity: .8; }
+.v2-canvas .v2-voice-status:hover { box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 4px 10px rgb(0 0 0 / .45) !important; }
+.v2-canvas .v2-voice-status:hover::after { opacity: 1; }
+.v2-canvas .v2-voice-status:active { transform: translateY(1px) scale(.96); }
+.v2-canvas .v2-voice-status.is-active { background: #236a36 !important; color: #fff; }
+/* Reply banner owns the source-study surface outright; no legacy panel class participates in V2. */
+.v2-canvas .v2-reply-banner {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 14px;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 25.01px !important;
+  outline: none;
+  color: #d9d9d9;
+  font-family: inherit;
+  font-stretch: inherit;
+  background: rgb(12 12 12 / .30) !important;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80) !important;
+  transition: box-shadow 180ms ease-in-out, transform 80ms ease-out;
+  backdrop-filter: blur(45px) !important;
+  -webkit-backdrop-filter: blur(45px) !important;
+}
+.v2-canvas .v2-reply-banner::before {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  padding: 1px;
+  border-radius: 25.01px;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgb(255 255 255 / .35) 0%, rgb(255 255 255 / .16) 45%, rgb(255 255 255 / .05) 72%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.v2-canvas .v2-reply-banner::after {
+  position: absolute;
+  inset: 1px;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: rgb(255 255 255 / .15);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.v2-canvas .v2-reply-banner:hover { box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 4px 10px rgb(0 0 0 / .45) !important; }
+.v2-canvas .v2-reply-banner:hover::after { opacity: 1; }
+.v2-canvas .v2-reply-banner > * { position: relative; z-index: 4; }
+.v2-canvas .v2-reply-banner > svg { flex: 0 0 20px; width: 20px; height: 20px; opacity: .8; filter: drop-shadow(0 2px 2px rgb(0 0 0 / .35)); }
+.v2-canvas .v2-reply-banner .border-l-2 { border-color: rgb(255 255 255 / .18); }
+/* Definitive V2 button-study contract — copied from buttontest styles.css, then scoped to app surfaces. */
+.v2-canvas .v2-icon-button,
+.v2-canvas .v2-dropdown-button,
+.v2-canvas .window-controls .window-control,
+.v2-canvas .v2-input-bar,
+.v2-canvas .v2-control-menu,
+.v2-canvas .v2-soundboard-menu {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 25.01px !important;
+  outline: none;
+  color: #d9d9d9;
+  font-family: inherit;
+  font-stretch: inherit;
+  background: rgb(12 12 12 / .30) !important;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80) !important;
+  transition: box-shadow 180ms ease-in-out, transform 80ms ease-out;
+  backdrop-filter: blur(45px) !important;
+  -webkit-backdrop-filter: blur(45px) !important;
+}
+.v2-canvas .v2-icon-button,
+.v2-canvas .window-controls .window-control {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  aspect-ratio: 1;
+  padding: 8px !important;
+}
+.v2-canvas .v2-dropdown-button {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 62px !important;
+  min-width: 62px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  gap: 8px;
+  padding: 8px 9px !important;
+}
+.v2-canvas .v2-input-bar {
+  display: flex;
+  align-items: center;
+  min-height: 40px !important;
+  padding: 4px 6px !important;
+}
+.v2-canvas .v2-control-menu,
+.v2-canvas .v2-soundboard-menu {
+  padding: 8px !important;
+}
+.v2-canvas .v2-icon-button::before,
+.v2-canvas .v2-dropdown-button::before,
+.v2-canvas .window-controls .window-control::before,
+.v2-canvas .v2-input-bar::before,
+.v2-canvas .v2-control-menu::before,
+.v2-canvas .v2-soundboard-menu::before {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  padding: 1px;
+  border-radius: 25.01px;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgb(255 255 255 / .35) 0%, rgb(255 255 255 / .16) 45%, rgb(255 255 255 / .05) 72%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.v2-canvas .v2-icon-button::after,
+.v2-canvas .v2-dropdown-button::after,
+.v2-canvas .window-controls .window-control::after,
+.v2-canvas .v2-input-bar::after,
+.v2-canvas .v2-control-menu::after,
+.v2-canvas .v2-soundboard-menu::after {
+  position: absolute;
+  z-index: 2;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: rgb(255 255 255 / .15);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.v2-canvas .v2-icon-button:hover,
+.v2-canvas .v2-dropdown-button:hover,
+.v2-canvas .window-controls .window-control:hover,
+.v2-canvas .v2-input-bar:focus-within,
+.v2-canvas .v2-control-menu:hover,
+.v2-canvas .v2-soundboard-menu:hover {
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 4px 10px rgb(0 0 0 / .45) !important;
+}
+.v2-canvas .v2-icon-button:hover::after,
+.v2-canvas .v2-dropdown-button:hover::after,
+.v2-canvas .window-controls .window-control:hover::after,
+.v2-canvas .v2-control-menu:hover::after,
+.v2-canvas .v2-soundboard-menu:hover::after { opacity: 1; }
+.v2-canvas .v2-icon-button:active,
+.v2-canvas .v2-dropdown-button:active,
+.v2-canvas .window-controls .window-control:active { transform: translateY(1px) scale(.96); }
+.v2-canvas .v2-icon-button > svg,
+.v2-canvas .v2-dropdown-button > svg,
+.v2-canvas .window-controls .window-control > svg,
+.v2-canvas .v2-input-bar > *,
+.v2-canvas .v2-control-menu > *,
+.v2-canvas .v2-soundboard-menu > * { position: relative; z-index: 4; }
+.v2-canvas .v2-icon-button > svg,
+.v2-canvas .v2-dropdown-button > svg:first-child,
+.v2-canvas .window-controls .window-control > svg { width: 20px !important; height: 20px !important; opacity: .8; filter: drop-shadow(0 2px 2px rgb(0 0 0 / .35)); }
+.v2-canvas .v2-dropdown-button .v2-dropdown-chevron { width: 14px !important; height: 14px !important; }
+.v2-canvas .v2-input-bar textarea { position: relative; z-index: 4; color: inherit; font: inherit; font-stretch: inherit; text-shadow: 0 2px 2px rgb(0 0 0 / .35); }
+.v2-canvas .v2-input-bar [data-slot="button"] { position: relative; z-index: 4; border: 0; background: transparent; box-shadow: none; }
+.v2-canvas .v2-input-bar [data-slot="button"]:hover { background: rgb(255 255 255 / .12); }
+/* Portaled V2 menus sit under document.body, so their study material cannot be scoped through .v2-canvas. */
+.v2-control-menu,
+.v2-soundboard-menu,
+.v2-message-menu {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 25.01px !important;
+  color: #d9d9d9;
+  background: rgb(12 12 12 / .30) !important;
+  box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80) !important;
+  backdrop-filter: blur(45px) !important;
+  -webkit-backdrop-filter: blur(45px) !important;
+}
+.v2-control-menu::before,
+.v2-soundboard-menu::before,
+.v2-message-menu::before {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  padding: 1px;
+  border-radius: 25.01px;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgb(255 255 255 / .35) 0%, rgb(255 255 255 / .16) 45%, rgb(255 255 255 / .05) 72%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.v2-control-menu::after,
+.v2-soundboard-menu::after,
+.v2-message-menu::after {
+  position: absolute;
+  z-index: 2;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: rgb(255 255 255 / .15);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.v2-control-menu:hover,
+.v2-soundboard-menu:hover,
+.v2-message-menu:hover { box-shadow: 0 0 0 1.25px rgb(0 0 0 / .80), 0 4px 10px rgb(0 0 0 / .45) !important; }
+.v2-control-menu:hover::after,
+.v2-soundboard-menu:hover::after,
+.v2-message-menu:hover::after { opacity: 1; }
+.v2-control-menu > *,
+.v2-soundboard-menu > *,
+.v2-message-menu > * { position: relative; z-index: 4; }
+/* V2 composer is structurally the test input bar — legacy panel/floating classes are absent. */
+.v2-canvas .v2-input-bar {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px !important;
+  color: #d9d9d9;
+}
+.v2-canvas .v2-input-bar textarea {
+  min-width: 0;
+  padding-block: 6px !important;
+  color: inherit !important;
+  line-height: 20px !important;
+}
+.v2-canvas .v2-input-bar [data-slot="button"] > svg { width: 20px !important; height: 20px !important; opacity: .8; filter: drop-shadow(0 2px 2px rgb(0 0 0 / .35)); }
+/* All V2 dropdown interiors remain flat menu actions inside one button-study shell. */
+.v2-chat-switcher-menu,
+.v2-account-menu,
+.v2-device-menu,
+.v2-soundboard-menu,
+.v2-message-menu { padding: 10px !important; }
+.v2-chat-switcher-menu [data-slot="button"],
+.v2-account-menu [data-slot="button"],
+.v2-device-menu [data-slot="button"] {
+  position: relative;
+  z-index: 4;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.v2-chat-switcher-menu [data-slot="button"]:hover,
+.v2-account-menu [data-slot="button"]:hover,
+.v2-device-menu [data-slot="button"]:hover { background: rgb(255 255 255 / .12) !important; }
+.v2-chat-switcher-menu .app-control,
+.v2-account-menu .app-control { border-radius: 10px; }
+/* Composer content stays visually quieter than the 40px shell. */
+.v2-canvas .v2-input-bar textarea {
+  font-size: 14px !important;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.v2-canvas .v2-input-bar [data-slot="button"] > svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+/* Dropdowns deliberately keep one darker material. Hover may lift a shell, never recolor it. */
+.v2-control-menu,
+.v2-soundboard-menu,
+.v2-message-menu,
+.v2-canvas .v2-dropdown-button,
+.v2-canvas .v2-audio-dropdown-button {
+  background: rgb(12 12 12 / .70) !important;
+}
+.v2-control-menu:hover::after,
+.v2-soundboard-menu:hover::after,
+.v2-message-menu:hover::after,
+.v2-canvas .v2-dropdown-button:hover::after,
+.v2-canvas .v2-audio-dropdown-button:hover::after {
+  opacity: 0 !important;
+}
+.v2-soundboard-menu .group:hover,
+.v2-control-menu [data-slot="button"]:hover {
+  background: transparent !important;
+}
+/* Keep the timeline fade present but shallower around the floating V2 controls. */
+.message-fade-mask [data-slot="scroll-area-viewport"] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgb(0 0 0 / .24) 22px, rgb(0 0 0 / .68) 62px, #000 108px, #000 calc(100% - 78px), rgb(0 0 0 / .30) calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, rgb(0 0 0 / .24) 22px, rgb(0 0 0 / .68) 62px, #000 108px, #000 calc(100% - 78px), rgb(0 0 0 / .30) calc(100% - 24px), transparent 100%);
+}
+/* Voice states: idle is the study button; active rooms are green, and only an active local leave action turns red on hover. */
+.v2-canvas .v2-voice-status.is-active {
+  background: #00b339 !important;
+  color: #fff;
+}
+.v2-canvas .v2-voice-status.is-joined:hover {
+  background: #ff3333 !important;
+}
+.v2-canvas .v2-voice-status.is-joined:hover::after {
+  opacity: 0 !important;
+}

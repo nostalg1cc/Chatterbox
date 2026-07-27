@@ -29,6 +29,7 @@ export function UserAvatar({
   animated = false,
   playOnHover = true,
   decorationActive = false,
+  className,
 }: {
   profile: Profile | undefined | null;
   size?: "sm" | "default" | "lg";
@@ -36,6 +37,7 @@ export function UserAvatar({
   animated?: boolean;
   playOnHover?: boolean;
   decorationActive?: boolean;
+  className?: string;
 }) {
   const [hovered, setHovered] = useState(false);
   const active = animated || decorationActive || (playOnHover && hovered);
@@ -51,7 +53,7 @@ export function UserAvatar({
 
   return (
     <div
-      className={`relative shrink-0 ${wrapperSize}`}
+      className={`relative shrink-0 ${wrapperSize} ${className ?? ""}`}
       onPointerEnter={playOnHover ? () => setHovered(true) : undefined}
       onPointerLeave={playOnHover ? () => setHovered(false) : undefined}
     >

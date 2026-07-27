@@ -16,11 +16,13 @@ export function MessageList({
   bottomInset = 0,
   topInset = 0,
   mediaOnly = false,
+  design = "v1",
 }: {
   conversationId: string;
   bottomInset?: number;
   topInset?: number;
   mediaOnly?: boolean;
+  design?: "v1" | "v2";
 }) {
   const allMessages = useChat((s) => s.messages[conversationId]);
   const messages = useMemo(
@@ -185,7 +187,7 @@ export function MessageList({
   }
 
   return (
-    <div ref={rootRef} className="relative h-full min-h-0">
+    <div ref={rootRef} className={"relative h-full min-h-0 " + (design === "v2" ? "v2-message-list" : "")}>
       <ScrollArea className="message-fade-mask h-full [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden">
         <div
           className="flex w-full min-w-0 max-w-full flex-col overflow-x-hidden"
@@ -241,6 +243,7 @@ export function MessageList({
                   showHeader={!grouped}
                   animateDecoration={decorationGroups.autoplayHeaderIds.has(msg.id)}
                   decorationActive={hoveredDecorationHeaderId === decorationGroups.headerIdByMessageId.get(msg.id)}
+                  design={design}
                   onDecorationHoverChange={(hovered) =>
                     setHoveredDecorationHeaderId(hovered ? decorationGroups.headerIdByMessageId.get(msg.id) ?? null : null)
                   }

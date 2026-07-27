@@ -25,6 +25,7 @@ import { nameColorClass } from "@/lib/name-colors";
 import { supabase } from "@/lib/supabase";
 import type { Message } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { playAppSound } from "@/lib/app-sounds";
 import { useAuth } from "@/stores/auth";
 import { useChat } from "@/stores/chat";
 import { usePreferences } from "@/stores/preferences";
@@ -146,12 +147,14 @@ export function MessageItem({
   showHeader,
   animateDecoration = false,
   decorationActive = false,
+  design = "v1",
   onDecorationHoverChange,
 }: {
   message: Message;
   showHeader: boolean;
   animateDecoration?: boolean;
   decorationActive?: boolean;
+  design?: "v1" | "v2";
   onDecorationHoverChange?: (hovered: boolean) => void;
 }) {
   const myId = useAuth((state) => state.userId);
@@ -196,12 +199,13 @@ export function MessageItem({
         isOwn && "flex-row-reverse",
         compact ? "py-0.5" : "py-1",
         showHeader && (compact ? "mt-2" : "mt-3"),
-        message.pending && "opacity-60"
+        message.pending && "opacity-60",
+        design === "v2" && "v2-message"
       )}
     >
       <div className="flex w-12 shrink-0 justify-center pt-0.5">
         {showHeader ? (
-          <UserAvatar profile={sender} animated={animateDecoration} decorationActive={decorationActive} />
+          <UserAvatar profile={sender} size="default" className={design === "v2" ? "v2-avatar-surface" : undefined} animated={animateDecoration} decorationActive={decorationActive} />
         ) : (
           <span className="block whitespace-nowrap pt-1 text-center text-[9px] leading-4 text-muted-foreground/75 opacity-0 tabular-nums select-none group-hover:opacity-100">
             {timeOfDay(message.created_at)}
@@ -289,7 +293,8 @@ export function MessageItem({
           className={cn(
             "composer-action-tray absolute -top-2 items-center",
             isOwn ? "left-4" : "right-4",
-            pickerOpen ? "action-tray-open" : ""
+            pickerOpen ? "action-tray-open" : "",
+            design === "v2" && "v2-message-action-tray"
           )}
         >
           <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -303,7 +308,7 @@ export function MessageItem({
                 <SmilePlusIcon />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-1.5" align="end">
+            <PopoverContent bare={design === "v2"} className={cn("w-auto p-1.5", design === "v2" && "v2-message-menu")} align="end">
               <div className="flex gap-0.5">
                 {QUICK_EMOJIS.map((emoji) => (
                   <Button
@@ -373,7 +378,13 @@ function VoiceSessionStatus({ message }: { message: Message }) {
 
   return (
     <div id={`message-${message.id}`} className="mx-auto flex w-full max-w-[1120px] justify-center px-5 py-2">
-      <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-black/20 px-3 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur-md">
+      <button
+        type="button"
+        className="voice-session-alert"
+        aria-label={ended ? `Call lasted ${durationLabel}` : "Voicechat started"}
+        onPointerEnter={(event) => { if (event.pointerType === "mouse") playAppSound("ui_hover"); }}
+        onClick={() => playAppSound("ui_click")}
+      >
         {ended ? <PhoneOffIcon className="size-3.5" /> : <PhoneCallIcon className="size-3.5" />}
         <span>{ended ? `Call lasted ${durationLabel}` : "Voicechat started"}</span>
         <span aria-hidden="true" className="text-muted-foreground/45">{"\u00b7"}</span>
@@ -383,7 +394,7 @@ function VoiceSessionStatus({ message }: { message: Message }) {
           </TooltipTrigger>
           <TooltipContent>{fullTimestamp(message.created_at)}</TooltipContent>
         </Tooltip>
-      </div>
+      </button>
     </div>
   );
 }
@@ -415,6 +426,18 @@ function ReplyPreview({
       </span>
     </button>
   );
+}
+const CLOUDINARY_CHAT_MEDIA_BASE = "https://res.cloudinary.com/lnkoms9m";
+
+function cloudinaryChatMediaUrl(path: string): string | null {
+  const match = /^cloudinary:(image|video):([0-9a-f-]{36}_[0-9a-f-]{36})$/i.exec(path);
+  if (!match) return null;
+  const [, kind, objectId] = match;
+  const publicId = `dislight/chat-media/${objectId}`;
+  if (kind === "image") {
+    return `${CLOUDINARY_CHAT_MEDIA_BASE}/image/upload/c_limit,w_1920/f_webp/q_auto:good/${publicId}.webp`;
+  }
+  return `${CLOUDINARY_CHAT_MEDIA_BASE}/video/upload/c_limit,h_720,w_1280/f_mp4,vc_h264,ac_aac,br_av:video_(value_2500k;mode_cbr);audio_(value_128k),fps_30,q_auto:good/${publicId}.mp4`;
 }
 function MediaAttachment({ message, alignEnd = false }: { message: Message; alignEnd?: boolean }) {
   const userId = useAuth((state) => state.userId);
@@ -448,17 +471,19 @@ function MediaAttachment({ message, alignEnd = false }: { message: Message; alig
           return;
         }
 
-        const { data, error } = await supabase.storage
-          .from("chat-media")
-          .createSignedUrl(message.media_path, 60 * 60);
+        const cloudinaryUrl = cloudinaryChatMediaUrl(message.media_path);
+        const signed = cloudinaryUrl
+          ? null
+          : await supabase.storage.from("chat-media").createSignedUrl(message.media_path, 60 * 60);
         if (cancelled) return;
-        if (error || !data?.signedUrl) {
+        const remoteUrl = cloudinaryUrl ?? signed?.data?.signedUrl;
+        if (!remoteUrl) {
           setFailed(true);
           return;
         }
 
-        setUrl(data.signedUrl);
-        void fetch(data.signedUrl, { signal: abortController.signal })
+        setUrl(remoteUrl);
+        void fetch(remoteUrl, { signal: abortController.signal })
           .then(async (response) => {
             if (!response.ok) return;
             const blob = await response.blob();

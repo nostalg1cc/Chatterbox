@@ -27,3 +27,5 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/cloudflare-realtime/deno.json"
 entrypoint = "./functions/cloudflare-realtime/index.ts"
+
+# Cloudinary credentials stay in Supabase secrets; this function owns signed chat-media uploads.

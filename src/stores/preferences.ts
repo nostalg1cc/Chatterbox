@@ -27,6 +27,7 @@ interface PreferencesState {
   noiseSuppression: boolean;
   noiseSuppressionEngine: "native" | "rnnoise";
 acrylicDim: number;
+  experimentalV2: boolean;
   globalVoiceShortcuts: boolean;
   keybinds: KeybindPreferences;
   setPreference: <K extends keyof PreferencesData>(key: K, value: PreferencesData[K]) => void;
@@ -53,6 +54,7 @@ const defaults: PreferencesData = {
   noiseSuppression: false,
   noiseSuppressionEngine: "native",
 acrylicDim: 55,
+  experimentalV2: false,
   globalVoiceShortcuts: false,
   keybinds: {
     toggleMute: "Ctrl+Shift+KeyM",

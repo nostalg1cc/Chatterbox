@@ -602,3 +602,102 @@ npx tsc --noEmit      # typecheck
 - [x] Built and signed the v0.1.23 NSIS installer.
 - [x] Published GitHub release `v0.1.23` with the installer, signature, and verified no-BOM `latest.json` updater manifest.
 - [x] Deployed the matching production web build to `https://dislight.vercel.app`.
+
+### Phase 77 - Native global voice shortcuts (July 27)
+- [x] Replaced the webview-owned global shortcut listener with a Tauri-native Windows registration command and app-event bridge for mute and deafen.
+- [x] Prevented focused-app double toggles by letting the browser key handler stand down while native global shortcuts are enabled.
+- [x] Registration conflicts now surface as a visible error; mute/deafen only execute while a voice room is active.
+- [x] Verified TypeScript, production web build, native Cargo compilation, and whitespace checks.
+### Phase 78 - Isolated V2 floating-controls preview (July 27)
+- [x] Added an opt-in V2 design preview while leaving V1 as the default, with a My Account setting toggle and a direct in-preview return action.
+- [x] Reused the existing chat history, composer/send/media path, chat switcher, soundboard, and voice stores instead of duplicating backend or WebRTC behaviour.
+- [x] Added scoped V2 controls: partner avatar switcher, soundboard, mute/deafen, V1 return action, own-avatar account menu, and floating composer.
+- [x] Verified TypeScript, production web build, and whitespace checks. This is preview-only and has not been released.
+### Phase 79 - Button-study UI sound system (July 27)
+- [x] Copied the button-study UI sound assets into the app and replaced the old generic interface/toggle mappings with click, hover, input-focus, menu open/close, and toggle on/off cues.
+- [x] Added bounded hover/focus throttling and wired the new cues to the V2 controls, chat switcher, soundboard menu, and composer focus. Voice mute/deafen use only their dedicated new toggle cue.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.
+### Phase 80 - V2 avatar, split-dropdown, and call-alert correction (July 27)
+- [x] Made V2 partner/self controls true avatar buttons: the button surface no longer clips or sits behind the avatar; decorations stay above it.
+- [x] Added real split mic/deafen dropdowns (primary action plus chevron menu) and an icon-plus-chevron Soundboard trigger, following the button-study controls.
+- [x] Replaced durable voice-start/voice-ended timeline pills with the interactive V2 AlertBar treatment.
+- [x] Verified TypeScript and whitespace checks. This remains unreleased.
+### Phase 81 - Exact V2 avatar, icon, and type parity (July 27)
+- [x] Rebuilt V2 avatar controls as 40px avatar surfaces with the same edge treatment as the button study; decoration remains above the avatar and presence remains topmost.
+- [x] Swapped V2 soundboard/deafen symbols to the button-study AudioLines and HeadphoneOff icon family.
+- [x] Ported the button study's bundled wide Google Sans Flex faces and scoped them to V2 controls and text.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.
+### Phase 82 - V2 timeline and opaque-control parity (July 27)
+- [x] Extended the V2 design flag through chat history: message avatars now use the 40px V2 avatar treatment and reaction/edit/delete trays use matching opaque controls and menus.
+- [x] Restyled V2 window controls as matching 40px control buttons.
+- [x] Removed acrylic-like translucency from the V2 canvas and V2 controls, leaving the preview with an intentionally opaque #1e1e1e background.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.
+### Phase 83 - Centered V2 voice header and full action controls (July 27)
+- [x] Centered the V2 header and restored compact voice state/actions: Voicechat, Join, Take over, and elapsed in-voice states.
+- [x] Reduced V2 chat-history avatar scale from 40px to the compact 32px treatment while retaining the V2 decoration edge.
+- [x] Rebuilt V2 reaction/reply/edit/delete trays and reaction picker as full 40px V2 button controls.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 84 - V2 control geometry and voice-action parity (July 27)
+- [x] Normalized the V2 composer, own-avatar control, floating header controls, and voice action to a centered 40px control row; the timeline remains compact at 32px.
+- [x] Rebuilt the in-voice action using the button-study edge, shadow, and gradient hierarchy; its active fill alone becomes green.
+- [x] Restored 45px backdrop blur only to V2 controls while retaining the intentional opaque V2 canvas.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 85 - V2 soundboard and device-menu parity (July 27)
+- [x] Restyled the V2 soundboard popover, progress cards, and listening-volume surface with the matching dark glass material, 1.25px edge, and 45px backdrop blur.
+- [x] Stabilized the V2 voice action with a fixed 40px height, tabular timer figures, and a bounded flexible width so seconds do not make it jump.
+- [x] Added live input-device selection to the microphone dropdown and output-device selection to the deafen dropdown; both write the existing persistent audio preferences.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 86 - V2 action-tray hierarchy correction (July 27)
+- [x] Reduced V2 message action and reaction trays to a single button-study outer shell; their inner actions are now compact flat targets with hover feedback only.
+- [x] Matched the button-study glyph geometry: 20px primary action icons and 14px dropdown chevrons.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 87 - V2 reply-composer parity (July 27)
+- [x] Rebuilt the V2 reply banner with the button-study 25.01px outer material, gradient edge, 45px blur, and flat inner cancel action.
+- [x] Anchored the V2 account avatar to the bottom composer line rather than vertically centering it across the reply/composer stack.
+- [x] Re-checked the original button-study source and applied its 40px shell, 20px glyph, 14px chevron, gradient-edge, hover-shadow, and 45px blur hierarchy to V2 controls.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 88 - Exact V2 idle/hover material correction (July 27)
+- [x] Reset V2 reply, message-action, and reaction-menu shells to the source button study's exact resting material: transparent dark fill, single 1.25px black outline, masked gradient edge, and 45px blur.
+- [x] Removed accidental resting elevation; the 0 4px 10px shadow and inner light overlay now occur only on hover, exactly as in the study.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 89 - Exact V2 mute/deafen dropdown pass (July 27)
+- [x] Rebuilt V2 microphone/deafen controls from the button-study source: 62px split button, 20px primary glyph, 14px chevron, black 1.25px outline, masked gradient edge, 45px blur, and hover-only elevation.
+- [x] Toggled mute/deafen now use the study’s full #ff3333 active fill and play their corresponding on/off interface sound locally.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 90 - V2 compact-tray and voice-idle correction (July 27)
+- [x] Explicitly locked the V2 message action shell to a 40px height, preventing inherited legacy layout from stretching it vertically.
+- [x] Reset the V2 voice label action to the button-study's flat idle material and hover-only 0 4px 10px elevation; retained its green active state.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 91 - Standalone V2 reply surface rebuild (July 27)
+- [x] Removed legacy `surface-panel`/`app-surface` classes entirely from the V2 reply path, so they cannot override the new design.
+- [x] Rebuilt the reply banner as its own button-study surface with the source geometry, gradient edge, hover overlay/elevation, glyph sizing, and 45px blur.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 92 - Button-study interaction-sound repair (July 27)
+- [x] Diagnosed the missing V2 cues: `public/sounds/ui` existed but contained no files, so every mapped audio fallback was 404ing.
+- [x] Copied the button-study UI assets into the public runtime folder and ported the study's Web Audio hover, click/menu, and enable/disable toggle tone sequences into `app-sounds.ts`.
+- [x] The existing interface-sounds preference and volume still gate the cues; the copied assets remain a browser/WebView fallback.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 93 - Definitive V2 button-study source pass (July 27)
+- [x] Applied the test project's exact 40px/62px shell contract, 25.01px radius, 1.25px black ring, masked gradient edge, hover-only inner overlay/elevation, 20px glyphs, 14px chevrons, and 45px blur across V2 composer, header buttons, window controls, dropdowns, and menus.
+- [x] Corrected portaled menus separately: they render outside `.v2-canvas`, so they now receive the same source material through V2-specific global selectors.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 94 - Structural V2 composer input-bar isolation (July 27)
+- [x] Removed legacy `surface-panel`, `composer-surface`, and floating-shell classes from the V2 Composer render path, rather than attempting to override them.
+- [x] V2 composer now uses only the source-derived input-bar material; normalized its own glyphs to 20px and retained the app's multiline behaviour.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 95 - Complete V2 dropdown shell pass (July 27)
+- [x] Extended the V2 source-derived dropdown material to the partner chat switcher and account popover, which were previously still generic app popovers.
+- [x] Preserved one outer 25.01px button-study shell per dropdown and normalized inner menu items to flat hover-only targets.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 96 - V2 composer content-scale correction (July 27)
+- [x] Reduced V2 composer text to 14px and attachment/send glyphs to 16px, keeping the button-study 40px input shell unchanged.
+- [x] Verified TypeScript and whitespace checks. This remains unreleased.### Phase 97 - Structural V2 popover isolation and Cloudinary review (July 27)
+- [x] Added a bare shared-popover path and moved every V2 popover onto it: account, partner/chat selector, input/output menus, soundboard, and reaction picker no longer inherit legacy `surface-panel` material.
+- [x] Reused the standalone source-derived V2 shell for those popovers and kept their internal menu actions flat/hover-only.
+- [x] Reviewed Cloudinary Free usage: 2.24 / 25 credits used, 751,401,793 bytes stored, and 54,933,602 bytes delivered; media limits allow 10 MiB images and 100 MiB videos. A full chat-media migration is not yet performed.
+- [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.
+### Phase 98 - Cloudinary chat-media delivery foundation (July 27)
+- [x] Added Cloudinary-aware chat attachment delivery while retaining the existing private Supabase Storage route as a safe automatic fallback.
+- [x] Cloudinary mode preserves original image/video bytes for upload, then delivers fixed optimized renditions: WebP images and 720p/30fps MP4 with H.264, AAC, 2.5 Mbps video / 128 kbps audio; this removes the browser canvas re-recording quality and audio loss path.
+- [x] Applied `20260727080522_cloudinary_chat_media.sql` and `20260727081515_cloudinary_chat_media_indexes.sql`: Cloudinary attachments retain the same 3-day server expiry, 512 MiB oldest-first budget, authenticated reservations, and existing 30-day IndexedDB cache.
+- [x] Deployed `purge-chat-media` with authenticated signed Cloudinary upload parameters, direct-provider verification, automatic Cloudinary deletion, and legacy cleanup compatibility.
+- [x] Added Cloudinary media/upload origins to the Tauri CSP; verified TypeScript, production build, migration presence, and advisor follow-up indexes.
+- [ ] **Activation required:** add `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` as Supabase Edge Function secrets. They must never be placed in `.env`, the frontend, Git, or this handoff. Until then, the app intentionally reports the legacy provider and existing attachments remain safe.
+
+### Phase 99 - Steady V2 dropdown material (July 27)
+- [x] Changed V2 dropdown shells to a darker 70% resting material and removed hover-driven background recoloring. Hover can retain elevation but no longer flashes a different fill.
+### Phase 100 - V2 default and media drop intake (July 27)
+- [x] Made the V2 floating-controls conversation view the sole active chat shell; V1 source remains retained for compatibility/reference but is no longer selectable in the live UI.
+- [x] Removed the V2 return-to-V1 button and the obsolete settings toggle.
+- [x] Added app-wide drag/drop intake for supported image/video files: dropping anywhere over an active chat forwards the file into its composer, alongside existing paste and composer-drop flows.
+- [x] Reduced the top/bottom message viewport mask depth so normal history stays visible closer to the floating controls.
+- [x] Voice action behavior is now exact: idle uses the normal study material, open/joinable voice is `#00b339`, and the local in-call leave action transitions to `#ff3333` on hover.
+- [x] Verified the `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` secret names are present in Supabase. The deployed function reads secrets at invocation time, so a refresh activates Cloudinary without redeployment.
+- [x] Verified TypeScript, production build, JSON configuration, and whitespace checks.

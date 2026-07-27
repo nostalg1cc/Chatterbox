@@ -1,4 +1,4 @@
-﻿import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   FilmIcon,
   ImageIcon,
@@ -14,12 +14,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { UserAvatar } from "@/components/user-avatar";
 import { SettingsDialog } from "@/features/settings/settings-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { formattedBytes, prepareChatMedia, type PreparedMedia } from "@/lib/media";
+import { formattedBytes, prepareChatMedia, type ChatMediaProvider, type PreparedMedia } from "@/lib/media";
+import { supabase } from "@/lib/supabase";
 import type { Message } from "@/lib/types";
 import { useChat } from "@/stores/chat";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
 import { useProfiles } from "@/stores/profiles";
+import { playAppSound } from "@/lib/app-sounds";
 
 function replyExcerpt(message: Message) {
   if (message.deleted_at) return "Message deleted";
@@ -32,9 +34,13 @@ function replyExcerpt(message: Message) {
 export function Composer({
   conversationId,
   placeholder,
+  showAccount = true,
+  className,
 }: {
   conversationId: string;
   placeholder: string;
+  showAccount?: boolean;
+  className?: string;
 }) {
   const [value, setValue] = useState("");
   const [media, setMedia] = useState<PreparedMedia | null>(null);
@@ -53,6 +59,7 @@ export function Composer({
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const restoreFocusRef = useRef(false);
+  const isV2Composer = className?.includes("v2-input-bar") ?? false;
 
   useEffect(() => {
     if (!media) {
@@ -108,7 +115,11 @@ export function Composer({
     setMedia(null);
     setProgress(0);
     try {
-      const prepared = await prepareChatMedia(file, setProgress);
+      const { data } = await supabase.functions.invoke("purge-chat-media", {
+        body: { mode: "capability" },
+      });
+      const provider: ChatMediaProvider = data?.provider === "cloudinary" ? "cloudinary" : "storage";
+      const prepared = await prepareChatMedia(file, setProgress, provider);
       setMedia(prepared);
       setProgress(1);
     } catch (error) {
@@ -119,6 +130,15 @@ export function Composer({
     }
   };
 
+  useEffect(() => {
+    const onAppMedia = (event: Event) => {
+      const file = (event as CustomEvent<File>).detail;
+      if (!file || preparing || sending) return;
+      void selectMedia(file);
+    };
+    window.addEventListener("dislight:attach-media", onAppMedia);
+    return () => window.removeEventListener("dislight:attach-media", onAppMedia);
+  }, [preparing, sending]);
   const pasteMedia = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const file = Array.from(event.clipboardData.files).find((candidate) =>
       candidate.type.startsWith("image/") || candidate.type.startsWith("video/")
@@ -145,10 +165,14 @@ export function Composer({
     void selectMedia(file);
   };
 
+  const composerSurfaceClass = isV2Composer
+    ? "v2-input-bar flex items-center gap-2 transition-colors"
+    : "surface-panel composer-surface floating-surface flex items-center gap-2 p-1.5 shadow-[0_10px_26px_rgb(0_0_0_/_0.20)] transition-colors focus-within:border-white/[0.28] " + className;
+
   return (
     <div className="shrink-0 px-0 pb-0">
       {replyTo && (
-        <div className="mb-2 flex min-w-0 items-center gap-2 surface-panel app-surface border border-white/[0.12] bg-card/80 px-2.5 py-2">
+        <div className={isV2Composer ? "v2-reply-banner mb-2 flex min-w-0 items-center" : "mb-2 flex min-w-0 items-center gap-2 surface-panel app-surface border border-white/[0.12] bg-card/80 px-2.5 py-2"}>
           <ReplyIcon className="size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1 border-l-2 border-white/[0.24] pl-2">
             <p className="text-[11px] font-medium text-foreground/85">
@@ -181,14 +205,14 @@ export function Composer({
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">
-              {preparing ? "Compressing locally..." : media?.originalName}
+              {preparing ? "Preparing attachment..." : media?.originalName}
             </p>
             <p className="text-xs text-muted-foreground">
               {preparing
                 ? Math.round(progress * 100) + "%"
                 : media
                   ? formattedBytes(media.blob.size) +
-                    (media.kind === "video" ? " - 720p / 30 fps max" : " - WebP")
+                    (media.provider === "cloudinary" ? media.kind === "video" ? " - Cloudinary 720p / 30 fps" : " - Cloudinary optimized" : media.kind === "video" ? " - 720p / 30 fps max" : " - WebP")
                   : ""}
             </p>
             {preparing && (
@@ -214,10 +238,7 @@ export function Composer({
       )}
 
       <div
-        className={
-          "surface-panel composer-surface floating-surface flex items-center gap-2 p-1.5 shadow-[0_10px_26px_rgb(0_0_0_/_0.20)] transition-colors focus-within:border-white/[0.28] " +
-          (isDraggingMedia ? "border-emerald-300/70 bg-emerald-400/[0.08]" : "")
-        }
+        className={composerSurfaceClass + " " + (isDraggingMedia ? "border-emerald-300/70 bg-emerald-400/[0.08]" : "")}
         onDragEnter={(event) => {
           if (Array.from(event.dataTransfer.types).includes("Files")) setIsDraggingMedia(true);
         }}
@@ -240,7 +261,7 @@ export function Composer({
           className="hidden"
           onChange={(event) => void selectMedia(event.target.files?.[0])}
         />
-        <Popover>
+        {showAccount && <Popover>
           <PopoverTrigger asChild>
             <button type="button" className="app-control flex h-9 shrink-0 items-center gap-1.5 px-2 text-left transition-colors hover:bg-white/[0.07]" aria-label="Your account and settings">
               <UserAvatar profile={ownProfile} size="sm" animated />
@@ -260,7 +281,7 @@ export function Composer({
               <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => void useAuth.getState().signOut()}>Sign out</Button>
             </div>
           </PopoverContent>
-        </Popover>        <Button
+        </Popover>}        <Button
           variant="ghost"
           size="icon-sm"
           aria-label="Attach image or video"
@@ -290,6 +311,7 @@ export function Composer({
             resize();
             useChat.getState().notifyTyping(conversationId);
           }}
+          onFocus={() => playAppSound("ui_input_focus")}
           onPaste={pasteMedia}
           onKeyDown={(event) => {
             const shortcutSend = event.ctrlKey || event.metaKey;

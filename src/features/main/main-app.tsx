@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { MessageSquareIcon, UsersIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WindowControls } from "@/components/titlebar";
-import { ChatView } from "@/features/chat/chat-view";
 import { ChatSwitcher } from "@/features/chat/chat-switcher";
 import { AddFriendDialog } from "@/features/friends/add-friend-dialog";
 import { FriendsView } from "@/features/friends/friends-view";
@@ -17,6 +16,7 @@ import { usePresence } from "@/stores/presence";
 import { useProfiles } from "@/stores/profiles";
 import { appWindow, isTauri } from "@/lib/tauri";
 import { useVoice } from "@/stores/voice";
+import { V2ChatView } from "@/features/v2/v2-chat-view";
 
 let cleanupRequested = false;
 
@@ -98,7 +98,7 @@ export function MainApp() {
           {view === "friends" ? (
             <FriendsView />
           ) : activeId ? (
-            <ChatView key={activeId} conversationId={activeId} />
+            <V2ChatView key={activeId} conversationId={activeId} />
           ) : (
             <NoConversation />
           )}

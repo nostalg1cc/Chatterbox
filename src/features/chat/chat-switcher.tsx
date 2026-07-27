@@ -8,6 +8,7 @@ import { AddFriendDialog } from "@/features/friends/add-friend-dialog";
 import { relativeTime } from "@/lib/format";
 import { nameColorClass } from "@/lib/name-colors";
 import { cn } from "@/lib/utils";
+import { playAppSound } from "@/lib/app-sounds";
 import { useAuth } from "@/stores/auth";
 import { useChat } from "@/stores/chat";
 import { useFriends } from "@/stores/friends";
@@ -15,7 +16,7 @@ import { useIsOnline } from "@/stores/presence";
 import { useProfiles } from "@/stores/profiles";
 import { useVoice } from "@/stores/voice";
 
-export function ChatSwitcher({ conversationId }: { conversationId: string }) {
+export function ChatSwitcher({ conversationId, triggerClassName, contentClassName }: { conversationId: string; triggerClassName?: string; contentClassName?: string }) {
   const myId = useAuth((state) => state.userId) ?? "";
   const conversations = useChat((state) => state.conversations);
   const pendingIncoming = useFriends((state) =>
@@ -36,14 +37,15 @@ export function ChatSwitcher({ conversationId }: { conversationId: string }) {
   const isJoined = activeVoiceId === conversationId;
 
   return (
-    <Popover>
+    <Popover onOpenChange={(open) => playAppSound(open ? "ui_menu_open" : "ui_menu_close")}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="dock-profile app-control flex h-9 w-auto max-w-[220px] shrink-0 items-center gap-2 px-2 text-left transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          className={cn("dock-profile app-control flex h-9 w-auto max-w-[220px] shrink-0 items-center gap-2 px-2 text-left transition-colors hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60", triggerClassName)}
           aria-label="Open chats and channels"
+          onPointerEnter={(event) => { if (event.pointerType === "mouse") playAppSound("ui_hover"); }}
         >
-          <UserAvatar profile={friend} online={online} size="sm" animated />
+          <UserAvatar profile={friend} online={online} size={triggerClassName ? "lg" : "sm"} className={triggerClassName ? "v2-avatar-surface" : undefined} animated />
           <span className="min-w-0 self-stretch flex flex-1 items-center leading-none">
             <span className={cn("inline-flex h-4 items-center relative -top-px truncate text-sm font-medium", nameColorClass(friend?.name_color))}>
               <DecoratedText effect={friend?.name_decoration as never} font={friend?.name_font} weight={friend?.name_weight} active>{friend?.display_name ?? "..."}</DecoratedText>
@@ -53,7 +55,7 @@ export function ChatSwitcher({ conversationId }: { conversationId: string }) {
           <ChevronDownIcon className="mr-1 size-3.5 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" sideOffset={8} className="app-surface w-[310px] gap-2 p-2.5">
+      <PopoverContent align="start" sideOffset={8} bare={Boolean(contentClassName)} className={contentClassName ? cn("w-[310px] gap-2 p-2.5", contentClassName) : "app-surface w-[310px] gap-2 p-2.5"}>
         <div className="flex flex-col gap-0.5 px-1 pt-0.5">
           <Button
             variant="ghost"
