@@ -296,6 +296,7 @@ export function preloadSoundboardClips(clips: Array<{ id: string; signedUrl: str
 }
 export interface SoundboardPlayback {
   stop: () => void;
+  setVolume: (volume: number) => void;
 }
 
 export async function playSoundboardUrl(
@@ -314,7 +315,10 @@ export async function playSoundboardUrl(
   const url = URL.createObjectURL(blob);
   const audio = new Audio(url);
   audio.preload = "auto";
-  audio.volume = Math.min(1, Math.max(0, volume / 100));
+  const setVolume = (nextVolume: number) => {
+    audio.volume = Math.min(1, Math.max(0, nextVolume / 100));
+  };
+  setVolume(volume);
   await routeSoundboardAudio(audio, outputDeviceId);
 
   let timer: number | null = null;
@@ -361,6 +365,7 @@ export async function playSoundboardUrl(
       audio.pause();
       finish();
     },
+    setVolume,
   };
 }
 type SinkAudio = HTMLAudioElement & {

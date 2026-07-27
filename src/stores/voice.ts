@@ -103,6 +103,14 @@ let pendingCandidates: RTCIceCandidateInit[] = [];
 let lastRemoteSoundboardAt = 0;
 const remoteSoundboardPlaybacks = new Map<string, SoundboardPlayback>();
 const cancelledRemoteSoundboardPlaybacks = new Set<string>();
+
+usePreferences.subscribe((state, previousState) => {
+  if (state.soundboardVolume !== previousState.soundboardVolume) {
+    for (const playback of remoteSoundboardPlaybacks.values()) {
+      playback.setVolume(state.soundboardVolume);
+    }
+  }
+});
 let activeIceServers: RTCIceServer[] = ICE_SERVERS;
 let turnCredentialsExpireAt = 0;
 

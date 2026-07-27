@@ -581,3 +581,20 @@ npx tsc --noEmit      # typecheck
 - [x] Built and signed the v0.1.22 NSIS installer.
 - [x] Published GitHub release 0.1.22 with the installer, signature, and verified no-BOM latest.json updater manifest.
 - [x] Deployed the matching production web build to https://dislight.vercel.app.
+### Phase 72 - Live soundboard listening-volume updates (July 27)
+- [x] Soundboard volume now applies immediately to every active clip, including partner clips already playing on receipt.
+- [x] Incoming clips continue to start using the listener's own soundboard volume, rather than the sender's device setting.
+- [x] Verified TypeScript and production build.
+### Phase 73 - Reliable chat-link opening (July 27)
+- [x] Reworked message links to use an explicit external-browser opening path in Tauri and a direct new-tab path on web.
+- [x] Preserves modifier-click behavior and shows a visible error if the browser/opener rejects a link instead of failing silently.
+- [x] Verified TypeScript and production build.
+### Phase 74 - Authenticated rich-link previews (July 27)
+- [x] Added the authenticated link-preview Edge Function: HTML-only Open Graph extraction with URL-scheme, local/private target, redirect, response-size, and timeout safeguards.
+- [x] Deployed link-preview to Supabase with JWT verification enabled and verified unauthenticated requests are rejected with HTTP 401.
+- [x] Added compact, cached rich-link cards in chat with title, description, site label, and optional HTTPS thumbnail; cards use the same safe external-link action as text links.
+- [x] Verified TypeScript and production build.
+### Phase 75 - In-soundboard listening-volume control (July 27)
+- [x] Added a compact live volume slider, muted-state icon, and percent readout directly in the shared soundboard popover.
+- [x] Uses the same persistent soundboard listening preference, so it updates local and incoming active clips immediately.
+- [x] Verified TypeScript and whitespace checks.

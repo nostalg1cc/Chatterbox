@@ -36,6 +36,12 @@ interface SoundboardState {
 let localPlayback: { playback: SoundboardPlayback; id: string; nonce: string } | null = null;
 let activeLocalPlayback: { id: string; nonce: string } | null = null;
 
+usePreferences.subscribe((state, previousState) => {
+  if (state.soundboardVolume !== previousState.soundboardVolume) {
+    localPlayback?.playback.setVolume(state.soundboardVolume);
+  }
+});
+
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("soundboard-storage", { body });
   if (error) throw new Error(error.message);

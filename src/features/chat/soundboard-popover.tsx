@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2Icon, Music2Icon, PlayIcon, SquareIcon, StarIcon } from "lucide-react";
+import { Loader2Icon, Music2Icon, PlayIcon, SquareIcon, StarIcon, Volume2Icon, VolumeXIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -25,6 +25,7 @@ export function SoundboardPopover({ conversationId, partnerName }: SoundboardPop
   const playingSoundId = useSoundboard((state) => state.playingSoundId);
   const playbackProgress = useSoundboard((state) => state.playbackProgress);
   const pinnedSoundIds = usePreferences((state) => state.pinnedSoundIds);
+  const soundboardVolume = usePreferences((state) => state.soundboardVolume);
   const setPreference = usePreferences((state) => state.setPreference);
   const [open, setOpen] = useState(false);
 
@@ -82,6 +83,19 @@ export function SoundboardPopover({ conversationId, partnerName }: SoundboardPop
           <PopoverDescription>
             Your library and {partnerName}&apos;s — playable by either of you.
           </PopoverDescription>
+          <div className="mt-3 flex items-center gap-2 rounded-md border border-white/[0.12] bg-muted/25 px-2.5 py-2">
+            {soundboardVolume === 0 ? <VolumeXIcon className="size-3.5 shrink-0 text-muted-foreground" /> : <Volume2Icon className="size-3.5 shrink-0 text-muted-foreground" />}
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={soundboardVolume}
+              aria-label="Soundboard listening volume"
+              className="h-1 w-full accent-foreground"
+              onChange={(event) => setPreference("soundboardVolume", Number(event.target.value))}
+            />
+            <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">{soundboardVolume}%</span>
+          </div>
         </PopoverHeader>
         {loading ? (
           <div className="flex h-28 items-center justify-center">

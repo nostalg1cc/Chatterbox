@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { toast } from "sonner";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -53,14 +54,91 @@ async function openChatLink(url: string) {
     await openUrl(url);
     return;
   }
-  window.open(url, "_blank", "noopener,noreferrer");
+
+  const popup = window.open(url, "_blank", "noopener,noreferrer");
+  if (!popup) throw new Error("The browser blocked the new tab.");
 }
 
+type LinkPreview = {
+  url: string;
+  title: string;
+  description?: string;
+  siteName?: string;
+  image?: string;
+};
+
+const linkPreviewCache = new Map<string, LinkPreview | null>();
+
+function handleChatLinkClick(event: MouseEvent<HTMLAnchorElement>, url: string) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  event.stopPropagation();
+  void openChatLink(url).catch((error) => {
+    console.warn("Could not open chat link", error);
+    toast.error("Couldn't open that link.");
+  });
+}
+
+function RichLinkPreview({ content }: { content: string }) {
+  const url = useMemo(() => {
+    const first = content.match(URL_PART)?.[0];
+    return first ? splitLinkSuffix(first).url : null;
+  }, [content]);
+  const [preview, setPreview] = useState<LinkPreview | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!url) return;
+    if (linkPreviewCache.has(url)) {
+      setPreview(linkPreviewCache.get(url) ?? null);
+      return;
+    }
+    let cancelled = false;
+    setPreview(undefined);
+    void supabase.functions.invoke<{ preview?: LinkPreview }>("link-preview", { body: { url } })
+      .then(({ data, error }) => {
+        const next = !error && data?.preview?.title ? data.preview : null;
+        linkPreviewCache.set(url, next);
+        if (!cancelled) setPreview(next);
+      })
+      .catch(() => {
+        linkPreviewCache.set(url, null);
+        if (!cancelled) setPreview(null);
+      });
+    return () => { cancelled = true; };
+  }, [url]);
+
+  if (!url || !preview) return null;
+  return (
+    <a
+      href={preview.url}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-2 flex max-w-[560px] overflow-hidden rounded-lg border border-white/[0.14] bg-card/75 text-left no-underline transition-colors hover:bg-muted/70"
+      onClick={(event) => handleChatLinkClick(event, preview.url)}
+    >
+      <div className="min-w-0 flex-1 px-3 py-2.5">
+        <p className="truncate text-xs font-medium text-foreground">{preview.title}</p>
+        {preview.description && <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{preview.description}</p>}
+        <p className="mt-1 truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground/75">{preview.siteName || new URL(preview.url).hostname}</p>
+      </div>
+      {preview.image && (
+        <img
+          src={preview.image}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="h-[88px] w-[132px] shrink-0 border-l border-white/[0.10] object-cover"
+          onError={(event) => { event.currentTarget.style.display = "none"; }}
+        />
+      )}
+    </a>
+  );
+}
 function MessageText({ content }: { content: string }) {
+
   return <>{content.split(URL_PART).map((part, index) => {
     if (!URL_ONLY.test(part)) return part;
     const { url, suffix } = splitLinkSuffix(part);
-    return <span key={"link-" + index}><a href={url} target="_blank" rel="noreferrer" className="chat-link" onClick={(event) => { if (!isTauri()) return; event.preventDefault(); void openChatLink(url); }}>{url}</a>{suffix}</span>;
+    return <span key={"link-" + index}><a href={url} target="_blank" rel="noreferrer" className="chat-link" onClick={(event) => handleChatLinkClick(event, url)}>{url}</a>{suffix}</span>;
   })}</>;
 }
 export function MessageItem({
@@ -170,14 +248,17 @@ export function MessageItem({
               )
             )}
             {message.content && (
-              <p className={cn("min-w-0 max-w-full whitespace-pre-wrap text-sm leading-relaxed text-foreground/95 [overflow-wrap:anywhere]", isOwn && "ml-auto")}>
-                <MessageText content={message.content} />
-                {message.edited_at && (
-                  <span className="ml-1.5 text-[10px] text-muted-foreground/65">
-                    (edited)
-                  </span>
-                )}
-              </p>
+              <>
+                <p className={cn("min-w-0 max-w-full whitespace-pre-wrap text-sm leading-relaxed text-foreground/95 [overflow-wrap:anywhere]", isOwn && "ml-auto")}>
+                  <MessageText content={message.content} />
+                  {message.edited_at && (
+                    <span className="ml-1.5 text-[10px] text-muted-foreground/65">
+                      (edited)
+                    </span>
+                  )}
+                </p>
+                <RichLinkPreview content={message.content} />
+              </>
             )}
           </>
         )}
