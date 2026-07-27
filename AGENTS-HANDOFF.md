@@ -576,3 +576,8 @@ npx tsc --noEmit      # typecheck
 - [x] Added a storage-free fallback avatar for profiles without a custom image: one uppercase first letter, bold weight, and a deterministic colored background derived from the profile identity.
 - [x] The same fallback is automatically used in every existing `UserAvatar` surface, and custom avatars still take precedence.
 - [x] Verified TypeScript and production build.
+
+### Phase 71 - v0.1.22 generated-avatar release (July 27)
+- [x] Built and signed the v0.1.22 NSIS installer.
+- [x] Published GitHub release 0.1.22 with the installer, signature, and verified no-BOM latest.json updater manifest.
+- [x] Deployed the matching production web build to https://dislight.vercel.app.
