@@ -579,8 +579,8 @@ npx tsc --noEmit      # typecheck
 
 ### Phase 71 - v0.1.22 generated-avatar release (July 27)
 - [x] Built and signed the v0.1.22 NSIS installer.
-- [x] Published GitHub release 0.1.22 with the installer, signature, and verified no-BOM latest.json updater manifest.
-- [x] Deployed the matching production web build to https://dislight.vercel.app.
+- [x] Published GitHub release `v0.1.22` with the installer, signature, and verified no-BOM `latest.json` updater manifest.
+- [x] Deployed the matching production web build to `https://dislight.vercel.app`.
 ### Phase 72 - Live soundboard listening-volume updates (July 27)
 - [x] Soundboard volume now applies immediately to every active clip, including partner clips already playing on receipt.
 - [x] Incoming clips continue to start using the listener's own soundboard volume, rather than the sender's device setting.
@@ -598,3 +598,7 @@ npx tsc --noEmit      # typecheck
 - [x] Added a compact live volume slider, muted-state icon, and percent readout directly in the shared soundboard popover.
 - [x] Uses the same persistent soundboard listening preference, so it updates local and incoming active clips immediately.
 - [x] Verified TypeScript and whitespace checks.
+### Phase 76 - v0.1.23 rich links and soundboard QoL release (July 27)
+- [x] Built and signed the v0.1.23 NSIS installer.
+- [x] Published GitHub release `v0.1.23` with the installer, signature, and verified no-BOM `latest.json` updater manifest.
+- [x] Deployed the matching production web build to `https://dislight.vercel.app`.
