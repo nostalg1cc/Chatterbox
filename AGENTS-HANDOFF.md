@@ -572,3 +572,7 @@ npx tsc --noEmit      # typecheck
 - [x] Built and signed the v0.1.21 NSIS installer.
 - [x] Published GitHub release `v0.1.21` with the installer, signature, and verified no-BOM `latest.json` updater manifest.
 - [x] Deployed the matching production web build to `https://dislight.vercel.app`.
+### Phase 70 - Automatic default profile avatars (July 27)
+- [x] Added a storage-free fallback avatar for profiles without a custom image: one uppercase first letter, bold weight, and a deterministic colored background derived from the profile identity.
+- [x] The same fallback is automatically used in every existing `UserAvatar` surface, and custom avatars still take precedence.
+- [x] Verified TypeScript and production build.
