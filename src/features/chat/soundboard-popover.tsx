@@ -82,13 +82,13 @@ export function SoundboardPopover({ conversationId, partnerName, triggerClassNam
           {dropdownTrigger && <ChevronDownIcon className={cn("v2-dropdown-chevron", open && "is-open")} />}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" bare={dropdownTrigger} className={dropdownTrigger ? "v2-control-menu v2-soundboard-menu w-[25rem] p-3" : "w-[25rem] border border-white/[0.16] p-3"}>
-        <PopoverHeader>
-          <PopoverTitle>Shared soundboard</PopoverTitle>
-          <PopoverDescription>
+      <PopoverContent align="end" bare={dropdownTrigger} className={dropdownTrigger ? "v2-control-menu v2-soundboard-menu soundboard-v2-menu w-[25rem] p-3" : "w-[25rem] border border-white/[0.16] p-3"}>
+        <PopoverHeader className="soundboard-v2-header">
+          <PopoverTitle className="soundboard-v2-title">Shared soundboard</PopoverTitle>
+          <PopoverDescription className="soundboard-v2-description">
             Your library and {partnerName}&apos;s — playable by either of you. Your listening level is private to this device.
           </PopoverDescription>
-          <div className={cn("mt-3 flex items-center gap-2 rounded-md border border-white/[0.12] bg-muted/25 px-2.5 py-2", dropdownTrigger && "v2-soundboard-volume")}>
+          <div className={cn("mt-3 flex items-center gap-2 rounded-md border border-white/[0.12] bg-muted/25 px-2.5 py-2 soundboard-v2-volume", dropdownTrigger && "v2-soundboard-volume")}>
             {soundboardVolume === 0 ? <VolumeXIcon className="size-3.5 shrink-0 text-muted-foreground" /> : <Volume2Icon className="size-3.5 shrink-0 text-muted-foreground" />}
             <input
               type="range"
@@ -96,7 +96,7 @@ export function SoundboardPopover({ conversationId, partnerName, triggerClassNam
               max={100}
               value={soundboardVolume}
               aria-label="Your soundboard listening volume"
-              className="h-1 w-full accent-foreground"
+              className="soundboard-v2-range h-1 w-full accent-foreground"
               onChange={(event) => setPreference("soundboardVolume", Number(event.target.value))}
             />
             <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">{soundboardVolume}%</span>
@@ -107,12 +107,12 @@ export function SoundboardPopover({ conversationId, partnerName, triggerClassNam
             <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
           </div>
         ) : sounds.length ? (
-          <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
+          <div className="soundboard-v2-list max-h-80 space-y-4 overflow-y-auto pr-1">
             <SoundGroup title="Yours" sounds={ownSounds} {...groupProps} />
             <SoundGroup title={`${partnerName}'s`} sounds={partnerSounds} {...groupProps} />
           </div>
         ) : (
-          <p className="rounded-md border border-dashed border-white/[0.13] p-5 text-center text-xs text-muted-foreground">
+          <p className="soundboard-v2-empty rounded-md border border-dashed border-white/[0.13] p-5 text-center text-xs text-muted-foreground">
             Neither of you has added a sound yet. Add yours in User Settings.
           </p>
         )}
@@ -139,11 +139,11 @@ function SoundGroup({
   if (!sounds.length) return null;
 
   return (
-    <section>
-      <h3 className="mb-1.5 px-0.5 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+    <section className="soundboard-v2-section">
+      <h3 className="soundboard-v2-section-label mb-1.5 px-0.5 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
         {title}
       </h3>
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="soundboard-v2-grid grid grid-cols-2 gap-1.5">
         {sounds.map((sound) => {
           const isPinned = pinned.includes(sound.id);
           const isPlaying = playingSoundId === sound.id;
@@ -151,11 +151,12 @@ function SoundGroup({
           return (
             <div
               key={sound.id}
-              className="group relative isolate flex min-w-0 items-center overflow-hidden rounded-lg border border-white/[0.13] bg-muted/20 transition-colors hover:border-white/[0.23] hover:bg-muted/45"
+              data-playing={isPlaying}
+              className="soundboard-v2-card relative isolate flex min-w-0 items-center overflow-hidden rounded-lg border border-white/[0.13] bg-muted/20 transition-colors hover:border-white/[0.23] hover:bg-muted/45"
             >
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-full origin-left bg-white/[0.15] transition-transform duration-100 ease-linear will-change-transform"
+                className="soundboard-v2-progress pointer-events-none absolute inset-y-0 left-0 -z-10 w-full origin-left bg-white/[0.15] transition-transform duration-100 ease-linear will-change-transform"
                 style={{ transform: `scaleX(${isPlaying ? Math.max(0, playbackProgress) : 0})` }}
               />
               <Button
@@ -163,7 +164,7 @@ function SoundGroup({
                 size="icon-sm"
                 aria-label={`${playLabel} ${sound.name}`}
                 className={
-                  "m-1 shrink-0 rounded-md " +
+                  "soundboard-v2-card-action m-1 shrink-0 rounded-md " +
                   (isPlaying
                     ? "bg-white/[0.12] text-foreground hover:bg-white/[0.18]"
                     : "text-foreground/80 hover:bg-white/[0.08]")
@@ -174,7 +175,7 @@ function SoundGroup({
               </Button>
               <button
                 type="button"
-                className="min-w-0 flex-1 px-1.5 py-2 text-left outline-none"
+                className="soundboard-v2-card-body min-w-0 flex-1 px-1.5 py-2 text-left outline-none"
                 aria-label={`${playLabel} ${sound.name}`}
                 onClick={() => void useSoundboard.getState().play(sound.id)}
               >
@@ -186,7 +187,7 @@ function SoundGroup({
                 size="icon-sm"
                 aria-label={isPinned ? "Unpin sound" : "Pin sound"}
                 className={
-                  "m-1 shrink-0 rounded-md " +
+                  "soundboard-v2-card-action m-1 shrink-0 rounded-md " +
                   (isPinned
                     ? "text-amber-300 hover:bg-amber-300/10 hover:text-amber-200"
                     : "text-muted-foreground hover:bg-white/[0.08] hover:text-foreground")

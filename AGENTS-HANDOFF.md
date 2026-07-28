@@ -765,3 +765,13 @@ npx tsc --noEmit      # typecheck
 ### Phase 112 - Single-layer V2 action tray (July 28)
 - [x] Removed stacked tray pseudo-surfaces that caused media colour bleed and replaced them with a single neutral dark 45px glass shell, compact icon targets, and stable overlay sizing.
 - [x] Verified TypeScript and whitespace checks.
+
+### Phase 113 - Packaged V2 parity and device-menu hotfix (July 28)
+- [x] Allowed HTTPS Open Graph artwork in the Tauri image CSP, fixing rich-preview images that worked in dev but were blocked by the packaged app.
+- [x] Restored V2 message action trays to hover-only visibility; a final `display:flex` styling rule had unintentionally exposed every tray.
+- [x] Replaced the imperceptible glass treatment on V2's intentionally opaque canvas with a consistent solid `#1e1e1e` resting surface across floating controls and portaled menus.
+- [x] Refined the shared soundboard into a compact V2 library with clear sections, steady progress fill, modernized cards, and matching volume control.
+- [x] Made microphone/output dropdowns refresh actual devices on open and hardware changes, with a permission-aware label refresh and clear loading/empty states.
+- [x] Added the four valid wide Google Sans Flex TTF assets to `public/fonts`; prior requests returned the HTML fallback and triggered a 6OTS font parser warning.
+- [x] Restored rich-link artwork to full brightness by removing legacy opacity/filter/dark overlay styling.
+- [x] Verified TypeScript, production web build, and whitespace checks before v0.1.26 packaging.

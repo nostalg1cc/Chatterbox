@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDownIcon, HeadphoneOffIcon, HeadphonesIcon, MicIcon, MicOffIcon, MonitorUpIcon, MonitorXIcon, Volume2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -254,18 +254,53 @@ function V2VoiceDropdown({
   const deviceKind = isMute ? "audioinput" : "audiooutput";
   const deviceLabel = isMute ? "Input device" : "Output device";
   const selectedDeviceId = usePreferences((state) => isMute ? state.inputDeviceId : state.outputDeviceId);
-  const refreshDevices = () => {
-    void navigator.mediaDevices?.enumerateDevices?.()
-      .then((next) => setDevices(next.filter((device) => device.kind === deviceKind)))
-      .catch(() => setDevices([]));
-  };
+  const [loadingDevices, setLoadingDevices] = useState(false);
+  const refreshDevices = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      setDevices([]);
+      return;
+    }
+    setLoadingDevices(true);
+    try {
+      let next = await navigator.mediaDevices.enumerateDevices();
+      let scoped = next.filter((device) => device.kind === deviceKind && device.deviceId !== "default");
+
+      // WebView2 commonly exposes only the default route or blank labels until an
+      // audio permission grant has occurred. Voice is already joined here, but
+      // this short probe also covers a fresh device change without persisting a stream.
+      if ((scoped.length === 0 || scoped.some((device) => !device.label)) && navigator.mediaDevices.getUserMedia) {
+        try {
+          const probe = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          for (const track of probe.getTracks()) track.stop();
+          next = await navigator.mediaDevices.enumerateDevices();
+          scoped = next.filter((device) => device.kind === deviceKind && device.deviceId !== "default");
+        } catch {
+          // Keep available anonymous entries; the fallback label below remains usable.
+        }
+      }
+      setDevices(scoped);
+    } catch {
+      setDevices([]);
+    } finally {
+      setLoadingDevices(false);
+    }
+  }, [deviceKind]);
+
+  useEffect(() => {
+    if (!open) return;
+    void refreshDevices();
+    const onDeviceChange = () => void refreshDevices();
+    navigator.mediaDevices?.addEventListener?.("devicechange", onDeviceChange);
+    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", onDeviceChange);
+  }, [open, refreshDevices]);
+
   const setDevice = (deviceId: string) => {
     usePreferences.getState().setPreference(isMute ? "inputDeviceId" : "outputDeviceId", deviceId);
     playAppSound("ui_click");
   };
 
   return (
-    <Popover open={open} onOpenChange={(next) => { setOpen(next); if (next) refreshDevices(); playAppSound(next ? "ui_menu_open" : "ui_menu_close"); }}>
+    <Popover open={open} onOpenChange={(next) => { setOpen(next); playAppSound(next ? "ui_menu_open" : "ui_menu_close"); }}>
       <PopoverAnchor asChild>
         <button
           type="button"
@@ -301,11 +336,15 @@ function V2VoiceDropdown({
           </p>
           <div className="max-h-44 space-y-0.5 overflow-y-auto pr-0.5">
             <button type="button" className={cn("v2-device-option", selectedDeviceId === "default" && "is-selected")} onClick={() => setDevice("default")}>Default {isMute ? "microphone" : "speakers"}</button>
-            {devices.map((device, index) => (
+            {loadingDevices ? (
+              <p className="px-2 py-2 text-[11px] text-muted-foreground">Finding available devices...</p>
+            ) : devices.length ? devices.map((device, index) => (
               <button key={device.deviceId} type="button" className={cn("v2-device-option", selectedDeviceId === device.deviceId && "is-selected")} onClick={() => setDevice(device.deviceId)}>
-                {device.label || `${isMute ? "Microphone" : "Speakers"} ${index + 1}`}
+                {device.label || `${isMute ? "Microphone" : "Output"} ${index + 1}`}
               </button>
-            ))}
+            )) : (
+              <p className="px-2 py-2 text-[11px] text-muted-foreground">No additional {isMute ? "microphones" : "outputs"} detected.</p>
+            )}
           </div>
         </div>
       </PopoverContent>
