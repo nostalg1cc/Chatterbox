@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { toast } from "sonner";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -50,14 +50,34 @@ function splitLinkSuffix(value: string) {
   return match ? { url: match[1], suffix: match[2] } : { url: value, suffix: "" };
 }
 
+function externalHttpUrl(value: string): string {
+  const parsed = new URL(value);
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Only web links can be opened.");
+  }
+  return parsed.href;
+}
+
 async function openChatLink(url: string) {
+  const externalUrl = externalHttpUrl(url);
   if (isTauri()) {
-    await openUrl(url);
+    await openUrl(externalUrl);
     return;
   }
 
-  const popup = window.open(url, "_blank", "noopener,noreferrer");
-  if (!popup) throw new Error("The browser blocked the new tab.");
+  const popup = window.open(externalUrl, "_blank", "noopener,noreferrer");
+  if (popup) {
+    popup.opener = null;
+    return;
+  }
+
+  const anchor = document.createElement("a");
+  anchor.href = externalUrl;
+  anchor.target = "_blank";
+  anchor.rel = "noopener noreferrer";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
 }
 
 type LinkPreview = {
@@ -80,7 +100,15 @@ function handleChatLinkClick(event: MouseEvent<HTMLAnchorElement>, url: string) 
   });
 }
 
-function RichLinkPreview({ content }: { content: string }) {
+function RichLinkPreview({
+  content,
+  alignEnd = false,
+  onPreviewAvailable,
+}: {
+  content: string;
+  alignEnd?: boolean;
+  onPreviewAvailable?: (url: string) => void;
+}) {
   const url = useMemo(() => {
     const first = content.match(URL_PART)?.[0];
     return first ? splitLinkSuffix(first).url : null;
@@ -108,37 +136,43 @@ function RichLinkPreview({ content }: { content: string }) {
     return () => { cancelled = true; };
   }, [url]);
 
+  useEffect(() => {
+    if (url && preview) onPreviewAvailable?.(url);
+  }, [onPreviewAvailable, preview, url]);
+
   if (!url || !preview) return null;
   return (
     <a
       href={preview.url}
       target="_blank"
       rel="noreferrer"
-      className="mt-2 flex max-w-[560px] overflow-hidden rounded-lg border border-white/[0.14] bg-card/75 text-left no-underline transition-colors hover:bg-muted/70"
+      className={cn("rich-link-embed mt-2 block w-full max-w-[760px] overflow-hidden text-left no-underline", alignEnd && "ml-auto")}
       onClick={(event) => handleChatLinkClick(event, preview.url)}
     >
-      <div className="min-w-0 flex-1 px-3 py-2.5">
-        <p className="truncate text-xs font-medium text-foreground">{preview.title}</p>
-        {preview.description && <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{preview.description}</p>}
-        <p className="mt-1 truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground/75">{preview.siteName || new URL(preview.url).hostname}</p>
-      </div>
       {preview.image && (
-        <img
-          src={preview.image}
-          alt=""
-          referrerPolicy="no-referrer"
-          className="h-[88px] w-[132px] shrink-0 border-l border-white/[0.10] object-cover"
-          onError={(event) => { event.currentTarget.style.display = "none"; }}
-        />
+        <div className="rich-link-embed-media aspect-video w-full overflow-hidden bg-black/30">
+          <img
+            src={preview.image}
+            alt=""
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            className="size-full object-cover"
+            onError={(event) => { event.currentTarget.parentElement?.remove(); }}
+          />
+        </div>
       )}
-    </a>
+      <div className="min-w-0 px-3.5 py-3">
+        <p className="truncate text-sm font-medium text-foreground">{preview.title}</p>
+        {preview.description && <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{preview.description}</p>}
+        <p className="mt-2 truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground/75">{preview.siteName || new URL(preview.url).hostname}</p>
+      </div>    </a>
   );
 }
-function MessageText({ content }: { content: string }) {
-
+function MessageText({ content, hiddenUrl }: { content: string; hiddenUrl?: string | null }) {
   return <>{content.split(URL_PART).map((part, index) => {
     if (!URL_ONLY.test(part)) return part;
     const { url, suffix } = splitLinkSuffix(part);
+    if (url === hiddenUrl) return suffix || null;
     return <span key={"link-" + index}><a href={url} target="_blank" rel="noreferrer" className="chat-link" onClick={(event) => handleChatLinkClick(event, url)}>{url}</a>{suffix}</span>;
   })}</>;
 }
@@ -170,6 +204,7 @@ export function MessageItem({
   const showMediaPreviews = usePreferences((state) => state.showMediaPreviews);
   const [editing, setEditing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [embeddedUrl, setEmbeddedUrl] = useState<string | null>(null);
 
   const isOwn = message.sender_id === myId;
   const isDeleted = message.deleted_at !== null;
@@ -253,15 +288,15 @@ export function MessageItem({
             )}
             {message.content && (
               <>
-                <p className={cn("min-w-0 max-w-full whitespace-pre-wrap text-sm leading-relaxed text-foreground/95 [overflow-wrap:anywhere]", isOwn && "ml-auto")}>
-                  <MessageText content={message.content} />
+                <p className={cn("min-w-0 max-w-full whitespace-pre-wrap text-sm leading-relaxed text-foreground/95 [overflow-wrap:anywhere] empty:hidden", isOwn && "ml-auto")}>
+                  <MessageText content={message.content} hiddenUrl={embeddedUrl} />
                   {message.edited_at && (
                     <span className="ml-1.5 text-[10px] text-muted-foreground/65">
                       (edited)
                     </span>
                   )}
                 </p>
-                <RichLinkPreview content={message.content} />
+                <RichLinkPreview content={message.content} alignEnd={isOwn} onPreviewAvailable={setEmbeddedUrl} />
               </>
             )}
           </>
@@ -444,6 +479,23 @@ function MediaAttachment({ message, alignEnd = false }: { message: Message; alig
   const [url, setUrl] = useState<string | null>(null);
   const [local, setLocal] = useState(false);
   const [failed, setFailed] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const outputDeviceId = usePreferences((state) => state.outputDeviceId);
+  const mediaVolume = usePreferences((state) => state.mediaVolume);
+  const setPreference = usePreferences((state) => state.setPreference);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || message.media_kind !== "video") return;
+    video.muted = false;
+    video.defaultMuted = false;
+    video.volume = Math.max(0, Math.min(1, mediaVolume / 100));
+    const sinkVideo = video as HTMLVideoElement & { setSinkId?: (sinkId: string) => Promise<void> };
+    if (!sinkVideo.setSinkId) return;
+    void sinkVideo.setSinkId(outputDeviceId === "default" ? "" : outputDeviceId)
+      .catch(() => sinkVideo.setSinkId?.(""))
+      .catch(() => undefined);
+  }, [mediaVolume, message.media_kind, outputDeviceId, url]);
 
   useEffect(() => {
     if (!userId) return;
@@ -542,9 +594,16 @@ function MediaAttachment({ message, alignEnd = false }: { message: Message; alig
     <div className={cn("my-1.5 w-fit max-w-full", alignEnd && "ml-auto")}>
       {message.media_kind === "video" ? (
         <video
+          ref={videoRef}
           src={url}
           controls
           playsInline
+          onVolumeChange={(event) => {
+            const nextVolume = Math.round(event.currentTarget.volume * 100);
+            if (usePreferences.getState().mediaVolume !== nextVolume) {
+              setPreference("mediaVolume", nextVolume);
+            }
+          }}
           preload="metadata"
           className="max-h-[420px] max-w-full rounded-lg border border-white/[0.14] bg-black"
         />

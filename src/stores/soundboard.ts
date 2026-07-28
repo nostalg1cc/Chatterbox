@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { prepareSoundboardAudio, playSoundboardUrl, preloadSoundboardClips, type SoundboardPlayback } from "@/lib/soundboard-audio";
 import { supabase } from "@/lib/supabase";
 import { usePreferences } from "./preferences";
-import { broadcastVoiceSoundboard, broadcastVoiceSoundboardStop, useVoice } from "./voice";
+import { broadcastVoiceSoundboard, broadcastVoiceSoundboardStop, prepareVoiceSoundboard, useVoice } from "./voice";
 
 export interface SoundboardSound {
   id: string;
@@ -199,6 +199,8 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
         broadcastVoiceSoundboardStop({ version: 1, id: previous.id, nonce: previous.nonce });
         previousPlayback?.playback.stop();
       }
+      const peerReady = await prepareVoiceSoundboard(payload);
+      payload.playAt = Date.now() + (peerReady ? 300 : 700);
       broadcastVoiceSoundboard(payload);
       set({ playingSoundId: payload.id, playbackProgress: 0 });
       const playback = await playSoundboardUrl(

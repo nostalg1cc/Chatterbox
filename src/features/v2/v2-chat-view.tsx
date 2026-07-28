@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDownIcon, HeadphoneOffIcon, HeadphonesIcon, MicIcon, MicOffIcon, Volume2Icon } from "lucide-react";
+import { ChevronDownIcon, HeadphoneOffIcon, HeadphonesIcon, MicIcon, MicOffIcon, MonitorUpIcon, MonitorXIcon, Volume2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { UserAvatar } from "@/components/user-avatar";
@@ -41,6 +41,7 @@ export function V2ChatView({ conversationId }: { conversationId: string }) {
   const selfInVoiceElsewhere = useVoice((state) => (state.participants[conversationId] ?? []).some((participant) => participant.user_id === myId));
   const muted = useVoice((state) => state.muted);
   const deafened = useVoice((state) => state.deafened);
+  const sharingScreen = useVoice((state) => state.sharingScreen);
   const composerRef = useRef<HTMLDivElement>(null);
   const [composerInset, setComposerInset] = useState(84);
   const isJoined = activeVoiceId === conversationId;
@@ -89,14 +90,31 @@ export function V2ChatView({ conversationId }: { conversationId: string }) {
           elapsed={elapsed}
           onClick={() => void useVoice.getState().join(conversationId, selfInVoiceElsewhere)}
         />
-        <SoundboardPopover
-          conversationId={conversationId}
-          partnerName={friend?.display_name ?? "Partner"}
-          triggerClassName="v2-icon-button"
-          dropdownTrigger
-        />
-        <V2VoiceDropdown kind="mute" pressed={muted} disabled={!isJoined} />
-        <V2VoiceDropdown kind="deafen" pressed={deafened} disabled={!isJoined} />
+        {isJoined && (
+          <>
+            <SoundboardPopover
+              conversationId={conversationId}
+              partnerName={friend?.display_name ?? "Partner"}
+              triggerClassName="v2-icon-button"
+              dropdownTrigger
+            />
+            <button
+              type="button"
+              className={cn("v2-icon-button", sharingScreen && "v2-stream-button-active")}
+              aria-label={sharingScreen ? "Stop sharing screen" : "Share screen"}
+              onPointerEnter={() => playAppSound("ui_hover")}
+              onClick={() => {
+                playAppSound("ui_click");
+                if (sharingScreen) void useVoice.getState().stopScreenShare();
+                else void useVoice.getState().startScreenShare();
+              }}
+            >
+              {sharingScreen ? <MonitorXIcon /> : <MonitorUpIcon />}
+            </button>
+            <V2VoiceDropdown kind="mute" pressed={muted} disabled={false} />
+            <V2VoiceDropdown kind="deafen" pressed={deafened} disabled={false} />
+          </>
+        )}
       </div>
 
       <div className="window-controls-reveal absolute top-[9px] right-[9px] z-[70] h-10 w-[108px]">

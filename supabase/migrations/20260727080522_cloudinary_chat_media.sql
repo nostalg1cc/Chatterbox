@@ -85,7 +85,7 @@ set search_path = ''
 as $$
 declare
   stored_bytes bigint;
-  reserved_bytes bigint;
+  pending_reservation_bytes bigint;
 begin
   if p_path <> 'cloudinary:image:' || p_conversation::text || '_' || p_message::text
      and p_path <> 'cloudinary:video:' || p_conversation::text || '_' || p_message::text
@@ -102,20 +102,20 @@ begin
   end if;
 
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('dislight-cloud-chat-media-quota'));
-  delete from private.cloud_chat_media_reservations where expires_at <= now();
+  delete from private.cloud_chat_media_reservations r where expires_at <= now();
 
-  select coalesce(sum(media_size_bytes), 0)
+  select coalesce(sum(m.media_size_bytes), 0)
     into stored_bytes
-    from public.messages
-   where media_path like 'cloudinary:%'
-     and media_deleted_at is null;
+    from public.messages m
+   where m.media_path like 'cloudinary:%'
+     and m.media_deleted_at is null;
 
-  select coalesce(sum(reserved_bytes), 0)
-    into reserved_bytes
-    from private.cloud_chat_media_reservations
-   where expires_at > now();
+  select coalesce(sum(r.reserved_bytes), 0)
+    into pending_reservation_bytes
+    from private.cloud_chat_media_reservations r
+   where r.expires_at > now();
 
-  if stored_bytes + reserved_bytes + p_bytes > 536870912 then
+  if stored_bytes + pending_reservation_bytes + p_bytes > 536870912 then
     return false;
   end if;
 
@@ -143,7 +143,7 @@ language sql
 security definer
 set search_path = ''
 as $$
-  delete from private.cloud_chat_media_reservations where path = any(p_paths);
+  delete from private.cloud_chat_media_reservations r where path = any(p_paths);
 $$;
 
 revoke all on function public.release_cloud_chat_media_reservations(text[]) from public, anon, authenticated;

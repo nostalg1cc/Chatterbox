@@ -282,6 +282,9 @@ async function loadClip(cacheKey: string, signedUrl: string, markUsed = false): 
   return download;
 }
 
+export async function preloadSoundboardClip(cacheKey: string, signedUrl: string): Promise<void> {
+  await loadClip(cacheKey, signedUrl);
+}
 export function preloadSoundboardClips(clips: Array<{ id: string; signedUrl: string }>): void {
   // Join-time warming keeps a durable 16 MiB, usage-aware offline cache. Any
   // clips outside that budget stay in the short-lived session cache instead.

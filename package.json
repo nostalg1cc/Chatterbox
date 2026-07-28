@@ -1,7 +1,7 @@
 {
   "name": "dislight",
   "private": true,
-  "version": "0.1.24",
+  "version": "0.1.25",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fluentui/react-icons": "^2.0.334",
     "@fontsource-variable/google-sans-flex": "5.2.3",
     "@supabase/supabase-js": "^2.110.2",
     "@tauri-apps/api": "^2.11.1",

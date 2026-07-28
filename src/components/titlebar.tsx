@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CopyIcon, MinusIcon, SquareIcon, XIcon } from "lucide-react";
+import { CopyRegular, DismissRegular, SquareRegular, SubtractRegular } from "@fluentui/react-icons";
 import { Button } from "@/components/ui/button";
 import { appWindow, isTauri } from "@/lib/tauri";
 
@@ -29,13 +29,13 @@ export function WindowControls() {
   return (
     <div className="window-controls flex h-full items-center gap-0" aria-label="Window controls">
       <Button variant="ghost" aria-label="Minimize" className="window-control" onClick={() => void appWindow().minimize()}>
-        <MinusIcon className="size-3.5" />
+        <SubtractRegular />
       </Button>
       <Button variant="ghost" aria-label={maximized ? "Restore" : "Maximize"} className="window-control" onClick={() => void appWindow().toggleMaximize()}>
-        {maximized ? <CopyIcon className="size-3" /> : <SquareIcon className="size-3" />}
+        {maximized ? <CopyRegular /> : <SquareRegular />}
       </Button>
       <Button variant="ghost" aria-label="Close" className="window-control window-control-close" onClick={() => void appWindow().close()}>
-        <XIcon className="size-3.5" />
+        <DismissRegular />
       </Button>
     </div>
   );

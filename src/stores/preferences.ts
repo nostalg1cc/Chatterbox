@@ -19,6 +19,7 @@ interface PreferencesState {
   outputDeviceId: string;
   inputVolume: number;
   outputVolume: number;
+  mediaVolume: number;
   interfaceSounds: boolean;
   interfaceSoundVolume: number;
   soundboardVolume: number;
@@ -46,6 +47,7 @@ const defaults: PreferencesData = {
   outputDeviceId: "default",
   inputVolume: 100,
   outputVolume: 100,
+  mediaVolume: 100,
   interfaceSounds: true,
   interfaceSoundVolume: 65,
   soundboardVolume: 80,

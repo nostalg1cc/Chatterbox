@@ -11,7 +11,7 @@ import {
   type MicrophonePipeline,
 } from "@/lib/voice-media";
 import { playAppSound } from "@/lib/app-sounds";
-import { playSoundboardUrl, type SoundboardPlayback } from "@/lib/soundboard-audio";
+import { playSoundboardUrl, preloadSoundboardClip, type SoundboardPlayback } from "@/lib/soundboard-audio";
 import { createCloudflareScreenPublisher, createCloudflareScreenSubscriber } from "@/lib/cloudflare-realtime";
 import { supabase } from "@/lib/supabase";
 import type {
@@ -90,19 +90,25 @@ let localScreenTrack: MediaStreamTrack | null = null;
 let cloudflareScreenConnection: RTCPeerConnection | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let signalingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
 let preferencesUnsubscribe: (() => void) | null = null;
 let beforeUnloadHandler: (() => void) | null = null;
+let networkOnlineHandler: (() => void) | null = null;
 let remoteSessionId: string | null = null;
 let polite = false;
 let makingOffer = false;
 let ignoreOffer = false;
 let isSettingRemoteAnswerPending = false;
 let restartAttempted = false;
+let connectionRecoveryInProgress = false;
+let peerRebuildAttempts = 0;
+let signalingRecoveryAttempts = 0;
 let disconnecting = false;
 let pendingCandidates: RTCIceCandidateInit[] = [];
 let lastRemoteSoundboardAt = 0;
 const remoteSoundboardPlaybacks = new Map<string, SoundboardPlayback>();
 const cancelledRemoteSoundboardPlaybacks = new Set<string>();
+const pendingSoundboardReadiness = new Map<string, { resolve: (ready: boolean) => void; timeout: number }>();
 
 usePreferences.subscribe((state, previousState) => {
   if (state.soundboardVolume !== previousState.soundboardVolume) {
@@ -370,10 +376,23 @@ function initializeVoice(userId: string): () => void {
   };
   window.addEventListener("beforeunload", beforeUnloadHandler);
 
+  if (networkOnlineHandler) window.removeEventListener("online", networkOnlineHandler);
+  networkOnlineHandler = () => {
+    // Network/VPN changes can invalidate an ICE pair after a call has connected.
+    if (useVoice.getState().activeConversationId && peerConnection?.connectionState !== "connected") {
+      restartAttempted = false;
+      void attemptIceRestart();
+    }
+  };
+  window.addEventListener("online", networkOnlineHandler);
   return () => {
     if (beforeUnloadHandler) {
       window.removeEventListener("beforeunload", beforeUnloadHandler);
       beforeUnloadHandler = null;
+    }
+    if (networkOnlineHandler) {
+      window.removeEventListener("online", networkOnlineHandler);
+      networkOnlineHandler = null;
     }
     preferencesUnsubscribe?.();
     preferencesUnsubscribe = null;
@@ -679,14 +698,39 @@ async function connectRoomChannel(
         status === "CHANNEL_ERROR" ||
         status === "TIMED_OUT"
       ) {
+        roomSubscribed = false;
         if (!settled) {
           settled = true;
           window.clearTimeout(timeout);
           reject(new Error("Voice signaling could not connect."));
+        } else {
+          scheduleSignalingRecovery(room, sessionId);
         }
       }
     });
   });
+}
+
+function scheduleSignalingRecovery(room: VoiceRoom, sessionId: string): void {
+  if (signalingRecoveryTimer || signalingRecoveryAttempts >= 3) return;
+  const delay = Math.min(8_000, 1_000 * 2 ** signalingRecoveryAttempts);
+  signalingRecoveryTimer = setTimeout(() => {
+    signalingRecoveryTimer = null;
+    const state = useVoice.getState();
+    if (roomSubscribed || state.activeConversationId !== room.conversation_id || state.sessionId !== sessionId || state.rooms[room.conversation_id]?.generation !== room.generation || disconnecting) return;
+    signalingRecoveryAttempts += 1;
+    useVoice.setState({ status: "reconnecting", error: null });
+    void connectRoomChannel(room, sessionId).then(() => {
+      signalingRecoveryAttempts = 0;
+      if (peerConnection?.connectionState !== "connected") void attemptIceRestart();
+    }).catch(() => scheduleSignalingRecovery(room, sessionId));
+  }, delay);
+}
+
+function clearSignalingRecovery(): void {
+  if (signalingRecoveryTimer) clearTimeout(signalingRecoveryTimer);
+  signalingRecoveryTimer = null;
+  signalingRecoveryAttempts = 0;
 }
 
 function syncRoomPresence(): void {
@@ -774,6 +818,7 @@ function ensurePeerConnection(remoteUserId: string): void {
     if (connection.connectionState === "connected") {
       clearDisconnectTimer();
       restartAttempted = false;
+      peerRebuildAttempts = 0;
       useVoice.setState({ status: "connected", error: null });
     } else if (connection.connectionState === "disconnected") {
       useVoice.setState({ status: "reconnecting" });
@@ -1160,18 +1205,45 @@ function scheduleConnectionFailure(): void {
 }
 
 async function attemptIceRestart(): Promise<void> {
-  if (!peerConnection || !remoteSessionId || peerConnection.connectionState === "connected") return;
-  if (!restartAttempted) {
-    restartAttempted = true;
-    useVoice.setState({ status: "reconnecting", error: null });
-    await refreshTurnCredentials();
-    peerConnection?.setConfiguration({ iceServers: activeIceServers });
-    peerConnection?.restartIce();
-    clearDisconnectTimer();
-    disconnectTimer = setTimeout(() => markConnectionFailed(), 20_000);
+  if (connectionRecoveryInProgress || !peerConnection || !remoteSessionId || peerConnection.connectionState === "connected" || disconnecting) return;
+  connectionRecoveryInProgress = true;
+  try {
+    if (!restartAttempted) {
+      restartAttempted = true;
+      useVoice.setState({ status: "reconnecting", error: null });
+      await refreshTurnCredentials();
+      peerConnection?.setConfiguration({ iceServers: activeIceServers });
+      peerConnection?.restartIce();
+      clearDisconnectTimer();
+      disconnectTimer = setTimeout(() => void attemptIceRestart(), 20_000);
+      return;
+    }
+    if (peerRebuildAttempts < 2) {
+      peerRebuildAttempts += 1;
+      await rebuildPeerConnection();
+      return;
+    }
+    markConnectionFailed();
+  } finally {
+    connectionRecoveryInProgress = false;
+  }
+}
+
+async function rebuildPeerConnection(): Promise<void> {
+  const state = useVoice.getState();
+  const conversationId = state.activeConversationId;
+  const preservedRemoteSessionId = remoteSessionId;
+  const remoteUserId = conversationId ? voicePartnerId(conversationId) : null;
+  if (!conversationId || !preservedRemoteSessionId || !remoteUserId) {
+    markConnectionFailed();
     return;
   }
-  markConnectionFailed();
+  useVoice.setState({ status: "reconnecting", error: null });
+  closePeerConnection(false);
+  remoteSessionId = preservedRemoteSessionId;
+  await refreshTurnCredentials();
+  ensurePeerConnection(remoteUserId);
+  await updateRoomPresence();
 }
 
 function markConnectionFailed(): void {
@@ -1238,6 +1310,8 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
 
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   heartbeatTimer = null;
+  clearSignalingRecovery();
+  peerRebuildAttempts = 0;
   await stopLocalScreen(false);
   closePeerConnection(false);
 
@@ -1291,7 +1365,9 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
 
 type VoiceDataMessage =
   | { type: "soundboard"; payload: VoiceSoundboardPayload }
-  | { type: "soundboard-stop"; payload: VoiceSoundboardStopPayload };
+  | { type: "soundboard-stop"; payload: VoiceSoundboardStopPayload }
+  | { type: "soundboard-prepare"; payload: VoiceSoundboardPayload }
+  | { type: "soundboard-ready"; payload: VoiceSoundboardReadyPayload };
 
 function configureSoundboardDataChannel(channel: RTCDataChannel): void {
   soundboardDataChannel?.close();
@@ -1302,6 +1378,8 @@ function configureSoundboardDataChannel(channel: RTCDataChannel): void {
       const message = JSON.parse(event.data) as Partial<VoiceDataMessage>;
       if (message.type === "soundboard") handleRemoteSoundboardPlay(message.payload);
       if (message.type === "soundboard-stop") handleRemoteSoundboardStop(message.payload);
+      if (message.type === "soundboard-prepare") handleRemoteSoundboardPrepare(message.payload);
+      if (message.type === "soundboard-ready") handleSoundboardReady(message.payload);
     } catch {
       // Ignore malformed peer data; it is never allowed to affect call state.
     }
@@ -1323,16 +1401,7 @@ function sendSoundboardData(message: VoiceDataMessage): boolean {
 
 function handleRemoteSoundboardPlay(raw: unknown): void {
   const payload = raw as Partial<VoiceSoundboardPayload>;
-  if (
-    payload.version !== 1 ||
-    typeof payload.id !== "string" ||
-    typeof payload.nonce !== "string" ||
-    typeof payload.signedUrl !== "string" ||
-    typeof payload.playAt !== "number" ||
-    !isTrustedSoundboardUrl(payload.signedUrl) ||
-    useVoice.getState().deafened ||
-    Date.now() - lastRemoteSoundboardAt < 750
-  ) return;
+  if (!isValidSoundboardPayload(payload) || useVoice.getState().deafened || Date.now() - lastRemoteSoundboardAt < 750) return;
 
   lastRemoteSoundboardAt = Date.now();
   const playbackKey = soundboardPlaybackKey(payload.id, payload.nonce);
@@ -1353,6 +1422,37 @@ function handleRemoteSoundboardPlay(raw: unknown): void {
   }).catch((error) => console.warn("Soundboard playback failed", error));
 }
 
+function isValidSoundboardPayload(payload: Partial<VoiceSoundboardPayload>): payload is VoiceSoundboardPayload {
+  return payload.version === 1
+    && typeof payload.id === "string"
+    && typeof payload.name === "string"
+    && typeof payload.nonce === "string"
+    && typeof payload.signedUrl === "string"
+    && typeof payload.playAt === "number"
+    && isTrustedSoundboardUrl(payload.signedUrl);
+}
+
+function handleRemoteSoundboardPrepare(raw: unknown): void {
+  const payload = raw as Partial<VoiceSoundboardPayload>;
+  if (!isValidSoundboardPayload(payload)) return;
+  void preloadSoundboardClip(payload.id, payload.signedUrl)
+    .then(() => sendSoundboardData({
+      type: "soundboard-ready",
+      payload: { version: 1, id: payload.id, nonce: payload.nonce },
+    }))
+    .catch(() => undefined);
+}
+
+function handleSoundboardReady(raw: unknown): void {
+  const payload = raw as Partial<VoiceSoundboardReadyPayload>;
+  if (payload.version !== 1 || typeof payload.id !== "string" || typeof payload.nonce !== "string") return;
+  const key = soundboardPlaybackKey(payload.id, payload.nonce);
+  const pending = pendingSoundboardReadiness.get(key);
+  if (!pending) return;
+  window.clearTimeout(pending.timeout);
+  pendingSoundboardReadiness.delete(key);
+  pending.resolve(true);
+}
 function handleRemoteSoundboardStop(raw: unknown): void {
   const payload = raw as Partial<VoiceSoundboardStopPayload>;
   if (payload.version !== 1 || typeof payload.id !== "string" || typeof payload.nonce !== "string") return;
@@ -1385,6 +1485,11 @@ export interface VoiceSoundboardStopPayload {
   nonce: string;
 }
 
+export interface VoiceSoundboardReadyPayload {
+  version: 1;
+  id: string;
+  nonce: string;
+}
 function soundboardPlaybackKey(id: string, nonce: string): string {
   return `${id}:${nonce}`;
 }
@@ -1401,6 +1506,22 @@ export function broadcastVoiceSoundboard(payload: VoiceSoundboardPayload): void 
   void roomChannel.send({ type: "broadcast", event: "soundboard", payload });
 }
 
+export function prepareVoiceSoundboard(payload: VoiceSoundboardPayload): Promise<boolean> {
+  const key = soundboardPlaybackKey(payload.id, payload.nonce);
+  return new Promise((resolve) => {
+    const timeout = window.setTimeout(() => {
+      const pending = pendingSoundboardReadiness.get(key);
+      if (!pending) return;
+      pendingSoundboardReadiness.delete(key);
+      resolve(false);
+    }, 900);
+    pendingSoundboardReadiness.set(key, { resolve, timeout });
+    if (sendSoundboardData({ type: "soundboard-prepare", payload })) return;
+    window.clearTimeout(timeout);
+    pendingSoundboardReadiness.delete(key);
+    resolve(false);
+  });
+}
 export function broadcastVoiceSoundboardStop(payload: VoiceSoundboardStopPayload): void {
   if (sendSoundboardData({ type: "soundboard-stop", payload })) return;
   if (!roomChannel || !roomSubscribed || !useVoice.getState().activeConversationId) return;

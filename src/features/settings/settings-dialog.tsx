@@ -731,14 +731,14 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                   </div>
                   <div className="p-4">
                     <VolumeSetting
-                      label="Soundboard volume"
+                      label="Your soundboard volume"
                       value={preferences.soundboardVolume}
                       onChange={(value) => preferences.setPreference("soundboardVolume", value)}
                     />
                   </div>
                 </div>
                 <p className="rounded-lg border border-dashed border-white/[0.13] px-3 py-2 text-xs text-muted-foreground">
-                  Microphone permission is requested only when you join voice. Device names
+                  Microphone permission is requested only when you join voice. This volume affects only what you hear; each partner selects their own level. Device names
                   appear after the first join; unsupported output routing uses Windows default.
                 </p>
               </section>

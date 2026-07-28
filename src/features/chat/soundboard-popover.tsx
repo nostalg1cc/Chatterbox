@@ -86,7 +86,7 @@ export function SoundboardPopover({ conversationId, partnerName, triggerClassNam
         <PopoverHeader>
           <PopoverTitle>Shared soundboard</PopoverTitle>
           <PopoverDescription>
-            Your library and {partnerName}&apos;s — playable by either of you.
+            Your library and {partnerName}&apos;s — playable by either of you. Your listening level is private to this device.
           </PopoverDescription>
           <div className={cn("mt-3 flex items-center gap-2 rounded-md border border-white/[0.12] bg-muted/25 px-2.5 py-2", dropdownTrigger && "v2-soundboard-volume")}>
             {soundboardVolume === 0 ? <VolumeXIcon className="size-3.5 shrink-0 text-muted-foreground" /> : <Volume2Icon className="size-3.5 shrink-0 text-muted-foreground" />}
@@ -95,7 +95,7 @@ export function SoundboardPopover({ conversationId, partnerName, triggerClassNam
               min={0}
               max={100}
               value={soundboardVolume}
-              aria-label="Soundboard listening volume"
+              aria-label="Your soundboard listening volume"
               className="h-1 w-full accent-foreground"
               onChange={(event) => setPreference("soundboardVolume", Number(event.target.value))}
             />

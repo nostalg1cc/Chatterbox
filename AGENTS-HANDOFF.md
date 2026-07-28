@@ -689,7 +689,7 @@ npx tsc --noEmit      # typecheck
 - [x] Applied `20260727080522_cloudinary_chat_media.sql` and `20260727081515_cloudinary_chat_media_indexes.sql`: Cloudinary attachments retain the same 3-day server expiry, 512 MiB oldest-first budget, authenticated reservations, and existing 30-day IndexedDB cache.
 - [x] Deployed `purge-chat-media` with authenticated signed Cloudinary upload parameters, direct-provider verification, automatic Cloudinary deletion, and legacy cleanup compatibility.
 - [x] Added Cloudinary media/upload origins to the Tauri CSP; verified TypeScript, production build, migration presence, and advisor follow-up indexes.
-- [ ] **Activation required:** add `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` as Supabase Edge Function secrets. They must never be placed in `.env`, the frontend, Git, or this handoff. Until then, the app intentionally reports the legacy provider and existing attachments remain safe.
+- [x] Cloudinary Edge Function secrets are present. They remain server-only and must never be placed in `.env`, the frontend, Git, or this handoff.
 
 ### Phase 99 - Steady V2 dropdown material (July 27)
 - [x] Changed V2 dropdown shells to a darker 70% resting material and removed hover-driven background recoloring. Hover can retain elevation but no longer flashes a different fill.
@@ -701,3 +701,67 @@ npx tsc --noEmit      # typecheck
 - [x] Voice action behavior is now exact: idle uses the normal study material, open/joinable voice is `#00b339`, and the local in-call leave action transitions to `#ff3333` on hover.
 - [x] Verified the `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` secret names are present in Supabase. The deployed function reads secrets at invocation time, so a refresh activates Cloudinary without redeployment.
 - [x] Verified TypeScript, production build, JSON configuration, and whitespace checks.
+### Phase 101 - WebView2 V2 glass compositor hotfix (July 27)
+- [x] Removed the V2 floating control isolation boundaries that caused packaged WebView2 to treat each control as its own backdrop root, leaving `backdrop-filter` with no chat content to blur.
+- [x] Preserved the original button-study gradient edges, clipping, and pseudo-element layering while returning the header, composer, menus, and action trays to the shared chat backdrop tree.
+- [x] Verified TypeScript, production web build, and whitespace checks for v0.1.25.
+### Phase 102 - Cloud media reservation and synchronized soundboard repair (July 28)
+- [x] Diagnosed media-upload `Edge Function returned a non-2xx status code`: the live reservation RPC had a PostgreSQL variable/column ambiguity on `reserved_bytes`, causing the `purge-chat-media` Edge Function to return HTTP 500 before Cloudinary upload.
+- [x] Applied `20260728051932_fix_cloud_media_reservation_shadowing.sql` to production and updated the source migration. A live reservation-and-cleanup smoke test now returns `accepted: true`.
+- [x] Soundboard play/stop remains volume-free across the wire; each listener applies only their own persistent local listening level. Added a WebRTC data-channel prepare/ready cache handshake and scheduled common playback timestamp to improve two-sided sync.
+- [x] Restored the V2 header screen-share button with native V2 material and green active/stop state.
+- [x] Verified TypeScript, production build, whitespace checks, and Supabase security/performance advisors. The advisor warnings are pre-existing private-table/RPC/auth configuration notices, not caused by this reservation correction.
+### Phase 103 - Media action-overlay and Cloudinary audio verification (July 28)
+- [x] Made the V2 message action tray strictly `position: absolute` with a dedicated overlay layer, so hover actions cannot participate in message-row flex sizing or shift media/text.
+- [x] Verified the live Cloudinary test rendition with `ffprobe`: 1280x534 H.264 at ~2.46 Mbps, 30 fps, plus a 48 kHz stereo AAC stream at ~128 kbps; the delivered 9,804,710-byte file does contain audio. Any silence is therefore local HTML media/system output or stale-cache playback rather than storage/transcoding loss.
+- [x] Routed native chat-video playback to the persistent selected output device and output volume, explicitly clearing media mute state.
+- [x] Verified TypeScript, production build, and whitespace checks.
+### Phase 104 - V2 material normalization and call-only controls (July 28)
+- [x] Normalized the avatar/header/composer/window/voice controls to one `rgb(12 12 12 / .30)` V2 material with the shared 45px backdrop blur; only portaled dropdown menus remain intentionally darker at 70%.
+- [x] Hid Soundboard, screen share, mute, and deafen until the local user has joined voice; the Voicechat/Join action remains available as the entry point.
+- [x] Removed the V2 voice action's artificial 184px minimum; idle Voicechat is compact and centered, expanding only for live join/call labels and elapsed time.
+- [x] Verified TypeScript, production build, and whitespace checks.
+### Phase 105 - Media-forward rich link embeds (July 28)
+- [x] Rebuilt rich link previews as full-width message embeds, aligned with the sender side.
+- [x] Promoted link media to a large responsive 16:9 lead image with metadata below, rather than a cramped side thumbnail.
+- [x] Applied the shared V2 30% glass surface and verified TypeScript, production build, and whitespace checks.
+
+### Phase 106 - Rich-link opening and self-healing voice recovery (July 28)
+- [x] Rich-link previews now replace the duplicate raw URL once their preview resolves; the full embed remains the accessible, native-openable link. Plain links stay visible/clickable when a preview cannot be fetched.
+- [x] Fixed native external-link authorization by granting Tauri opener `allow-open-url` in addition to the existing HTTP(S) URL scope. Web/PWA links retain a direct-anchor fallback for restrictive popup policies.
+- [x] Restored the V2 message action tray to the shared 30%/45px glass material while preserving its absolute overlay geometry, so hover actions do not shift message layout.
+- [x] Added call self-healing: signaling channel retry with bounded backoff, refreshed ICE/TURN restart, two clean peer reconstructions before surfacing a manual retry, and a network-online recovery hook for VPN/network transitions. Existing room/session state is preserved throughout recovery.
+- [x] Verified TypeScript, production web build, native Cargo compilation, and whitespace checks.
+
+
+### Phase 107 - Rich embed edge and Windows control refinement (July 28)
+- [x] Moved rich-link embeds onto the V2 button-study material with an in-layout 1.25px edge and masked highlight, avoiding the clipped outer border caused by an overflow-hidden media shell.
+- [x] Replaced the circular V2 window controls with always-visible, floating Windows-style rectangular minimize/maximize/close targets. They retain the shared dark glass shell and Windows-red close hover.
+- [x] Verified TypeScript, production web build, and whitespace checks.
+
+
+### Phase 108 - Full rich-media material, app-edge controls, and remembered video volume (July 28)
+- [x] Applied a light full-card material wash to rich-link media while retaining the full-resolution media image and the V2 edge treatment.
+- [x] Moved desktop window buttons flush to the app’s top-right edge and reduced them to plain Windows-style titlebar targets with no glass shell.
+- [x] Added a persistent, media-only playback-volume preference. Changing an HTML video’s native volume control now becomes the default for future chat videos without changing call output volume.
+- [x] Verified TypeScript, production web build, and whitespace checks.
+
+### Phase 109 - Fluent app-edge controls and WebView2 media-tray correction (July 28)
+- [x] Added `@fluentui/react-icons` and replaced desktop titlebar glyphs with Fluent Subtract, Square/Copy, and Dismiss icons.
+- [x] Kept titlebar buttons completely transparent and square at the app edge, with hover-only Windows treatment and no independent shell/radius.
+- [x] Reworked the V2 action tray to use a dedicated dark translucent pseudo-pane with its own 45px backdrop filter, which reliably obscures/softens video behind it in WebView2.
+- [x] Toned rich-link media with a full-card glass/media wash while retaining large responsive artwork and the button-study edge.
+- [x] Verified TypeScript, production web build, and whitespace checks.
+
+### Phase 110 - Neutral native controls (July 28)
+- [x] Removed all titlebar button fill, radius, and hover color treatment; the Fluent glyphs are the only visible controls at the natural app edge.
+- [x] Rebuilt and relaunched the separate Tauri dev app without touching the installed/live app.
+
+### Phase 111 - Plain titlebar controls (July 28)
+- [x] Removed the final titlebar backdrop-filter and shell; controls are transparent until hover, then brighten normally or turn Windows-red for Close.
+- [x] Verified TypeScript and whitespace checks.
+
+
+### Phase 112 - Single-layer V2 action tray (July 28)
+- [x] Removed stacked tray pseudo-surfaces that caused media colour bleed and replaced them with a single neutral dark 45px glass shell, compact icon targets, and stable overlay sizing.
+- [x] Verified TypeScript and whitespace checks.
