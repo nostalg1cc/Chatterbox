@@ -1,8 +1,8 @@
-﻿import { usePreferences } from "@/stores/preferences";
+import { usePreferences } from "@/stores/preferences";
 
 export type AppSound =
-  | "call_join"
-  | "call_leave"
+  | "voice_join"
+  | "voice_leave"
   | "deafen_off"
   | "deafen_on"
   | "mute_off"
@@ -18,11 +18,11 @@ type SinkCapableAudio = HTMLAudioElement & {
   setSinkId?: (sinkId: string) => Promise<void>;
 };
 
-type Tone = { frequency: number; offset: number; duration: number; volume: number };
+type Tone = { frequency: number; offset: number; duration: number; volume: number; waveform?: OscillatorType };
 
 const fileBySound: Record<AppSound, string> = {
-  call_join: "ui/pop_open.mp3",
-  call_leave: "ui/pop_close.mp3",
+  voice_join: "ui/pop_open.mp3",
+  voice_leave: "ui/pop_close.mp3",
   deafen_off: "ui/toggle_on.mp3",
   deafen_on: "ui/toggle_off.mp3",
   mute_off: "ui/toggle_on.mp3",
@@ -55,12 +55,12 @@ function playToneSequence(tones: Tone[], volumeScale: number): boolean {
 
   void context.resume().catch(() => undefined);
   const startTime = context.currentTime + 0.01;
-  for (const { frequency, offset, duration, volume } of tones) {
+  for (const { frequency, offset, duration, volume, waveform } of tones) {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     const toneStart = startTime + offset;
     const toneEnd = toneStart + duration;
-    oscillator.type = "sine";
+    oscillator.type = waveform ?? "sine";
     oscillator.frequency.setValueAtTime(frequency, toneStart);
     gain.gain.setValueAtTime(0.0001, toneStart);
     gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume * volumeScale), toneStart + 0.008);
@@ -90,11 +90,23 @@ function studyTones(sound: AppSound): Tone[] {
     { frequency: 392, offset: 0, duration: 0.06, volume: 0.028 },
     { frequency: 293.66, offset: 0.064, duration: 0.082, volume: 0.022 },
   ];
+  // Voice state changes deserve a clearer cue than ordinary interaction sounds.
+  const voiceJoin = [
+    { frequency: 392, offset: 0, duration: 0.06, volume: 0.030, waveform: "triangle" as const },
+    { frequency: 523.25, offset: 0.055, duration: 0.075, volume: 0.040, waveform: "triangle" as const },
+    { frequency: 783.99, offset: 0.120, duration: 0.120, volume: 0.052, waveform: "sine" as const },
+  ];
+  const voiceLeave = [
+    { frequency: 659.25, offset: 0, duration: 0.070, volume: 0.040, waveform: "triangle" as const },
+    { frequency: 493.88, offset: 0.062, duration: 0.078, volume: 0.044, waveform: "triangle" as const },
+    { frequency: 329.63, offset: 0.132, duration: 0.125, volume: 0.048, waveform: "sine" as const },
+  ];
 
   switch (sound) {
     case "ui_hover": return [{ frequency: 739.99, offset: 0, duration: 0.028, volume: 0.006 }];
-    case "ui_menu_close":
-    case "call_leave": return reverse;
+    case "voice_join": return voiceJoin;
+    case "voice_leave": return voiceLeave;
+    case "ui_menu_close": return reverse;
     case "mute_on":
     case "deafen_on": return disabled;
     case "mute_off":

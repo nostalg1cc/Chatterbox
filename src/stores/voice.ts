@@ -222,7 +222,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
 
       await refreshTurnCredentials();
       await connectRoomChannel(room, sessionId);
-      playAppSound("call_join");
+      playAppSound("voice_join");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Voice could not start.";
@@ -240,7 +240,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   leave: async () => {
     const wasActive = Boolean(get().activeConversationId);
     await disconnectLocal(true);
-    if (wasActive) playAppSound("call_leave");
+    if (wasActive) playAppSound("voice_leave");
   },
 
   toggleMute: () => {
@@ -541,7 +541,7 @@ function applyParticipant(
     !wasPresent &&
     participant.user_id !== currentUserId
   ) {
-    playAppSound("call_join");
+    playAppSound("voice_join");
     toast.info("Your partner joined voice.");
   }
 }
@@ -588,7 +588,7 @@ function removeParticipant(partial: Partial<VoiceParticipant>): void {
     toast.error("Your voice session expired.");
   } else {
     closePeerConnection();
-    playAppSound("call_leave");
+    playAppSound("voice_leave");
     useVoice.setState({ status: "solo", error: null });
   }
 }

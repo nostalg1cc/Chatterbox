@@ -775,3 +775,10 @@ npx tsc --noEmit      # typecheck
 - [x] Added the four valid wide Google Sans Flex TTF assets to `public/fonts`; prior requests returned the HTML fallback and triggered a 6OTS font parser warning.
 - [x] Restored rich-link artwork to full brightness by removing legacy opacity/filter/dark overlay styling.
 - [x] Verified TypeScript, production web build, and whitespace checks before v0.1.26 packaging.
+### Phase 114 - Distinct voice lifecycle interface sounds (July 29)
+- [x] Reviewed the existing Web Audio UI cue system: hover/click/menu/focus remain deliberately quiet; mute/deafen retain their dedicated up/down toggle sequences.
+- [x] Replaced the generic voice start/end pop cues with dedicated `voice_join` and `voice_leave` sequences. Joining is a brighter three-note rise; leaving is a clearer descending three-note cue, both still governed by the interface-sound preference and selected output device.
+- [x] Applied these lifecycle cues to local join/leave and partner presence join/leave events. Verified TypeScript and whitespace checks.
+### Phase 115 - Voice-cue runtime hotfix (July 29)
+- [x] Corrected the `waveform` destructuring omission in the shared tone player. This restores hover/click/menu/toggle cues and enables the new join/leave cue waveforms without runtime errors.
+- [x] Verified TypeScript and whitespace checks before v0.1.27 packaging.
