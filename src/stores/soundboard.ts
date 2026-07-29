@@ -83,7 +83,13 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
         signedUrls: { ...state.signedUrls, ...(data.preloadUrls ?? {}) },
       }));
       if (data.preloadUrls) {
-        preloadSoundboardClips(Object.entries(data.preloadUrls).map(([id, signedUrl]) => ({ id, signedUrl })));
+        const pinned = new Set(usePreferences.getState().pinnedSoundIds);
+        const prioritizedClips = Object.entries(data.preloadUrls)
+          .sort(([leftId], [rightId]) => Number(pinned.has(rightId)) - Number(pinned.has(leftId)))
+          .map(([id, signedUrl]) => ({ id, signedUrl }));
+        // Existing full warming remains intact, but the clips a user explicitly
+        // pinned reach the durable cache first on a fresh call join.
+        preloadSoundboardClips(prioritizedClips);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Shared soundboard could not load.");

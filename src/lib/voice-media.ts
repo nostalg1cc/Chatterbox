@@ -212,7 +212,7 @@ export async function captureScreen(): Promise<MediaStream> {
     video: {
       width: { ideal: 1280, max: 1280 },
       height: { ideal: 720, max: 720 },
-      frameRate: { ideal: 60, max: 60 },
+      frameRate: { ideal: 30, max: 30 },
     },
     audio: {
       echoCancellation: false,

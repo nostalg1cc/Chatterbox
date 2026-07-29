@@ -33,7 +33,7 @@ function isSafeHttpUrl(value: string, base?: string) {
     const hostname = url.hostname.toLowerCase();
     const isIpv6 = hostname.includes(":");
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || isPrivateIpv4(hostname)) return null;
+    if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || hostname.endsWith(".internal") || hostname.endsWith(".home.arpa") || hostname === "metadata.google.internal" || isPrivateIpv4(hostname)) return null;
     if (isIpv6 && (hostname === "::1" || hostname.startsWith("fc") || hostname.startsWith("fd") || hostname.startsWith("fe80"))) return null;
     if (url.username || url.password) return null;
     return url;
@@ -145,7 +145,10 @@ const handler = withSupabase({ auth: "user" }, async (req) => {
     if (imageUrl?.protocol === "https:") preview.image = imageUrl.href;
     return json({ preview });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Preview unavailable" }, 422);
+    // A preview failure is expected for many sites. Return a successful null
+    // response so clients do not treat ordinary upstream refusal as an app error.
+    console.warn("Link preview unavailable", error instanceof Error ? error.message : "unknown");
+    return json({ preview: null });
   }
 });
 

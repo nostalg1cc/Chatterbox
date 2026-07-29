@@ -782,3 +782,11 @@ npx tsc --noEmit      # typecheck
 ### Phase 115 - Voice-cue runtime hotfix (July 29)
 - [x] Corrected the `waveform` destructuring omission in the shared tone player. This restores hover/click/menu/toggle cues and enables the new join/leave cue waveforms without runtime errors.
 - [x] Verified TypeScript and whitespace checks before v0.1.27 packaging.
+### Phase 116 - Backend reliability and security hardening (July 29)
+- [x] Corrected the Cloudflare screen-share lifecycle: the client now waits for WebRTC connectivity only after the display track is published/subscribed, matching Cloudflare's session ? track ? media lifecycle.
+- [x] Added `private.cloudflare_screen_sessions` and bound Cloudflare session/track operations to the active conversation and owning participant; the Edge Function now logs concise upstream failure codes rather than hiding every cause behind a generic 502.
+- [x] Moved `rename_soundboard_sound` to SECURITY INVOKER with an owner-only update policy and explicitly removed anonymous execution. Verified the function is no longer SECURITY DEFINER and anon cannot call it.
+- [x] Prioritized pinned soundboard clips during the existing background cache warm-up without altering the soundboard UI.
+- [x] Hardened link-preview host rejection for common private/internal names and return a clean null preview for ordinary upstream refusals.
+- [x] Applied both migrations and deployed `cloudflare-realtime` v6 plus `link-preview` v5. Verified TypeScript and production web build.
+- [ ] Supabase Dashboard: enable Auth ? Password Security ? leaked password protection (management setting not exposed through the available project API).

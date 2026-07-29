@@ -1164,8 +1164,8 @@ async function addScreenTracks(
     const parameters = sender.getParameters();
     if (parameters.encodings.length > 0) {
       parameters.degradationPreference = "maintain-framerate";
-      parameters.encodings[0].maxBitrate = 8_000_000;
-      parameters.encodings[0].maxFramerate = 60;
+      parameters.encodings[0].maxBitrate = 5_000_000;
+      parameters.encodings[0].maxFramerate = 30;
       await sender.setParameters(parameters).catch(() => undefined);
     }
   }
