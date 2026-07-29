@@ -745,7 +745,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
             </TabsContent>
             <TabsContent value="keybinds" className="mt-0 hidden min-h-0 flex-1 overflow-y-auto p-8 data-[state=active]:block">
               <section className="mx-auto max-w-2xl space-y-5">
-                <SettingsHeading title="Keybinds" description="Shortcuts work anywhere inside Dislight. Recording a duplicate replaces the old binding." />
+                <SettingsHeading title="Keybinds" description="Shortcuts work anywhere inside Nitro. Recording a duplicate replaces the old binding." />
                 <button
                   type="button"
                   role="switch"
@@ -755,7 +755,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                 >
                   <span>
                     <span className="block text-sm font-medium">Allow global mute & deafen</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">Lets these two shortcuts work while Dislight is unfocused. Other shortcuts stay app-only.</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">Lets these two shortcuts work while Nitro is unfocused. Other shortcuts stay app-only.</span>
                   </span>
                   <span className={cn("relative h-5 w-9 rounded-full transition-colors", preferences.globalVoiceShortcuts ? "bg-emerald-500" : "bg-muted")}>
                     <span className={cn("absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform", preferences.globalVoiceShortcuts ? "translate-x-4" : "translate-x-0.5")} />
@@ -865,11 +865,11 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
 
             <TabsContent value="about" className="mt-0 hidden min-h-0 flex-1 overflow-y-auto p-8 data-[state=active]:block">
               <section className="mx-auto max-w-2xl space-y-5">
-                <SettingsHeading title="About Dislight" description="A focused space for one-to-one chat, voice, and shared moments." />
+                <SettingsHeading title="About Nitro" description="A focused space for one-to-one chat, voice, and shared moments." />
                 <div className="surface-panel rounded-[14px] border-white/[0.14] bg-white/[0.025] p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium">Dislight {appVersion}</p>
+                      <p className="text-sm font-medium">Nitro {appVersion}</p>
                       <p className="mt-1 text-xs text-muted-foreground">{isTauri ? "Desktop release channel · signed updates" : "Web app"}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
@@ -889,7 +889,7 @@ export function SettingsDialog({ buttonLabel }: { buttonLabel?: string }) {
                       <p className="mt-2 text-xs text-muted-foreground">Downloading signed update{updateProgress === null ? "…" : ` · ${updateProgress}%`}</p>
                     </div>
                   )}
-                  {updateStatus !== "downloading" && <p className="mt-4 text-xs text-muted-foreground">{updateStatus === "available" ? "Update " + availableVersion + " is ready to install in place." : updateStatus === "current" ? "You are up to date." : updateStatus === "error" ? "Could not check for updates: " + (updateError ?? "Unknown updater error.") : "Dislight checks automatically when it starts. You can also check manually here."}</p>}
+                  {updateStatus !== "downloading" && <p className="mt-4 text-xs text-muted-foreground">{updateStatus === "available" ? "Update " + availableVersion + " is ready to install in place." : updateStatus === "current" ? "You are up to date." : updateStatus === "error" ? "Could not check for updates: " + (updateError ?? "Unknown updater error.") : "Nitro checks automatically when it starts. You can also check manually here."}</p>}
                 </div>
               </section>
             </TabsContent>

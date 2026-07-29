@@ -795,3 +795,8 @@ npx tsc --noEmit      # typecheck
 - [x] Packaged the Cloudflare session hardening, link-preview safety, pinned sound cache prioritization, and 720p/30fps stream stability updates as desktop v0.1.28.
 - [x] Built the NSIS installer, signed it with the existing gitignored updater identity, and generated a UTF-8 no-BOM updater manifest.
 - [x] Published GitHub release `v0.1.28` with the signed installer, `.sig`, and verified no-BOM `latest.json`; the configured `/releases/latest/download/latest.json` endpoint resolves to v0.1.28.
+
+### Phase 118 - Nitro rebrand and PWA icon refresh (July 29)
+- [x] Rebranded the visible desktop, web, PWA, auth, settings, and package identity from Dislight to Nitro while retaining the existing Tauri identifier and internal data keys for update/data compatibility.
+- [x] Generated the complete Tauri app icon family from `Turbo.png` and used `Turbo_Mobile.png` as the transparent PWA/browser/Apple-touch icon.
+- [x] Updated the service-worker cache namespace and shell assets; production web build passed before deployment.

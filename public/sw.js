@@ -1,5 +1,5 @@
-const CACHE_NAME = "dislight-web-v1";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/dislight-logo.png"];
+const CACHE_NAME = "nitro-web-v1";
+const APP_SHELL = ["/", "/manifest.webmanifest", "/nitro-logo.png", "/nitro-mobile.png"];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

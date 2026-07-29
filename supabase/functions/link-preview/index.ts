@@ -106,7 +106,7 @@ async function fetchDocument(initialUrl: URL) {
     const response = await fetch(current, {
       redirect: "manual",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: { "user-agent": "Dislight Link Preview/1.0", accept: "text/html,application/xhtml+xml" },
+      headers: { "user-agent": "Nitro Link Preview/1.0", accept: "text/html,application/xhtml+xml" },
     });
     if (response.status >= 300 && response.status < 400) {
       const next = response.headers.get("location");

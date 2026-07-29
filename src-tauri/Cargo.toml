@@ -1,8 +1,8 @@
 [package]
-name = "dislight"
+name = "nitro"
 version = "0.1.28"
-description = "Dislight - minimal 1:1 chat"
-authors = ["Dislight"]
+description = "Nitro - minimal 1:1 chat"
+authors = ["Nitro"]
 edition = "2021"
 rust-version = "1.77.2"
 

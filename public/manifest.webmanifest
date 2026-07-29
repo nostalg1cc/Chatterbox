@@ -1,6 +1,6 @@
 {
-  "name": "Dislight",
-  "short_name": "Dislight",
+  "name": "Nitro",
+  "short_name": "Nitro",
   "description": "A focused, private chat app for you and your friends.",
   "id": "/",
   "start_url": "/",
@@ -11,7 +11,7 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/dislight-logo.png",
+      "src": "/nitro-mobile.png",
       "sizes": "any",
       "type": "image/png",
       "purpose": "any maskable"

@@ -10,7 +10,7 @@ function fallbackInitial(profile: Profile | undefined | null): string {
 }
 
 function fallbackStyle(profile: Profile | undefined | null): CSSProperties {
-  const seed = profile?.id ?? profile?.username ?? profile?.display_name ?? "dislight";
+  const seed = profile?.id ?? profile?.username ?? profile?.display_name ?? "nitro";
   let hash = 0;
   for (let index = 0; index < seed.length; index += 1) {
     hash = (hash * 31 + seed.charCodeAt(index)) | 0;

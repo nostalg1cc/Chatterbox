@@ -28,7 +28,7 @@ export function AuthScreen() {
         ) : (
           <>
             <CardHeader>
-              <CardTitle className="tracking-[0.25em] uppercase">Dislight</CardTitle>
+              <CardTitle className="tracking-[0.25em] uppercase">Nitro</CardTitle>
               <CardDescription>Quiet, one-on-one conversations.</CardDescription>
             </CardHeader>
             <CardContent>

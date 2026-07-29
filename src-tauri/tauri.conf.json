@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Dislight",
+  "productName": "Nitro",
   "version": "0.1.28",
   "identifier": "io.github.nostalg1cc.dislight",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Dislight",
+        "title": "Nitro",
         "width": 1100,
         "height": 720,
         "minWidth": 800,

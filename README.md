@@ -1,4 +1,4 @@
-﻿# Dislight
+# Nitro
 
 A focused Windows 1:1 chat client with direct voice channels, screen sharing, temporary media, local media retention, and a shared soundboard.
 
@@ -29,4 +29,4 @@ The web client builds to dist. Configure the same two public Supabase variables 
 
 ## Storage budgets
 
-Dislight keeps Supabase Free usage bounded with separate server-enforced budgets for temporary chat media and permanent soundboard clips. Avatars overwrite in place.
+Nitro keeps Supabase Free usage bounded with separate server-enforced budgets for temporary chat media and permanent soundboard clips. Avatars overwrite in place.
