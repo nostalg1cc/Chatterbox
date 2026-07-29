@@ -800,3 +800,8 @@ npx tsc --noEmit      # typecheck
 - [x] Rebranded the visible desktop, web, PWA, auth, settings, and package identity from Dislight to Nitro while retaining the existing Tauri identifier and internal data keys for update/data compatibility.
 - [x] Generated the complete Tauri app icon family from `Turbo.png` and used `Turbo_Mobile.png` as the transparent PWA/browser/Apple-touch icon.
 - [x] Updated the service-worker cache namespace and shell assets; production web build passed before deployment.
+
+### Phase 119 - Nitro mobile shell polish (July 29)
+- [x] Switched the PWA/browser/Apple-touch icon to the dedicated `Turbo_Mobile_BlackBG.png` mark; transparent app icons do not receive a black plate automatically.
+- [x] Added a mobile-only #0D0D0D canvas treatment and centered compact V2 header rail, including safe-area spacing and horizontal overflow protection for in-call controls.
+- [x] Verified the production web build and whitespace checks before deployment.

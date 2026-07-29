@@ -2248,3 +2248,51 @@ body,
 .rich-link-embed::after {
   background: transparent !important;
 }
+
+/* Mobile shell: match the app canvas and center the entire control rail. */
+@media (max-width: 720px) {
+  html,
+  body,
+  #root,
+  .app-frame,
+  .conversation-canvas,
+  .v2-canvas {
+    background: #0d0d0d !important;
+  }
+
+  body { margin: 0; }
+
+  .v2-floating-header {
+    top: max(10px, env(safe-area-inset-top)) !important;
+    right: auto !important;
+    left: 50% !important;
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px) !important;
+    justify-content: center;
+    gap: 4px !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    transform: translateX(-50%) !important;
+  }
+
+  .v2-floating-header::-webkit-scrollbar { display: none; }
+
+  .v2-canvas .v2-avatar-button,
+  .v2-canvas .v2-account-button,
+  .v2-canvas .v2-icon-button,
+  .v2-canvas .v2-audio-dropdown-button,
+  .v2-canvas .v2-dropdown-button,
+  .v2-canvas .v2-voice-status {
+    min-width: 36px !important;
+    width: 36px !important;
+    min-height: 36px !important;
+    height: 36px !important;
+  }
+
+  .v2-canvas .v2-voice-status {
+    width: auto !important;
+    max-width: 112px;
+    padding-inline: 9px;
+    font-size: 12px;
+  }
+}

@@ -1,5 +1,5 @@
 const CACHE_NAME = "nitro-web-v1";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/nitro-logo.png", "/nitro-mobile.png"];
+const APP_SHELL = ["/", "/manifest.webmanifest", "/nitro-logo.png", "/nitro-mobile-black.png"];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

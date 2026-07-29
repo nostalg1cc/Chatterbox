@@ -11,7 +11,7 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/nitro-mobile.png",
+      "src": "/nitro-mobile-black.png",
       "sizes": "any",
       "type": "image/png",
       "purpose": "any maskable"
