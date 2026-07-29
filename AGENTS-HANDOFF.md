@@ -809,3 +809,4 @@ npx tsc --noEmit      # typecheck
 ### Phase 120 - Nitro v0.1.29 desktop release (July 29)
 - [x] Packaged the Nitro rebrand and mobile-shell polish as desktop v0.1.29.
 - [x] Built and signed the `Nitro_0.1.29_x64-setup.exe` NSIS installer and generated a UTF-8 no-BOM updater manifest.
+- [x] Published GitHub release `v0.1.29`; the configured latest updater endpoint resolves to the signed Nitro installer.
