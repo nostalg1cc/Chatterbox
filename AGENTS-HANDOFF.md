@@ -805,3 +805,7 @@ npx tsc --noEmit      # typecheck
 - [x] Switched the PWA/browser/Apple-touch icon to the dedicated `Turbo_Mobile_BlackBG.png` mark; transparent app icons do not receive a black plate automatically.
 - [x] Added a mobile-only #0D0D0D canvas treatment and centered compact V2 header rail, including safe-area spacing and horizontal overflow protection for in-call controls.
 - [x] Verified the production web build and whitespace checks before deployment.
+
+### Phase 120 - Nitro v0.1.29 desktop release (July 29)
+- [x] Packaged the Nitro rebrand and mobile-shell polish as desktop v0.1.29.
+- [x] Built and signed the `Nitro_0.1.29_x64-setup.exe` NSIS installer and generated a UTF-8 no-BOM updater manifest.
