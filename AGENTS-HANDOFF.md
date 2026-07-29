@@ -790,3 +790,7 @@ npx tsc --noEmit      # typecheck
 - [x] Hardened link-preview host rejection for common private/internal names and return a clean null preview for ordinary upstream refusals.
 - [x] Applied both migrations and deployed `cloudflare-realtime` v6 plus `link-preview` v5. Verified TypeScript and production web build.
 - [ ] Supabase Dashboard: enable Auth ? Password Security ? leaked password protection (management setting not exposed through the available project API).
+
+### Phase 117 - v0.1.28 backend reliability release (July 29)
+- [x] Packaged the Cloudflare session hardening, link-preview safety, pinned sound cache prioritization, and 720p/30fps stream stability updates as desktop v0.1.28.
+- [x] Built the NSIS installer, signed it with the existing gitignored updater identity, and generated a UTF-8 no-BOM updater manifest.
