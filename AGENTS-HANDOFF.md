@@ -794,3 +794,4 @@ npx tsc --noEmit      # typecheck
 ### Phase 117 - v0.1.28 backend reliability release (July 29)
 - [x] Packaged the Cloudflare session hardening, link-preview safety, pinned sound cache prioritization, and 720p/30fps stream stability updates as desktop v0.1.28.
 - [x] Built the NSIS installer, signed it with the existing gitignored updater identity, and generated a UTF-8 no-BOM updater manifest.
+- [x] Published GitHub release `v0.1.28` with the signed installer, `.sig`, and verified no-BOM `latest.json`; the configured `/releases/latest/download/latest.json` endpoint resolves to v0.1.28.
