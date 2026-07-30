@@ -810,3 +810,9 @@ npx tsc --noEmit      # typecheck
 - [x] Packaged the Nitro rebrand and mobile-shell polish as desktop v0.1.29.
 - [x] Built and signed the `Nitro_0.1.29_x64-setup.exe` NSIS installer and generated a UTF-8 no-BOM updater manifest.
 - [x] Published GitHub release `v0.1.29`; the configured latest updater endpoint resolves to the signed Nitro installer.
+
+### Phase 121 - Nitro installation identity migration v0.1.30 (July 30)
+- [x] Diagnosed a rebrand-side-by-side installation: old Dislight remained at `%LOCALAPPDATA%\Dislight` with `Dislight.lnk`, while Nitro registered independently.
+- [x] Added NSIS migration hooks that remove the legacy Dislight folder, Start-menu link, and uninstall registration before installing Nitro, then explicitly create `Nitro.lnk`.
+- [x] Applied the same scoped cleanup locally and verified the new Start-menu shortcut targets `%LOCALAPPDATA%\Nitro\nitro.exe`.
+- [x] Built and signed v0.1.30 with a no-BOM updater manifest.
