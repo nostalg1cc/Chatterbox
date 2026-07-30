@@ -816,3 +816,4 @@ npx tsc --noEmit      # typecheck
 - [x] Added NSIS migration hooks that remove the legacy Dislight folder, Start-menu link, and uninstall registration before installing Nitro, then explicitly create `Nitro.lnk`.
 - [x] Applied the same scoped cleanup locally and verified the new Start-menu shortcut targets `%LOCALAPPDATA%\Nitro\nitro.exe`.
 - [x] Built and signed v0.1.30 with a no-BOM updater manifest.
+- [x] Published GitHub release `v0.1.30`; the configured latest updater endpoint resolves to the signed Nitro migration installer.
