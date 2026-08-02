@@ -147,6 +147,29 @@ export function createRemoteAudioElement(): HTMLAudioElement {
   return element;
 }
 
+export async function configureMediaOutput(
+  element: HTMLMediaElement,
+  {
+    volume,
+    outputDeviceId,
+    muted = false,
+  }: {
+    volume: number;
+    outputDeviceId: string;
+    muted?: boolean;
+  }
+): Promise<void> {
+  element.volume = Math.max(0, Math.min(1, volume / 100));
+  element.muted = muted;
+  const sinkMedia = element as HTMLMediaElement & SinkCapableAudio;
+  if (sinkMedia.setSinkId) {
+    try {
+      await sinkMedia.setSinkId(outputDeviceId === "default" ? "" : outputDeviceId);
+    } catch {
+      await sinkMedia.setSinkId("").catch(() => undefined);
+    }
+  }
+}
 export async function configureRemoteAudio(
   element: HTMLAudioElement,
   {
@@ -162,17 +185,7 @@ export async function configureRemoteAudio(
   }
 ): Promise<void> {
   if (stream) element.srcObject = stream;
-  element.volume = Math.max(0, Math.min(1, outputVolume / 100));
-  element.muted = deafened;
-
-  const sinkAudio = element as SinkCapableAudio;
-  if (sinkAudio.setSinkId) {
-    try {
-      await sinkAudio.setSinkId(outputDeviceId === "default" ? "" : outputDeviceId);
-    } catch {
-      await sinkAudio.setSinkId("").catch(() => undefined);
-    }
-  }
+  await configureMediaOutput(element, { volume: outputVolume, outputDeviceId, muted: deafened });
 
   if (element.srcObject && !deafened) {
     try {

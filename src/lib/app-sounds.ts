@@ -3,6 +3,7 @@ import { usePreferences } from "@/stores/preferences";
 export type AppSound =
   | "voice_join"
   | "voice_leave"
+  | "voice_reconnect"
   | "deafen_off"
   | "deafen_on"
   | "mute_off"
@@ -23,6 +24,7 @@ type Tone = { frequency: number; offset: number; duration: number; volume: numbe
 const fileBySound: Record<AppSound, string> = {
   voice_join: "ui/pop_open.mp3",
   voice_leave: "ui/pop_close.mp3",
+  voice_reconnect: "ui/toggle_off.mp3",
   deafen_off: "ui/toggle_on.mp3",
   deafen_on: "ui/toggle_off.mp3",
   mute_off: "ui/toggle_on.mp3",
@@ -38,6 +40,7 @@ const fileBySound: Record<AppSound, string> = {
 const sources = new Map<AppSound, string>();
 const lastPlayedAt = new Map<AppSound, number>();
 let uiAudioContext: AudioContext | null = null;
+let routedUiOutputDeviceId: string | null = null;
 
 function sourceFor(sound: AppSound): string {
   return "/sounds/" + fileBySound[sound];
@@ -49,11 +52,23 @@ function getUiAudioContext(): AudioContext | null {
   return uiAudioContext;
 }
 
-function playToneSequence(tones: Tone[], volumeScale: number): boolean {
+async function routeUiContext(context: AudioContext, outputDeviceId: string): Promise<void> {
+  const sinkContext = context as AudioContext & { setSinkId?: (sinkId: string) => Promise<void> };
+  if (!sinkContext.setSinkId || routedUiOutputDeviceId === outputDeviceId) return;
+  try {
+    await sinkContext.setSinkId(outputDeviceId === "default" ? "" : outputDeviceId);
+    routedUiOutputDeviceId = outputDeviceId;
+  } catch {
+    await sinkContext.setSinkId("").catch(() => undefined);
+    routedUiOutputDeviceId = "default";
+  }
+}
+function playToneSequence(tones: Tone[], volumeScale: number, outputDeviceId: string): boolean {
   const context = getUiAudioContext();
   if (!context) return false;
 
   void context.resume().catch(() => undefined);
+  void routeUiContext(context, outputDeviceId);
   const startTime = context.currentTime + 0.01;
   for (const { frequency, offset, duration, volume, waveform } of tones) {
     const oscillator = context.createOscillator();
@@ -96,6 +111,11 @@ function studyTones(sound: AppSound): Tone[] {
     { frequency: 523.25, offset: 0.055, duration: 0.075, volume: 0.040, waveform: "triangle" as const },
     { frequency: 783.99, offset: 0.120, duration: 0.120, volume: 0.052, waveform: "sine" as const },
   ];
+  const voiceReconnect = [
+    { frequency: 880, offset: 0, duration: 0.07, volume: 0.06, waveform: "square" as const },
+    { frequency: 659.25, offset: 0.10, duration: 0.08, volume: 0.065, waveform: "square" as const },
+    { frequency: 880, offset: 0.22, duration: 0.12, volume: 0.075, waveform: "square" as const },
+  ];
   const voiceLeave = [
     { frequency: 659.25, offset: 0, duration: 0.070, volume: 0.040, waveform: "triangle" as const },
     { frequency: 493.88, offset: 0.062, duration: 0.078, volume: 0.044, waveform: "triangle" as const },
@@ -106,6 +126,7 @@ function studyTones(sound: AppSound): Tone[] {
     case "ui_hover": return [{ frequency: 739.99, offset: 0, duration: 0.028, volume: 0.006 }];
     case "voice_join": return voiceJoin;
     case "voice_leave": return voiceLeave;
+    case "voice_reconnect": return voiceReconnect;
     case "ui_menu_close": return reverse;
     case "mute_on":
     case "deafen_on": return disabled;
@@ -135,7 +156,7 @@ export function playAppSound(sound: AppSound, force = false): void {
   lastPlayedAt.set(sound, now);
 
   const volumeScale = Math.min(1, Math.max(0, preferences.interfaceSoundVolume / 100));
-  if (playToneSequence(studyTones(sound), volumeScale)) return;
+  if (playToneSequence(studyTones(sound), volumeScale, preferences.outputDeviceId)) return;
 
   const audio = new Audio(sources.get(sound) ?? sourceFor(sound));
   audio.preload = "auto";

@@ -119,6 +119,7 @@ usePreferences.subscribe((state, previousState) => {
 });
 let activeIceServers: RTCIceServer[] = ICE_SERVERS;
 let turnCredentialsExpireAt = 0;
+let joinAttempt = 0;
 
 export const useVoice = create<VoiceState>()((set, get) => ({
   rooms: {},
@@ -136,12 +137,14 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   init: (userId) => initializeVoice(userId),
 
   join: async (conversationId, takeover = false) => {
-    if (get().status === "joining") return;
+    const attempt = ++joinAttempt;
+    if (get().status === "joining") { await disconnectLocal(true); takeover = true; }
     if (
       get().activeConversationId === conversationId &&
       get().status !== "idle"
     ) {
-      return;
+      await disconnectLocal(true);
+      takeover = true;
     }
 
     if (get().activeConversationId && get().activeConversationId !== conversationId) {
@@ -162,6 +165,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
 
     try {
       microphone = await createPreferredMicrophone();
+      if (attempt !== joinAttempt) { await stopMicrophonePipeline(microphone); microphone = null; return; }
       applyLocalMuteState();
 
       const { data, error } = await supabase.rpc("join_voice_room", {
@@ -238,6 +242,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   },
 
   leave: async () => {
+    joinAttempt += 1;
     const wasActive = Boolean(get().activeConversationId);
     await disconnectLocal(true);
     if (wasActive) playAppSound("voice_leave");
@@ -290,12 +295,19 @@ export const useVoice = create<VoiceState>()((set, get) => ({
       // an optional enhancement; a subscriber-side SFU failure must not black-hole a share.
       if (peerConnection) await addScreenTracks(peerConnection, stream);
 
-      try {
-        const cloudflare = await createCloudflareScreenPublisher(get().activeConversationId!, stream, track);
-        cloudflareScreenConnection = cloudflare.connection;
-        sendScreenPublished(cloudflare.sessionId, cloudflare.trackName);
-      } catch {
-        // The direct track above remains the automatic compatibility fallback.
+      // The room RPC has committed before this point, but the Edge Function can arrive a
+      // few milliseconds before its participant lookup is visible. Retry only the optional
+      // Cloudflare publishing path; direct peer sharing stays available throughout.
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          if (attempt) await new Promise((resolve) => window.setTimeout(resolve, 550));
+          const cloudflare = await createCloudflareScreenPublisher(get().activeConversationId!, stream, track);
+          cloudflareScreenConnection = cloudflare.connection;
+          sendScreenPublished(cloudflare.sessionId, cloudflare.trackName);
+          break;
+        } catch {
+          // The established call peer remains the compatible fallback.
+        }
       }
 
       if (!stream.getAudioTracks().length) {

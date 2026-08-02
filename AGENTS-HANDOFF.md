@@ -1,31 +1,31 @@
-# Dislight ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Agent Handoff Document
+# Dislight ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Agent Handoff Document
 
-> **Purpose:** This file is the single source of truth for cross-agent handoff (Claude Code ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Codex).
+> **Purpose:** This file is the single source of truth for cross-agent handoff (Claude Code ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Codex).
 > Whoever works on this project: **update the checklist below as you complete work**, and add notes
 > in "Decisions & gotchas" when you make a non-obvious choice. Keep it current after every phase.
 
 ## What is this project?
 
-**Dislight** ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â a Windows desktop 1-on-1 chat app (Discord-inspired, but no servers/guilds; strictly DM-focused).
+**Dislight** ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â a Windows desktop 1-on-1 chat app (Discord-inspired, but no servers/guilds; strictly DM-focused).
 Sleek, minimal, **dark-only** UI: Mica by default (Acrylic optional) for the transparent sidebar/window frame, plus a bordered near-black chat surface.
 
 ## Stack
 
-- **Shell:** Tauri 2.x ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `decorations: false`, `transparent: false`, custom overlaid titlebar, solid black native window background
+- **Shell:** Tauri 2.x ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â `decorations: false`, `transparent: false`, custom overlaid titlebar, solid black native window background
 - **Frontend:** React 19 + TypeScript + Vite, Tailwind CSS v4, shadcn/ui, dark-only, bundled Google Sans Flex
 - **State:** Zustand stores (`src/stores/`) + Supabase Realtime subscriptions pushing into stores. No react-query.
 - **Backend:** Supabase (auth + Postgres/RLS + realtime). No custom server. Rust surface is minimal (window effects only).
 - **Package manager:** npm (pnpm not installed on this machine)
-- **Routing:** none ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â top-level state machine in `App.tsx`: `booting ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ auth ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ main`
+- **Routing:** none ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â top-level state machine in `App.tsx`: `booting ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ auth ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ main`
 
 ## Supabase
 
 - **Org:** "Nate's projects" (`vercel_icfg_oxyNEBfLgvm7JSw54EpiKrX9`)
-- **Project:** `dislight` ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ref `lapjrxdgcbdseskmyfru`, region `eu-north-1`, free tier ($0/month)
+- **Project:** `dislight` ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ref `lapjrxdgcbdseskmyfru`, region `eu-north-1`, free tier ($0/month)
 - **DO NOT TOUCH** the other project `supabase-red-village` (`wqxtjrkvdhitcduztcju`)
 - Client env vars in `.env` (gitignored): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (see `.env.example`)
 - Migrations are applied via Supabase MCP `apply_migration` AND mirrored in `supabase/migrations/*.sql` (repo copy is the reference; keep both in sync)
-- **Email confirmation:** new projects default to ON. App handles both states. User can disable in Dashboard ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ Authentication ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ Sign In / Up ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ Email ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ "Confirm email" for instant signup in dev.
+- **Email confirmation:** new projects default to ON. App handles both states. User can disable in Dashboard ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ Authentication ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ Sign In / Up ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ Email ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ "Confirm email" for instant signup in dev.
 
 ### Schema (all tables RLS-enabled, in `public`)
 
@@ -33,56 +33,56 @@ Sleek, minimal, **dark-only** UI: Mica by default (Acrylic optional) for the tra
 |---|---|---|
 | profiles | user profile | auth user id; username unique; live avatar metadata + constrained name color |
 | `friendships` | requests + friends | `requester_id`, `addressee_id`, `status` enum pending/accepted/blocked; unique on ordered pair |
-| `conversations` | 1:1 threads | `user1_id < user2_id` ordered pair, unique; auto-created by trigger when friendship ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ accepted; `last_message_at` bumped by message trigger |
+| `conversations` | 1:1 threads | `user1_id < user2_id` ordered pair, unique; auto-created by trigger when friendship ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ accepted; `last_message_at` bumped by message trigger |
 | messages | chat messages | soft delete/edit; optional WebP/WebM attachment metadata; server media expires after 3 days |
-| `reactions` | emoji reactions | unique (message_id, user_id, emoji); emoji ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ 8 chars |
+| `reactions` | emoji reactions | unique (message_id, user_id, emoji); emoji ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¤ 8 chars |
 | `conversation_reads` | unread tracking | PK (conversation_id, user_id), `last_read_at` |
 
-- Helper: `public.is_participant(conv_id uuid)` ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â SECURITY DEFINER, used by policies to avoid recursion
+- Helper: `public.is_participant(conv_id uuid)` ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â SECURITY DEFINER, used by policies to avoid recursion
 - Realtime publication includes messages, reactions, friendships, conversations, and profiles
 - Presence/typing: Supabase Realtime channels (presence channel `online`, broadcast `typing:{conversation_id}`), no tables
 
 ## Layout / design language
 
 - Grid: `[titlebar 32px] / [sidebar 280px | chat pane]`
-- Mica shows through **titlebar + sidebar** (transparent layers); **chat pane is solid** `bg-background` (this is native Win11 style ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  la File Explorer ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â NOT glassmorphism; do not add blur/gradients)
+- Mica shows through **titlebar + sidebar** (transparent layers); **chat pane is solid** `bg-background` (this is native Win11 style ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â  la File Explorer ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â NOT glassmorphism; do not add blur/gradients)
 - Near-black zinc tokens, raised hairline borders, bundled Google Sans Flex with Segoe UI Variable fallback, lucide icons
 - Destructive red is the only accent color
 
 ## Checklist (keep updated!)
 
-### Phase 0 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Handoff
+### Phase 0 ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Handoff
 - [x] AGENTS-HANDOFF.md + AGENTS.md created
 
-### Phase 1 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Supabase backend
+### Phase 1 ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Supabase backend
 - [x] Project created (`lapjrxdgcbdseskmyfru`)
-- [x] Migration: schema (tables, enum, triggers, indexes) ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â `initial_schema`
-- [x] Migration: RLS policies + helpers ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â `rls_policies`
-- [x] Migration: realtime publication + replica identity full on reactions/friendships ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â `realtime_publication`
-- [x] Migration: helpers moved to `private` schema, trigger fn EXECUTE revoked ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â `lock_down_function_exposure`
+- [x] Migration: schema (tables, enum, triggers, indexes) ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â `initial_schema`
+- [x] Migration: RLS policies + helpers ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â `rls_policies`
+- [x] Migration: realtime publication + replica identity full on reactions/friendships ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â `realtime_publication`
+- [x] Migration: helpers moved to `private` schema, trigger fn EXECUTE revoked ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â `lock_down_function_exposure`
 - [x] Advisors: security = 0 findings; performance = only "unused index" INFO (expected, fresh DB)
 - [x] `.env` + `.env.example` written (URL + `sb_publishable_...` key in `VITE_SUPABASE_ANON_KEY`)
 - [x] Migrations mirrored to `supabase/migrations/`
 
-### Phase 2 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Scaffold
+### Phase 2 ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Scaffold
 - [x] Vite + React + TS scaffold (hand-written, in repo root; create-vite refused non-empty dir)
 - [x] Tailwind v4 + shadcn init (radix base, **nova preset**, Geist font bundled via @fontsource) + 19 components in `src/components/ui/`
 - [x] Tauri init: undecorated/transparent/shadow/dark window, strict prod CSP (devCsp null for HMR), window-control capabilities
 - [x] Rust: window-vibrancy `apply_mica` in setup + `is_mica_supported` command (cargo check passes)
 - [x] git init + .gitignore + initial commit
 
-### Phase 3 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Window shell
+### Phase 3 ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Window shell
 - [x] `components/titlebar.tsx` (drag region, min/max/close, hides outside Tauri)
 - [x] App layout grid, no window scrollbars
 
-### Phase 4 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Auth + boot
+### Phase 4 ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Auth + boot
 - [x] `lib/supabase.ts` client
 - [x] Boot screen + session restore + onAuthStateChange routing
 - [x] Login form (email+password)
 - [x] Signup form (username availability check, display name, verify-email state + resend)
 - [x] `stores/auth.ts`
 
-### Phase 5 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Main app
+### Phase 5 ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Main app
 - [x] `stores/friends.ts`, `stores/chat.ts`, `stores/presence.ts`
 - [x] Sidebar: conversation list (unread badge, online dot, last message, context menu), user footer
 - [x] Add friend dialog (by username, distinct error toasts)
@@ -94,10 +94,10 @@ Sleek, minimal, **dark-only** UI: Mica by default (Acrylic optional) for the tra
 - [x] Unread tracking (conversation_reads upsert on view/focus)
 - [x] Settings dialog (edit display name, logout)
 
-### Phase 6 ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â Polish + verify
+### Phase 6 ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Polish + verify
 - [x] Empty states, skeletons, error toasts
 - [x] `npx tsc --noEmit` + `npm run build` + `cargo check` clean
-- [ ] E2E: two accounts (app + browser on Vite URL), friend request ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ accept ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ chat ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ edit/delete ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ reactions ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ typing ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ unread
+- [ ] E2E: two accounts (app + browser on Vite URL), friend request ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ accept ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ chat ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ edit/delete ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ reactions ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ typing ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ unread
 - [ ] RLS negative test (third account can't read others' messages)
 - [ ] Final advisors pass
 
@@ -139,7 +139,7 @@ Sleek, minimal, **dark-only** UI: Mica by default (Acrylic optional) for the tra
 
 ### Phase 10 - Shell refinement + component rollback (July 11)
 - [x] Main surface fills the window with a 5px inset, 25px left corners, 5px right corners, and a 1.25px white/15% border
-- [x] Experimental Figma component styling rolled back to the projectÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢s simple shadcn controls, avatars, badges, and hover states
+- [x] Experimental Figma component styling rolled back to the projectÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢s simple shadcn controls, avatars, badges, and hover states
 - [x] Mica restored as the default native material; a persisted Settings toggle switches to Acrylic live, with a 0-100% native black-tint slider and a continuous full-window material backdrop
 - [x] Native minimize/maximize/close controls live inside the chat header rather than in an overlay
 - [x] Chat header supports native window dragging without intercepting chat, voice, or window controls; transparent root lets Mica/Acrylic show through the sidebar
@@ -166,13 +166,13 @@ Sleek, minimal, **dark-only** UI: Mica by default (Acrylic optional) for the tra
 - [x] Final Supabase advisors reviewed; no new soundboard security or performance warnings
 ## Decisions & gotchas
 
-- **RLS helpers live in `private` schema** (`private.is_participant(conv_id)`, `private.message_conversation(msg_id)`) ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â NOT `public` ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â so PostgREST doesn't expose them as RPC. `authenticated` has EXECUTE + USAGE on the schema (policies evaluate as the querying role).
-- **Username is plain `text`**, not citext ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â check constraint forces `^[a-z0-9_]{3,20}$`; client must lowercase before insert/lookup.
-- **No client INSERT policy on `conversations`** ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â rows are only created by the `handle_friendship_accepted` trigger (SECURITY DEFINER bypasses RLS).
-- **Decline/cancel/unfriend = DELETE on friendships** (no 'declined' status). Accept = addressee updates status pendingÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢accepted.
+- **RLS helpers live in `private` schema** (`private.is_participant(conv_id)`, `private.message_conversation(msg_id)`) ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â NOT `public` ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â so PostgREST doesn't expose them as RPC. `authenticated` has EXECUTE + USAGE on the schema (policies evaluate as the querying role).
+- **Username is plain `text`**, not citext ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â check constraint forces `^[a-z0-9_]{3,20}$`; client must lowercase before insert/lookup.
+- **No client INSERT policy on `conversations`** ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â rows are only created by the `handle_friendship_accepted` trigger (SECURITY DEFINER bypasses RLS).
+- **Decline/cancel/unfriend = DELETE on friendships** (no 'declined' status). Accept = addressee updates status pendingÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢accepted.
 - **`reactions` + `friendships` have `replica identity full`** so realtime DELETE events pass RLS authorization.
 - Supabase key used is the modern `sb_publishable_...` key (works with supabase-js v2), stored under the `VITE_SUPABASE_ANON_KEY` env name.
-- **RPCs for the client:** `public.username_available(text)` (anon-callable SECURITY DEFINER ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â intentional, signup-time check; the security advisor will WARN about it, that's accepted) and `public.conversation_overview()` (SECURITY INVOKER, sidebar previews + unread counts in one call).
+- **RPCs for the client:** `public.username_available(text)` (anon-callable SECURITY DEFINER ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â intentional, signup-time check; the security advisor will WARN about it, that's accepted) and `public.conversation_overview()` (SECURITY INVOKER, sidebar previews + unread counts in one call).
 - **Known realtime caveat:** postgres_changes DELETE events are not RLS-filtered by Supabase; with replica identity full the old row (uuids + emoji only, never message content) is visible to any authenticated subscriber of that table. Accepted for reactions/friendships.
 - **Unfriending keeps the conversation + history** (Discord-like). Messages can still be sent after unfriend (participants keep insert rights).
 - shadcn CLI is now v4-era: `init -b radix -p nova`; no `--base-color` flag anymore.
@@ -311,68 +311,68 @@ npx tsc --noEmit      # typecheck
 - [x] Message hover actions (reaction, reply, edit, delete) now render as a compact attached capsule derived from the composer material rather than a full floating card
 - [x] Standardized the action tray to 30px controls, 12px capsule geometry, shared 1.25px edge/inset highlight/blur, and restrained hover treatment
 - [x] Production TypeScript/Vite build and diff whitespace checks pass
-### Phase 21 Ã¢â‚¬â€ Native-edge frame correction (July 14)
+### Phase 21 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Native-edge frame correction (July 14)
 - [x] Restored the custom application-edge frame at a restrained 10px corner radius: 1px black outer edge plus a subtle 1px white inset.
 - [x] Kept that treatment on the actual application boundary only; the chat pane remains free of the oversized card-like frame.
 - [x] Rebuilt successfully and restarted the Tauri development app so the current window uses the live Vite UI.
-### Phase 22 Ã¢â‚¬â€ Controls and viewport fade correction (July 14)
-- [x] Removed the visible Ã¢â‚¬Å“Send asÃ¢â‚¬Â label; the composer account trigger is now avatar-only while retaining account/settings access.
+### Phase 22 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Controls and viewport fade correction (July 14)
+- [x] Removed the visible ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œSend asÃƒÂ¢Ã¢â€šÂ¬Ã‚Â label; the composer account trigger is now avatar-only while retaining account/settings access.
 - [x] Restored compact Windows-style minimize, maximize, and close controls in a hover-reveal top-right grace area.
 - [x] Disabled the native window shadow to avoid a second Windows-looking outer frame while preserving the compact custom app-edge treatment.
 - [x] Unified floating panels, popovers, dialogs, and action trays under a thin black edge, white inset, and blurred material.
 - [x] Removed the opaque message blur overlays. The actual message viewport now uses a top-and-bottom transparency mask, so avatars, decorations, and media fade with the scroll content.
 - [x] TypeScript, production Vite build, and whitespace verification pass; Tauri development app restarted.
-### Phase 23 Ã¢â‚¬â€ App-edge corner rasterization fix (July 14)
-- [x] Replaced the pseudo-elementÃ¢â‚¬â„¢s 1px border with rounded inset shadow rings inside a 10px clip, eliminating the sharp corner seam at the transparent app edge.
+### Phase 23 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â App-edge corner rasterization fix (July 14)
+- [x] Replaced the pseudo-elementÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s 1px border with rounded inset shadow rings inside a 10px clip, eliminating the sharp corner seam at the transparent app edge.
 - [x] TypeScript, production Vite build, and diff whitespace verification pass.
-### Phase 24 Ã¢â‚¬â€ Action visibility and native canvas fix (July 14)
+### Phase 24 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Action visibility and native canvas fix (July 14)
 - [x] Fixed message hover controls: the tray is hidden by default, revealed only on its message hover, and kept visible only while its reaction picker is open.
-- [x] Disabled Tauri transparent-window rendering while retaining the configured native Mica/Acrylic material, removing the Acrylic layer that could escape the DOMÃ¢â‚¬â„¢s 10px custom clip as a square edge.
+- [x] Disabled Tauri transparent-window rendering while retaining the configured native Mica/Acrylic material, removing the Acrylic layer that could escape the DOMÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s 10px custom clip as a square edge.
 - [x] Production TypeScript/Vite build and whitespace verification pass; Tauri development app restarted.
-### Phase 25 Ã¢â‚¬â€ Acrylic restoration and full-root clip correction (July 14)
+### Phase 25 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Acrylic restoration and full-root clip correction (July 14)
 - [x] Restored `transparent: true`; Acrylic/Mica remains an available native material as requested.
 - [x] Applied the 10px round clip to the full HTML/body/root paint chain and inset the custom ring by 1px, addressing the seam without removing Acrylic.
 - [x] Production TypeScript/Vite build and whitespace verification pass; Tauri development app restarted.
-### Phase 26 Ã¢â‚¬â€ Native compositor corner preference (July 14)
+### Phase 26 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Native compositor corner preference (July 14)
 - [x] Verified and applied Windows `DWMWA_WINDOW_CORNER_PREFERENCE` with the small-round setting through the Tauri native HWND at startup.
 - [x] This targets the actual Acrylic/Mica compositor surface; CSS clipping alone cannot round that OS-level surface.
 - [x] Cargo check, TypeScript, production Vite build, and whitespace verification pass; native Tauri dev window restarted.
-### Phase 27 Ã¢â‚¬â€ v0.1.2 release (July 14)
+### Phase 27 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â v0.1.2 release (July 14)
 - [x] Versioned, built, and published Dislight v0.1.2 from GitHub main.
 - [x] Release assets: signed NSIS installer, `.sig`, MSI, and updater `latest.json` manifest.
 - [x] GitHub repository visibility set to public so installer downloads and the configured in-app updater endpoint are reachable (HTTP 200 verified).
 - [x] Source commits: `eb423f9` and `6c957cf`; release tag `v0.1.2`.
-### Phase 28 Ã¢â‚¬â€ Vercel production deployment repair (July 14)
+### Phase 28 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Vercel production deployment repair (July 14)
 - [x] Removed the unused `shadcn` CLI package and its build-time stylesheet import; the app already owns its local component sources and theme tokens.
 - [x] Pinned `radix-ui` to installable `1.6.1`, avoiding the subsequently unavailable internal Radix tarballs referenced by the floating `1.6.2` dependency tree.
 - [x] Confirmed a local production TypeScript/Vite build and a clean Vercel install/build.
 - [x] Deployed current `main` to Vercel production: `https://dislight.vercel.app` (deployment `dpl_A4TxqnHbqj2uwicK2F9R6KjtwVYR`, READY).
-### Phase 29 Ã¢â‚¬â€ Dislight brand assets + material polish (July 14)
+### Phase 29 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Dislight brand assets + material polish (July 14)
 - [x] Generated the full Tauri icon family from `stuff/logo.png`: Windows ICO/taskbar, NSIS/MSI installer, Store/AppX, PNG, macOS, Android, and iOS outputs.
 - [x] Configured the 32/64/128/256/ICO native asset set and added the matching web favicon asset.
 - [x] Raised the release to v0.1.3 for the icon-bearing installer and updater.
 - [x] Reworked the shared floating material so the header, composer, message reaction tray, popovers, dropdowns, context menus, and dialogs all visibly use the same translucent backdrop blur.
 - [x] Production TypeScript/Vite build and Cargo check pass.- [x] Preserved composer focus across controlled input updates and vertically centered its single-line placeholder/action row before v0.1.3 packaging.
 
-### Phase 30 Ã¢â‚¬â€ v0.1.3 branded installer release (July 14)
+### Phase 30 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â v0.1.3 branded installer release (July 14)
 - [x] Built Windows NSIS and MSI artifacts with the new Dislight application icon.
 - [x] Signed the NSIS installer with the existing updater key and generated a v0.1.3 `latest.json` manifest for the in-app updater.
 - [x] Packaged after the composer focus/vertical alignment correction and shared backdrop-blur refinement.
-### Phase 31 Ã¢â‚¬â€ Username typography presets (July 14)
+### Phase 31 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Username typography presets (July 14)
 - [x] Added constrained, live-persisted profile typography: Sans, Rounded, Serif, or Mono; Regular, Medium, Bold, or Black.
 - [x] Completed the existing name-effect system so animated effects now run for active header/user-panel contexts and the newest or hovered message group.
 - [x] Added matching settings controls, mirrored migration `20260714233000_profile_name_typography.sql`, and applied the migration to the live Supabase project.
-- [x] Verified live profile columns and production TypeScript/Vite build.### Phase 32 Ã¢â‚¬â€ Real Sera UI text-effect renderers (July 14)
+- [x] Verified live profile columns and production TypeScript/Vite build.### Phase 32 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Real Sera UI text-effect renderers (July 14)
 - [x] Replaced the former CSS-only name-effect placeholders with local React renderers adapted from Sera UI's public Fuzzy, Sparkles, Resize Handle, Bouncy, Wavy, Gradient, Glitch, and Particle components.
 - [x] Kept static names inexpensive; only intentionally active contexts instantiate canvases, per-letter motion, sparkles, particles, or glitch layers.
 - [x] Verified production TypeScript/Vite build and a clean live-app console after Vite HMR.
-### Phase 33 Ã¢â‚¬â€ Always-on name effects (July 14)
+### Phase 33 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Always-on name effects (July 14)
 - [x] Username effects are now continuous in every rendered context; they no longer wait for hover or the latest message group.
-### Phase 34 Ã¢â‚¬â€ v0.1.5 updater-key reset release (July 15)
+### Phase 34 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â v0.1.5 updater-key reset release (July 15)
 - [x] Rotated the lost updater signing key and configured the replacement public key in Tauri.
 - [x] Built signed NSIS/MSI artifacts and updater signatures for 0.1.5.
 - [x] 0.1.5 requires one manual install from 0.1.3 because the updater signing identity changed; future releases will update normally from 0.1.5.
-### Phase 35 Ã¢â‚¬â€ v0.1.6 surface/composer/link hotfix (July 15)
+### Phase 35 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â v0.1.6 surface/composer/link hotfix (July 15)
 - [x] Replaced unreliable WebView2 backdrop filtering with opaque dark-gray floating header, composer, menus, dialogs, and message-action surfaces.
 - [x] Composer now recalculates after its controlled value clears, so a sent multiline message immediately returns to single-line height.
 - [x] Added safe `http`/`https` link rendering and Tauri's scoped default-browser opener permission; regular text remains escaped React text.
@@ -452,7 +452,7 @@ npx tsc --noEmit      # typecheck
 - [x] Supabase security advisor was checked after DDL; reported warnings predate this change and concern existing RPC functions/Auth protection, not profile-decoration access.
 
 ### Phase 50 - Cloud decoration initial live set (July 16)
-- [x] Reset the Cloudinary decoration folder and uploaded only IDs 001�010 from the source manifest.
+- [x] Reset the Cloudinary decoration folder and uploaded only IDs 001ï¿½010 from the source manifest.
 - [x] Restricted the app picker and delivery layer to those ten Cloudinary-hosted APNG decorations; removed local/original-source fallback from selectable items.
 
 ### Phase 51 - Live Cloudinary decoration discovery (July 16)
@@ -463,7 +463,7 @@ npx tsc --noEmit      # typecheck
 
 ### Phase 52 - Complete Cloud avatar-decoration import (July 16)
 - [x] Imported and reconciled all 639 APNG decorations to Cloudinary under `dislight/avatar-decorations`.
-- [x] Verified the hosted catalogue contains exactly IDs 001�639, with no missing IDs or extras.
+- [x] Verified the hosted catalogue contains exactly IDs 001ï¿½639, with no missing IDs or extras.
 - [x] The raw `stuff/new deco/` sources remain Git-ignored; all clients use Cloudinary delivery instead.
 
 - [x] Voice capture: fixed noise suppression argument propagation; off is now the safe default, with echo cancellation and automatic gain disabled.
@@ -533,11 +533,11 @@ npx tsc --noEmit      # typecheck
 - [x] Identified a UTF-8 BOM in the original GitHub `latest.json` asset as the likely native updater parse failure.
 - [x] Release manifests are now written as clean UTF-8 without a BOM. v0.1.18 is the fresh-URL bridge release, avoiding GitHub CDN retention of the previously uploaded v0.1.17 asset.
 - [x] Published signed GitHub release `v0.1.18`; verified its public `latest.json` begins without a BOM, parses as valid JSON, and references a reachable signed installer.
-### Updater release runbook — do not skip
-- The first working chain is **v0.1.16 → v0.1.18**: update checks, quiet current-user installation, restart, signature verification, and GitHub delivery were all user-confirmed working on July 19.
+### Updater release runbook â€” do not skip
+- The first working chain is **v0.1.16 â†’ v0.1.18**: update checks, quiet current-user installation, restart, signature verification, and GitHub delivery were all user-confirmed working on July 19.
 - Use the signing identity recorded only in the Git-ignored root `UPDATER-RECOVERY.local.txt`. It contains `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, the public key, endpoint, and encrypted private-key backup. Never commit, log, paste, rotate, or expose that file.
 - Every desktop release must: bump the matching version in `package.json`, `package-lock.json` root metadata, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json`; set both signing environment variables from the recovery file; run `npm run tauri build -- --bundles nsis`; publish the generated NSIS `.exe` **and** `.exe.sig`.
-- Generate `latest.json` from the generated `.sig`, with `version`, `notes`, `pub_date`, and `platforms.windows-x86_64.url/signature`. Write it with `new Text.UTF8Encoding($false)` — **never** Windows PowerShell `Set-Content -Encoding utf8`, which writes a BOM and makes the native Tauri updater fail parsing.
+- Generate `latest.json` from the generated `.sig`, with `version`, `notes`, `pub_date`, and `platforms.windows-x86_64.url/signature`. Write it with `new Text.UTF8Encoding($false)` â€” **never** Windows PowerShell `Set-Content -Encoding utf8`, which writes a BOM and makes the native Tauri updater fail parsing.
 - Upload an asset actually named `latest.json` to the newest non-prerelease GitHub release. Verify via `curl -L` that the first bytes are `7B 0D 0A` or another normal JSON start (never `EF BB BF`), that the manifest version is correct, that a signature exists, and that the installer URL returns HTTP 200.
 - Updater configuration is intentionally current-user NSIS plus updater Windows `quiet` mode: updates replace the app in place and restart without installer UI or elevation prompts. Do not change the configured public key: existing installs trust it.
 ### Phase 62 - Expanded screen-share cleanup (July 19)
@@ -656,7 +656,7 @@ npx tsc --noEmit      # typecheck
 - [x] Removed accidental resting elevation; the 0 4px 10px shadow and inner light overlay now occur only on hover, exactly as in the study.
 - [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 89 - Exact V2 mute/deafen dropdown pass (July 27)
 - [x] Rebuilt V2 microphone/deafen controls from the button-study source: 62px split button, 20px primary glyph, 14px chevron, black 1.25px outline, masked gradient edge, 45px blur, and hover-only elevation.
-- [x] Toggled mute/deafen now use the study’s full #ff3333 active fill and play their corresponding on/off interface sound locally.
+- [x] Toggled mute/deafen now use the studyâ€™s full #ff3333 active fill and play their corresponding on/off interface sound locally.
 - [x] Verified TypeScript, production web build, and whitespace checks. This remains unreleased.### Phase 90 - V2 compact-tray and voice-idle correction (July 27)
 - [x] Explicitly locked the V2 message action shell to a 40px height, preventing inherited legacy layout from stretching it vertically.
 - [x] Reset the V2 voice label action to the button-study's flat idle material and hover-only 0 4px 10px elevation; retained its green active state.
@@ -742,8 +742,8 @@ npx tsc --noEmit      # typecheck
 
 ### Phase 108 - Full rich-media material, app-edge controls, and remembered video volume (July 28)
 - [x] Applied a light full-card material wash to rich-link media while retaining the full-resolution media image and the V2 edge treatment.
-- [x] Moved desktop window buttons flush to the app’s top-right edge and reduced them to plain Windows-style titlebar targets with no glass shell.
-- [x] Added a persistent, media-only playback-volume preference. Changing an HTML video’s native volume control now becomes the default for future chat videos without changing call output volume.
+- [x] Moved desktop window buttons flush to the appâ€™s top-right edge and reduced them to plain Windows-style titlebar targets with no glass shell.
+- [x] Added a persistent, media-only playback-volume preference. Changing an HTML videoâ€™s native volume control now becomes the default for future chat videos without changing call output volume.
 - [x] Verified TypeScript, production web build, and whitespace checks.
 
 ### Phase 109 - Fluent app-edge controls and WebView2 media-tray correction (July 28)
@@ -817,3 +817,92 @@ npx tsc --noEmit      # typecheck
 - [x] Applied the same scoped cleanup locally and verified the new Start-menu shortcut targets `%LOCALAPPDATA%\Nitro\nitro.exe`.
 - [x] Built and signed v0.1.30 with a no-BOM updater manifest.
 - [x] Published GitHub release `v0.1.30`; the configured latest updater endpoint resolves to the signed Nitro migration installer.
+
+### Phase 122 - Isolated V3 test shell (July 31)
+- [x] Copied the supplied `v3/v3` button-test UI into `src/features/v3-shell` and made it the active app shell.
+- [x] Deliberately left V1/V2, authentication, chat, voice, and backend wiring disconnected but preserved for later integration.
+- [x] Added the V3 assets locally and verified `npm run build` succeeds.
+- [x] Started the dedicated Tauri V3 dev app on localhost:5174 to avoid the older standalone button-test dev servers.
+- [x] Began live reintroduction in V3: authenticated active conversation history now loads through the existing chat/profile stores, with partner messages left and self messages right while retaining V3 motion.
+- [x] Expanded V3 live integration: one-minute sender grouping, real profile avatar/name decorations, media playback, lightweight date/call markers, live soundboard/mute/deafen/screenshare controls, dual screen previews, and a reconnect health cue.
+
+### Phase 123 - V3 live-interaction wiring (July 31)
+- [x] Restored V3 hover-only message actions with quick reactions, reply, edit, delete, and reaction chips while preserving overlay geometry.
+- [x] Wired the V3 composer to the established optimistic send/upload route: attachment button, paste image/video, drag-and-drop media, Cloudinary/storage capability selection, and local attachment-ready state.
+- [x] Restored local/remote typing feedback and the shared soundboard source in V3; microphone and deafen controls now toggle real voice state and enumerate saved/available input/output devices.
+- [x] Added live V3 partner presence: online dot, 10-minute inactivity away dot, activity heartbeat, and a slightly enlarged avatar decoration treatment.
+- [x] Restored the required Tooltip provider at the app root so screen sharing no longer crashes V3. Cloudflare share is now retried once after the voice-room participant write; direct WebRTC remains the live fallback if the optional SFU path rejects.
+
+### Phase 124 - V3 rich content and reclaim hotfix (July 31)
+- [x] Restored V3 link rendering and server-backed rich previews, including native-safe opening in desktop and browser fallback behavior.
+- [x] Restored visible V3 attachment previews, paste/drop upload flow, and moved typing feedback back beside the composer when a pending attachment exists.
+- [x] Ported V1/V2 decoration activation semantics into V3: hover over any message activates its group avatar decoration; each sender's latest header group auto-animates.
+- [x] Added a V3-styled Settings trigger to open the existing full settings dialog.
+- [x] Hardened rapid re-entry into voice: a new join cancels/reclaims a stale local join attempt and stale microphone acquisition cannot win after cancellation.
+
+### Phase 125 - V3 paused, established shell restored (July 31)
+- [x] Marked the V3 shell as actively in progress; its source remains preserved under `src/features/v3-shell/` for a later continuation.
+- [x] Restored the established authenticated V1/V2 application shell as the active layout, including auth/boot, existing navigation, updater, Mica handling, settings, and full production chat/voice wiring.
+
+### Phase 126 - V3 call-control polish (August 2)
+- [x] Resumed the isolated V3 test shell for local development only.
+- [x] Made the idle call control a standard labelled `Phone + Voice` button; an active local voice session now uses the green labelled control with live participant avatars and elapsed duration, with a red leave state on hover.
+- [x] Verified the production web build after the V3 control update and restarted the isolated Tauri V3 dev app on port 5174.
+
+### Phase 127 - V3 interaction and call recovery pass (August 2)
+- [x] Restyled V3 message actions as one shared material tray with plain interior glyphs, and aligned reaction chips to the associated message edge like the established V2 layout.
+- [x] Restored V3 soundboard favourites, pinned-first ordering, hidden scrollbar, expanded two-column menu, and local playback progress fill.
+- [x] Updated V3 voice behavior: active call shows only participants plus timer, hover changes to red Leave, and every V3 join reclaims the signed-in user''s stale voice seat without affecting the partner.
+- [x] Production build passes; isolated V3 dev server remains available on port 5174.
+
+### Phase 128 - V3 reply, editing, and composition feedback (August 2)
+- [x] Restored V3 reply composition: selecting Reply now shows a dismissible reply banner, passes the reply target on send, and clears it after a successful message.
+- [x] Replaced the browser prompt editor with an inline V3 editor (save/cancel, Enter to save, Shift+Enter newline, Escape to cancel).
+- [x] Added V3 local and remote typing feedback, self-message timestamp-first ordering, larger correctly centred avatar-decoration frames, and a finished material attachment preview.
+- [x] Kept call participants visible during red Leave hover and centred the active/leave text independently from the avatar stack. Production build passes.
+
+### Phase 129 - V3 minimal interaction refinement (August 2)
+- [x] Replaced the oversized attachment Remove text with a compact icon-only dismiss affordance.
+- [x] Reduced V3 message editing to a bare inline text field: Enter saves, Shift+Enter keeps a newline, Escape cancels; no modal/card/action buttons.
+- [x] Production build passes.
+
+### Phase 130 - V3 responsive voice and soundboard attribution (August 2)
+- [x] Made V3 voice-control width responsive to one vs. two participants while holding all labels/timer at the shared 14px control typography and centring text in the remaining available space.
+- [x] Reworked V3 soundboard cards to use small uploader avatars, soft borderless surfaces, no play-hover fill, and retained favourites/progress behavior.
+- [x] Production build passes.
+
+### Phase 131 - V3 message states and media feedback (August 2)
+- [x] Restored small transparent `(edited)` and `(deleted)` message-state markers; deleted messages no longer render as normal message content.
+- [x] Added V2-style subtle row hover treatment to V3 messages.
+- [x] Added visible V3 media lifecycle feedback for local preparation, ready state, and Cloudinary upload state (including indeterminate progress treatment); V3 continues through the established Cloudinary-capable media route.
+- [x] Restored V3 soundboard private listening-volume control. Production build passes.
+
+### Phase 132 - V3 conversation continuity and cache parity (August 2)
+- [x] Reintroduced conversation switching directly from the V3 partner-avatar control: the compact avatar/caret popover lists live direct messages and uses the existing chat store to swap conversations.
+- [x] Restored upward message pagination in V3. Nearing the top loads the next older V2 page and preserves the viewerâ€™s exact scroll anchor rather than pulling the chat back to the latest message.
+- [x] Replaced V3â€™s simplified media renderer with V2â€™s cache-first path: cache lookup by user/message, background local preservation, signed/Cloudinary remote fallback, and the existing expired-server â€œSaved locallyâ€ behavior.
+- [x] Restored V3 remembered media volume and selected output-device routing for chat videos, using the same shared preferences as V2.
+- [x] Corrected avatar-decoration geometry so the image clip and decoration frame share a true centre point; frames render outside the avatar clip at a consistent 136% scale while status dots stay above them.
+- [x] Verified TypeScript, production build, and whitespace checks. No installer or deployment was made; V3 remains the local work-in-progress shell.
+
+### Phase 133 - V3 header and media-output refinement (August 2)
+- [x] Removed the visible caret/dropdown glyph from the V3 partner avatar; the avatar itself remains the direct-message switcher trigger.
+- [x] Promoted the V3 header presence indicator for clearer at-a-glance state.
+- [x] Added a shared `configureMediaOutput` route and moved voice remote audio onto it; V3 chat videos now use that same selected-device/output-level route while preserving the separate remembered media-volume preference.
+- [x] Increased only chat-history avatar-decoration frames to 142% and kept their origin pinned to the avatar centre.
+- [x] Verified TypeScript, production build, and whitespace checks.
+
+### Phase 134 - V3 routed interface sound parity (August 2)
+- [x] Confirmed V3 uses the same shared `soundboardVolume` preference as V2: it controls each userâ€™s local listening level for both self-initiated and incoming soundboard playback, never the partnerâ€™s volume.
+- [x] Replaced the isolated V3 test-tone hook with the established preference-aware application sound system, restoring hover/click/menu sounds and respecting the persistent interface-sound toggle.
+- [x] Wired V3â€™s interface-sound toggle to the shared preference rather than temporary component state.
+- [x] Routed the application sound context to the selected voice output device when the WebView supports output selection. Voice join/leave, mute/deafen, and the forced reconnect warning retain their existing distinct cues.
+
+### Phase 135 - V3 message-decoration layer correction (August 2)
+- [x] Rebuilt the chat-message avatar as two explicit layers: a separately clipped photo layer and a centred, un-clipped decoration canvas.
+- [x] Set message-decoration canvas scale to a restrained 145% after separating it from the photo clip; header decoration scale remains unchanged.
+
+### Phase 136 - Nitro V3 main-shell release v0.1.31 (August 2)
+- [x] Promoted the V3 shell from local experiment to the active production application shell while retaining native signed-update checks and toast delivery.
+- [x] Finalized V3 chat switching, pagination, cached media/remembered media volume, voice controls, soundboard listening volume/favourites, routed interface cues, presence, rich content, and corrected message-decoration layering.
+- [x] Bumped all desktop package identities to v0.1.31 and verified TypeScript, production web build, and native Cargo check.
