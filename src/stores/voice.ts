@@ -368,7 +368,8 @@ function initializeVoice(userId: string): () => void {
     }
     if (
       state.outputVolume !== previous.outputVolume ||
-      state.outputDeviceId !== previous.outputDeviceId
+      state.outputDeviceId !== previous.outputDeviceId ||
+      state.partnerVoiceBoost !== previous.partnerVoiceBoost
     ) {
       applyRemoteAudioPreferences();
     }
@@ -961,6 +962,7 @@ function handleRemoteTrack(event: RTCTrackEvent): void {
       outputVolume: usePreferences.getState().outputVolume,
       outputDeviceId: usePreferences.getState().outputDeviceId,
       deafened: useVoice.getState().deafened,
+      partnerVoiceBoost: usePreferences.getState().partnerVoiceBoost,
     });
     event.track.onended = () => {
       remoteAudioStream?.removeTrack(event.track);
@@ -1163,6 +1165,7 @@ function applyRemoteAudioPreferences(): void {
     outputVolume: preferences.outputVolume,
     outputDeviceId: preferences.outputDeviceId,
     deafened: useVoice.getState().deafened,
+    partnerVoiceBoost: preferences.partnerVoiceBoost,
   });
 }
 
@@ -1331,20 +1334,14 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
   roomChannel = null;
   roomSubscribed = false;
   if (channel) {
-    await channel.untrack().catch(() => undefined);
-    await supabase.removeChannel(channel);
+    // Realtime teardown is best-effort. It must not hold the leave button or
+    // local media hostage when a network is slow or already disconnected.
+    void channel.untrack().catch(() => undefined);
+    void supabase.removeChannel(channel).catch(() => undefined);
   }
 
-  await stopMicrophonePipeline(microphone);
+  const microphoneToStop = microphone;
   microphone = null;
-
-  if (notifyServer && sessionId) {
-    await supabase
-      .rpc("leave_voice_room", { p_session_id: sessionId })
-      .then(({ error }) => {
-        if (error) console.warn("Voice leave failed", error);
-      });
-  }
 
   useVoice.setState((current) => {
     const participants = { ...current.participants };
@@ -1372,6 +1369,20 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
   });
 
   disconnecting = false;
+
+  // Track stopping is synchronous before its first await, so audio stops right
+  // away while AudioContext cleanup continues in the background.
+  void stopMicrophonePipeline(microphoneToStop);
+  if (notifyServer && sessionId) {
+    void supabase
+      .rpc("leave_voice_room", { p_session_id: sessionId })
+      .then(
+        ({ error }) => {
+          if (error) console.warn("Voice leave failed", error);
+        },
+        (error: unknown) => console.warn("Voice leave request failed", error)
+      );
+  }
 }
 
 

@@ -16,6 +16,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleX,
+  LoaderCircle,
   MessageCircle,
   Paperclip,  ScreenShare,
   Settings,
@@ -77,12 +78,19 @@ function startsNewMessageGroup(message, previous) {
   return message.sender_id !== previous.sender_id || new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() >= 60_000;
 }
 
+function formatCallDuration(value) {
+  const seconds = Math.max(0, value ?? 0);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`
+    : `${minutes}:${String(remainder).padStart(2, "0")}`;
+}
+
 function systemLabel(message) {
   if (message.message_kind === "voice_started") return "Voicechat started";
-  if (message.message_kind === "voice_ended") {
-    const seconds = Math.max(0, message.voice_duration_seconds ?? 0);
-    return `Call ended · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-  }
+  if (message.message_kind === "voice_ended") return `Call lasted ${formatCallDuration(message.voice_duration_seconds)}`;
   return null;
 }
 function messageTimestamp(value) {
@@ -102,6 +110,16 @@ function replyExcerpt(message) {
   return "Message";
 }
 
+function V3LoadingShell() {
+  return (
+    <main className="stage v3-loading-stage" aria-busy="true" aria-label="Loading Nitro">
+      <div className="v3-loading-indicator" role="status">
+        <LoaderCircle aria-hidden="true" />
+        <span>Loading conversations</span>
+      </div>
+    </main>
+  );
+}
 function createMessageTimestamp() {
   const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date());
   return `Today at ${time}`;
@@ -146,9 +164,17 @@ export function V3Shell() {
   const joinedVoice = activeVoiceId === activeId;
   const typingProfile = typingUserId === userId ? selfProfile : partnerProfile;
   const replyProfile = replyTo?.sender_id === userId ? selfProfile : partnerProfile;
-  const voiceParticipantAvatars = voiceParticipants.map((participant) =>
-    avatarUrl(participant.user_id === userId ? selfProfile : partnerProfile)
-  ).filter(Boolean);
+  const voiceParticipantDetails = voiceParticipants.map((participant) => {
+    const isSelf = participant.user_id === userId;
+    const profile = isSelf ? selfProfile : partnerProfile;
+    return {
+      id: participant.user_id,
+      avatar: avatarUrl(profile),
+      name: displayName(profile, isSelf ? "You" : "Partner"),
+    };
+  });
+  const hasActiveMessages = Boolean(activeId && Object.prototype.hasOwnProperty.call(messagesByConversation, activeId));
+  const isInitialLoad = !loaded || (conversations.length > 0 && (!activeId || !hasActiveMessages));
   const uiSounds = useUiSounds();
   const messageHistoryRef = useRef(null);
   const loadingOlderRef = useRef(false);
@@ -174,6 +200,10 @@ export function V3Shell() {
     if (!activeId) return;
     return useChat.getState().joinTyping(activeId);
   }, [activeId]);
+  useEffect(() => {
+    const profileIds = [partnerId, ...voiceParticipants.map((participant) => participant.user_id)].filter(Boolean);
+    if (profileIds.length) void useProfiles.getState().ensure(profileIds);
+  }, [partnerId, voiceParticipants]);
   const lastVoiceHealthRef = useRef(null);
   useEffect(() => {
     if (voiceStatus === "reconnecting" || voiceStatus === "failed") {
@@ -317,6 +347,8 @@ export function V3Shell() {
     return () => document.removeEventListener("pointerdown", closeDropdownOnOutsideClick);
   }, [openDropdown]);
 
+  if (isInitialLoad) return <V3LoadingShell />;
+
   return (
     <main className="stage" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/")); if (file) void prepareAttachment(file); }}>
       <div
@@ -379,10 +411,10 @@ export function V3Shell() {
 
       <nav className="top-audio-controls" aria-label="Audio controls">
         <V3ChatSwitcher partnerProfile={partnerProfile} partnerPresence={partnerPresence} />
-        <VoiceCallButton active={joinedVoice} roomStartedAt={voiceRoom?.started_at} participantAvatars={voiceParticipantAvatars} participantCount={voiceParticipants.length} hasParticipants={voiceParticipants.length > 0} onJoin={() => activeId && useVoice.getState().join(activeId, true)} onLeave={() => useVoice.getState().leave()} />
+        <VoiceCallButton active={joinedVoice} roomStartedAt={voiceRoom?.started_at} participants={voiceParticipantDetails} participantCount={voiceParticipants.length} hasParticipants={voiceParticipants.length > 0} onJoin={() => activeId && useVoice.getState().join(activeId, true)} onLeave={() => useVoice.getState().leave()} />
         {joinedVoice && <>
           <SoundboardDropdown conversationId={activeId} isMenuOpen={openDropdown === "soundboard"} onMenuOpenChange={(isOpen) => handleDropdownChange("soundboard", isOpen)} />
-          <ActionButton label={sharingScreen ? "Stop streaming" : "Start streaming"} icon={ScreenShare} className="streaming-button" onClick={() => void (sharingScreen ? useVoice.getState().stopScreenShare() : useVoice.getState().startScreenShare())} />
+          <ActionButton label={sharingScreen ? "Stop streaming" : "Start streaming"} icon={ScreenShare} className={"streaming-button" + (sharingScreen ? " is-streaming" : "")} onClick={() => void (sharingScreen ? useVoice.getState().stopScreenShare() : useVoice.getState().startScreenShare())} />
           <MicrophoneToggleDropdown isMuted={muted} onToggle={() => useVoice.getState().toggleMute()} isMenuOpen={openDropdown === "microphone"} onMenuOpenChange={(isOpen) => handleDropdownChange("microphone", isOpen)} />
           <DeafenToggleDropdown isDeafened={deafened} onToggle={() => useVoice.getState().toggleDeafen()} isMenuOpen={openDropdown === "deafen"} onMenuOpenChange={(isOpen) => handleDropdownChange("deafen", isOpen)} />
         </>}

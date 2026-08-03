@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { V3Shell } from "@/features/v3-shell/v3-shell";
+import { KeybindManager } from "@/features/settings/keybind-manager";
 import { isTauri } from "@/lib/tauri";
 import { useAuth } from "@/stores/auth";
 import { usePresence } from "@/stores/presence";
@@ -31,5 +32,5 @@ export default function App() {
     return () => { disposed = true; };
   }, []);
 
-  return <TooltipProvider delayDuration={300}><V3Shell /><Toaster position="bottom-right" /></TooltipProvider>;
+  return <TooltipProvider delayDuration={300}><KeybindManager /><V3Shell /><Toaster position="top-center" /></TooltipProvider>;
 }

@@ -2188,3 +2188,167 @@ body {
 .message-template__avatar-photo > .message-template__fallback { display: grid; place-items: center; }
 .message-template__avatar > .message-template__decoration { position: absolute; z-index: 3; top: 50%; left: 50%; width: 115%; height: 115%; max-width: none; object-fit: contain; object-position: center; transform: translate(-50%, -50%); transform-origin: 50% 50%; }
 .message-template__avatar::before { z-index: 4; }
+
+/* Voice participants remain visible even while profile data is still loading. */
+.voice-call-button__avatar-fallback {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  color: rgba(255,255,255,.92);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  background: rgba(20,20,20,.72);
+  box-shadow: 0 0 0 1px rgba(0,74,30,.78);
+}
+.voice-call-button__avatar-fallback + .voice-call-button__avatar-fallback,
+.voice-call-button__avatar-fallback + img,
+.voice-call-button__avatars img + .voice-call-button__avatar-fallback { margin-left: -6px; }
+
+/* Sharing is unmistakable: green while active, red only when the button means stop. */
+.streaming-button.is-streaming {
+  color: #f5fff9;
+  background: #00b339;
+  box-shadow: 0 0 0 1.25px rgba(0,74,30,.9);
+}
+.streaming-button.is-streaming:hover {
+  color: #fff;
+  background: #ff3333;
+  box-shadow: 0 0 0 1.25px rgba(100,15,15,.9);
+}
+/* Initial app boot never exposes the imported V3 mock shell. */
+.v3-loading-stage {
+  min-height: 100vh;
+  place-items: center;
+}
+.v3-loading-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: rgba(224,224,224,.62);
+  font-size: 13px;
+  font-weight: 500;
+}
+.v3-loading-indicator svg {
+  width: 18px;
+  height: 18px;
+  animation: v3-loading-spin .75s linear infinite;
+}
+@keyframes v3-loading-spin { to { transform: rotate(360deg); } }
+/* V3 settings: one calm, solid surface with a persistent profile-save affordance. */
+.v3-settings-dialog { color: rgba(245,245,245,.94); background: #1e1e1e !important; box-shadow: 0 18px 60px rgba(0,0,0,.62), 0 0 0 1.25px rgba(0,0,0,.82) !important; }
+.v3-settings-dialog::before { position:absolute; inset:0; z-index:0; padding:1.25px; border-radius:inherit; pointer-events:none; content:""; background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,.04) 28%,transparent 55%); -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask-composite:xor; mask-composite:exclude; }
+.v3-settings-dialog > * { position: relative; z-index: 1; }
+.v3-settings-sidebar { background: #191919 !important; }
+.v3-settings-sidebar [role="tab"] { min-height:40px; border-radius:14px; color:rgba(225,225,225,.64); transition:color 150ms ease,background 150ms ease,box-shadow 150ms ease; }
+.v3-settings-sidebar [role="tab"]:hover { color:rgba(255,255,255,.94); background:rgba(255,255,255,.06); }
+.v3-settings-sidebar [role="tab"][data-state="active"] { color:#fff; background:#2a2a2a; box-shadow:0 0 0 1.25px rgba(0,0,0,.78),inset 0 1px rgba(255,255,255,.13); }
+.v3-settings-content { background:#1e1e1e; }
+.v3-settings-content [role="tabpanel"] { scrollbar-color:rgba(255,255,255,.22) transparent; }
+.v3-settings-content .bg-card,.v3-settings-content .surface-panel,.v3-settings-content .bg-muted\/20,.v3-settings-content .bg-muted\/35 { background:#252525 !important; }
+.v3-settings-content .border-white\/\[0\.14\],.v3-settings-content .border-white\/\[0\.13\],.v3-settings-content .border-white\/\[0\.11\] { border-color:rgba(0,0,0,.78) !important; box-shadow:inset 0 1px rgba(255,255,255,.10); }
+.v3-settings-content input,.v3-settings-content select { background:#1a1a1a !important; border-color:rgba(0,0,0,.82) !important; box-shadow:inset 0 1px rgba(255,255,255,.07); }
+.v3-settings-content [role="switch"] { box-shadow:0 0 0 1px rgba(0,0,0,.75),inset 0 1px rgba(255,255,255,.10); }
+.v3-settings-save { min-height:40px; border-radius:14px; color:#fff; background:#00b339 !important; box-shadow:0 0 0 1.25px rgba(0,66,27,.9),inset 0 1px rgba(255,255,255,.22); }
+.v3-settings-save:hover { background:#00c442 !important; }
+
+/* Shared V3 notification treatment: top-alert motion, Sonner's existing actions. */
+[data-sonner-toaster][data-x-position="center"] { top:18px !important; left:50% !important; transform:translateX(-50%); }
+[data-sonner-toaster] [data-sonner-toast].cn-toast { min-width:0; max-width:min(460px,calc(100vw - 32px)); border:0 !important; border-radius:18px !important; color:rgba(245,245,245,.94) !important; background:#252525 !important; box-shadow:0 0 0 1.25px rgba(0,0,0,.82),inset 0 1px rgba(255,255,255,.14),0 10px 30px rgba(0,0,0,.45) !important; animation:v3-toast-enter 460ms cubic-bezier(.22,.72,.3,1) both; }
+[data-sonner-toaster] [data-sonner-toast].cn-toast [data-button] { border-radius:11px; color:#fff; background:#303030; box-shadow:inset 0 1px rgba(255,255,255,.12); }
+[data-sonner-toaster] [data-sonner-toast].cn-toast [data-button]:hover { background:#3a3a3a; }
+@keyframes v3-toast-enter { 0% { opacity:0; transform:translateY(-56px) scale(.72); } 64% { opacity:1; transform:translateY(8px) scale(1.015); } 100% { opacity:1; transform:translateY(0) scale(1); } }
+/* Settings correction: explicit V3 close control and a real sticky account action bar. */
+.v3-settings-dialog > *:not([data-slot="dialog-close"]) { position: relative; z-index: 1; }
+.v3-settings-close { position:absolute !important; z-index:20 !important; top:14px !important; right:14px !important; display:grid; width:34px; height:34px; place-items:center; padding:0; border:0; border-radius:50%; color:rgba(235,235,235,.72); background:#252525; box-shadow:0 0 0 1.25px rgba(0,0,0,.82),inset 0 1px rgba(255,255,255,.13); cursor:pointer; }
+.v3-settings-close:hover { color:#fff; background:#343434; }
+.v3-settings-close svg { width:17px; height:17px; }
+.v3-settings-content [role="tabpanel"] > section > form { padding:16px; border-radius:18px; background:#252525; box-shadow:0 0 0 1.25px rgba(0,0,0,.78),inset 0 1px rgba(255,255,255,.10); }
+.v3-settings-content button:not([role="switch"]) { border-color:rgba(0,0,0,.78); background:#2a2a2a; box-shadow:0 0 0 1px rgba(0,0,0,.52),inset 0 1px rgba(255,255,255,.10); }
+.v3-settings-content button:not([role="switch"]):hover { background:#343434; }
+.v3-settings-content .v3-settings-preview-save { color:#fff; background:#00b339 !important; box-shadow:0 0 0 1.25px rgba(0,66,27,.9),inset 0 1px rgba(255,255,255,.22); }
+.v3-settings-content .v3-settings-preview-save:hover { background:#00c442 !important; }
+.v3-settings-content .sticky.top-0 { padding-top:18px; background:#252525 !important; box-shadow:0 0 0 1.25px rgba(0,0,0,.78),inset 0 1px rgba(255,255,255,.12),0 12px 24px rgba(0,0,0,.32) !important; }
+/* Fast local controls belong in their matching audio dropdown. */
+.deafen-dropdown {
+  width: 232px;
+}
+.deafen-volume {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 1px 10px 10px;
+  padding: 8px 9px;
+  border-top: 1px solid rgba(255,255,255,.10);
+  color: rgba(220,220,220,.72);
+}
+.deafen-volume > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.deafen-volume__body {
+  min-width: 0;
+  flex: 1;
+}
+.deafen-volume__body > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  color: rgba(230,230,230,.72);
+  font-size: 10px;
+}
+.deafen-volume output {
+  color: rgba(230,230,230,.58);
+  font-variant-numeric: tabular-nums;
+}
+.deafen-volume input {
+  display: block;
+  width: 100%;
+  margin: 0;
+  accent-color: #d9d9d9;
+}
+/* Audio pickers keep quick level controls visible and constrain only the long device list. */
+.microphone-dropdown,
+.deafen-dropdown {
+  display: flex;
+  max-height: min(430px, calc(100vh - 94px));
+  flex-direction: column;
+  overflow: hidden;
+}
+.microphone-dropdown { width: 232px; }
+.audio-device-menu {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+}
+.audio-device-menu__list {
+  min-height: 0;
+  max-height: 270px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 3px;
+}
+.audio-device-menu__list::-webkit-scrollbar { width: 5px; }
+.audio-device-menu__list::-webkit-scrollbar-thumb { border-radius: 99px; background: rgba(255,255,255,.18); }
+.audio-device-menu__list button,
+.audio-device-menu__list small {
+  display: block;
+  width: 100%;
+}
+.deafen-volume {
+  order: -1;
+  flex: none;
+  margin: 0 10px;
+  padding: 10px 0 8px;
+  border-top: 0;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}

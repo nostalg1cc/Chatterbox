@@ -906,3 +906,31 @@ npx tsc --noEmit      # typecheck
 - [x] Promoted the V3 shell from local experiment to the active production application shell while retaining native signed-update checks and toast delivery.
 - [x] Finalized V3 chat switching, pagination, cached media/remembered media volume, voice controls, soundboard listening volume/favourites, routed interface cues, presence, rich content, and corrected message-decoration layering.
 - [x] Bumped all desktop package identities to v0.1.31 and verified TypeScript, production web build, and native Cargo check.
+
+# Current work (2026-08-02)
+
+- V3 voice control now resolves and renders both voice participants (including an initial fallback while a partner profile loads); active screen share is green and changes to red on hover to signal Stop.
+### Phase 137 - V3 hotkey restoration (August 2)
+- [x] Re-mounted the shared `KeybindManager` in the V3 application root. Standard app hotkeys work again, and the existing Tauri global mute/deafen registration now runs whenever “Allow global” is enabled in Voice & Video settings.- [x] Fixed V3 completed-call markers: durations now format as m:ss or h:mm:ss and use the clean Call lasted label.
+### Phase 138 - V3 intentional boot state (August 3)
+- [x] Replaced the initial V3 mock-shell flash with a quiet loading state. The app now waits for conversations and the selected conversation's first message page before rendering the real chat UI.
+### Phase 139 - V3 settings and notification treatment (August 3)
+- [x] Restyled the existing complete preferences surface as a V3 material dialog, keeping all account, chat, voice, keybind, soundboard, and updater features intact while exposing a persistent profile-save action beside the tabs.
+- [x] Moved all Sonner notifications to the V3 top-alert position and applied the test project's springy top-entry material treatment without losing actionable notification controls.
+### Phase 140 - V3 settings structural correction (August 3)
+- [x] Replaced the inherited dialog close button with an explicit V3 top-right control, removed the buried duplicate account save, and added a sticky Save action beside the live account preview.
+- [x] Extended V3 material treatment to account forms and setting controls rather than relying only on the outer dialog skin.
+### Phase 141 - Voice leave responsiveness and safe partner boost (August 3)
+- [x] Changed local voice teardown to be local-first: media, peer state, and the UI now clear immediately, while Realtime untracking and the authenticated `leave_voice_room` RPC finish best-effort in the background. This prevents a slow or failed network cleanup from trapping the user in a leaving call.
+- [x] Verified native noise suppression is the active implementation: it is passed directly to the WebRTC microphone constraint, while echo cancellation and automatic gain remain explicitly disabled. RNNoise remains correctly unavailable rather than pretending to process audio.
+- [x] Added a persistent, listener-only Partner voice boost setting (100–200%). At 100% the established direct remote-audio path is unchanged; above 100%, a separate local Web Audio gain node boosts only incoming voice and safely falls back to direct audio if the optional graph cannot start.
+- [x] Verified TypeScript and the production web build after the changes.
+
+- [x] Added the same persistent Partner voice boost slider to the V3 deafen/output-device dropdown for quick in-call adjustment; it shares the 100–200% local-only preference with Voice & Video settings.
+- [x] Reworked V3 microphone and output dropdowns so the local input/partner-boost sliders stay pinned at the top and only the device list scrolls within a bounded viewport.
+
+### Phase 142 - Nitro v0.1.32 voice reliability release (August 3)
+- [x] Made leaving voice local-first, keeping slow Realtime/server cleanup from delaying the user-facing leave action.
+- [x] Added native-suppression clarity plus a safe local-only 100–200% partner voice boost, accessible from both Voice & Video settings and the in-call output dropdown.
+- [x] Bounded V3 microphone/output device pickers with persistent top-level sliders and scrollable device lists.
+- [x] Built the signed NSIS installer, MSI installer, and updater signatures for v0.1.32.

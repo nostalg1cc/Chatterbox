@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogClose,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -148,8 +149,8 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
     const timer = window.setInterval(() => void refresh(), 65_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [open]);
-  const save = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const save = async (event?: React.FormEvent) => {
+    event?.preventDefault();
     const name = displayName.trim();
     if (!name) return;
     setSaving(true);
@@ -336,11 +337,16 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
         <TooltipContent>Settings</TooltipContent>
       </Tooltip>}
 
-      <DialogContent overlayClassName="bg-black/70 supports-backdrop-filter:backdrop-blur-none" className="surface-panel flex h-[calc(100vh-48px)] max-h-[760px] min-h-0 flex-col overflow-hidden rounded-[14px] border-white/[0.18] bg-[#202020] p-0 shadow-2xl sm:max-w-[940px]">
+      <DialogContent showCloseButton={false} overlayClassName="bg-black/70 supports-backdrop-filter:backdrop-blur-none" className="v3-settings-dialog surface-panel flex h-[calc(100vh-32px)] max-h-[780px] min-h-0 flex-col overflow-hidden rounded-[22px] border-white/[0.18] bg-[#1e1e1e] p-0 shadow-2xl sm:max-w-[980px]">
         <DialogHeader className="sr-only">
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>Profile, chat, and voice preferences.</DialogDescription>
         </DialogHeader>
+        <DialogClose asChild>
+          <button type="button" className="v3-settings-close" aria-label="Close settings">
+            <XIcon aria-hidden="true" />
+          </button>
+        </DialogClose>
 
         <Tabs
           value={tab}
@@ -348,7 +354,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
           orientation="vertical"
           className="flex h-full min-h-0 flex-1 flex-row gap-0"
         >
-          <aside className="flex w-56 shrink-0 flex-col border-r border-white/[0.13] bg-white/[0.025] p-4">
+          <aside className="v3-settings-sidebar flex w-60 shrink-0 flex-col border-r border-white/[0.13] bg-white/[0.025] p-4">
             <p className="px-2 pb-2 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
               User settings
             </p>
@@ -376,7 +382,18 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
               </SettingsTab>
             </TabsList>
 
-            <div className="mt-auto">
+            <div className="mt-auto space-y-2">
+              {profileChanged && (
+                <Button
+                  type="button"
+                  className="v3-settings-save w-full"
+                  disabled={saving || !displayName.trim()}
+                  onClick={() => void save()}
+                >
+                  {saving && <Loader2Icon className="animate-spin" />}
+                  Save profile
+                </Button>
+              )}
               <Separator className="mb-2" />
               <Button
                 variant="ghost"
@@ -395,7 +412,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
             </div>
           </aside>
 
-          <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="v3-settings-content flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
             <TabsContent value="general" className="mt-0 hidden min-h-0 flex-1 overflow-y-auto p-6 pr-8 data-[state=active]:block">
               <section className="space-y-5">
                 <div>
@@ -427,16 +444,16 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
                     className="hidden"
                     onChange={(event) => void uploadAvatar(event.target.files?.[0])}
                   />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={avatarBusy}
-                    onClick={() => avatarInput.current?.click()}
-                  >
-                    {avatarBusy ? <Loader2Icon className="animate-spin" /> : <CameraIcon />}
-                    Change
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button type="button" className="v3-settings-preview-save" disabled={saving || !displayName.trim() || !profileChanged} onClick={() => void save()}>
+                      {saving && <Loader2Icon className="animate-spin" />}
+                      Save
+                    </Button>
+                    <Button type="button" variant="secondary" size="sm" disabled={avatarBusy} onClick={() => avatarInput.current?.click()}>
+                      {avatarBusy ? <Loader2Icon className="animate-spin" /> : <CameraIcon />}
+                      Change
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="rounded-xl border border-white/[0.14] bg-card">
@@ -565,15 +582,6 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
                       <Input id="settings-email" value={email ?? ""} disabled />
                     </div>
                   </div>
-
-                  <Button
-                    type="submit"
-                    variant="secondary"
-                    disabled={saving || !displayName.trim() || !profileChanged}
-                  >
-                    {saving && <Loader2Icon className="animate-spin" />}
-                    Save changes
-                  </Button>
                 </form>
               </section>
             </TabsContent>
@@ -697,6 +705,16 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
                     value={preferences.outputVolume}
                     onChange={(value) => preferences.setPreference("outputVolume", value)}
                   />
+                  <VolumeSetting
+                    label="Partner voice boost"
+                    value={preferences.partnerVoiceBoost}
+                    min={100}
+                    max={200}
+                    onChange={(value) => preferences.setPreference("partnerVoiceBoost", value)}
+                  />
+                  <p className="-mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    Local only. 100% is neutral; up to 200% boosts incoming voice without changing what your partner hears.
+                  </p>
                   <div className="flex items-center justify-between rounded-md border border-white/[0.11] bg-muted/20 px-3 py-2">
                     <div>
                       <p className="text-xs font-medium">Output test</p>
@@ -738,7 +756,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
                   </div>
                 </div>
                 <p className="rounded-lg border border-dashed border-white/[0.13] px-3 py-2 text-xs text-muted-foreground">
-                  Microphone permission is requested only when you join voice. This volume affects only what you hear; each partner selects their own level. Device names
+                  Microphone permission is requested only when you join voice. Native suppression uses WebRTC's microphone constraint; echo cancellation and automatic gain stay off. Device names
                   appear after the first join; unsupported output routing uses Windows default.
                 </p>
               </section>
@@ -1162,11 +1180,13 @@ function DeviceSelect({
 function VolumeSetting({
   label,
   value,
+  min = 0,
   max = 100,
   onChange,
 }: {
   label: string;
   value: number;
+  min?: number;
   max?: number;
   onChange: (value: number) => void;
 }) {
@@ -1178,7 +1198,7 @@ function VolumeSetting({
       </div>
       <input
         type="range"
-        min={0}
+        min={min}
         max={max}
         value={value}
         aria-label={label}

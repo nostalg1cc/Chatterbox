@@ -13,6 +13,19 @@ type SinkCapableAudio = HTMLAudioElement & {
   setSinkId?: (sinkId: string) => Promise<void>;
 };
 
+interface RemoteAudioProcessor {
+  sourceStream: MediaStream;
+  context: AudioContext;
+  source: MediaStreamAudioSourceNode;
+  gain: GainNode;
+  destination: MediaStreamAudioDestinationNode;
+}
+
+// Keep remote processing separate from the sender's microphone pipeline. A
+// listener can safely boost their partner without changing the call's outgoing
+// stream or the partner's local volume.
+const remoteAudioProcessors = new WeakMap<HTMLAudioElement, RemoteAudioProcessor>();
+
 function audioConstraints(deviceId: string, noiseSuppression: boolean): MediaTrackConstraints {
   return {
     deviceId: deviceId === "default" ? undefined : { exact: deviceId },
@@ -177,14 +190,42 @@ export async function configureRemoteAudio(
     outputVolume,
     outputDeviceId,
     deafened,
+    partnerVoiceBoost = 100,
   }: {
     stream?: MediaStream;
     outputVolume: number;
     outputDeviceId: string;
     deafened: boolean;
+    partnerVoiceBoost?: number;
   }
 ): Promise<void> {
-  if (stream) element.srcObject = stream;
+  const existingProcessor = remoteAudioProcessors.get(element);
+  const sourceStream =
+    stream ??
+    existingProcessor?.sourceStream ??
+    (element.srcObject instanceof MediaStream ? element.srcObject : undefined);
+  const boost = Math.max(100, Math.min(200, partnerVoiceBoost));
+
+  if (sourceStream && boost > 100) {
+    try {
+      const processor = await ensureRemoteAudioProcessor(element, sourceStream);
+      processor.gain.gain.setTargetAtTime(
+        boost / 100,
+        processor.context.currentTime,
+        0.015
+      );
+      element.srcObject = processor.destination.stream;
+    } catch (error) {
+      // Remote playback must never depend on the optional boost graph. Falling
+      // back to the original stream preserves the known-good voice path.
+      console.warn("Partner voice boost is unavailable; using direct audio.", error);
+      await disposeRemoteAudioProcessor(element);
+      element.srcObject = sourceStream;
+    }
+  } else {
+    await disposeRemoteAudioProcessor(element);
+    if (sourceStream) element.srcObject = sourceStream;
+  }
   await configureMediaOutput(element, { volume: outputVolume, outputDeviceId, muted: deafened });
 
   if (element.srcObject && !deafened) {
@@ -198,8 +239,48 @@ export async function configureRemoteAudio(
 
 export async function disposeRemoteAudio(element: HTMLAudioElement): Promise<void> {
   element.pause();
+  await disposeRemoteAudioProcessor(element);
   element.srcObject = null;
   element.remove();
+}
+
+async function ensureRemoteAudioProcessor(
+  element: HTMLAudioElement,
+  stream: MediaStream
+): Promise<RemoteAudioProcessor> {
+  const existing = remoteAudioProcessors.get(element);
+  if (existing?.sourceStream === stream) return existing;
+  await disposeRemoteAudioProcessor(element);
+
+  const context = new AudioContext({ latencyHint: "interactive" });
+  await context.resume();
+  if (context.state !== "running") {
+    await context.close().catch(() => undefined);
+    throw new Error("Audio processing could not start.");
+  }
+
+  try {
+    const source = context.createMediaStreamSource(stream);
+    const gain = context.createGain();
+    const destination = context.createMediaStreamDestination();
+    source.connect(gain);
+    gain.connect(destination);
+    const processor = { sourceStream: stream, context, source, gain, destination };
+    remoteAudioProcessors.set(element, processor);
+    return processor;
+  } catch (error) {
+    await context.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+async function disposeRemoteAudioProcessor(element: HTMLAudioElement): Promise<void> {
+  const processor = remoteAudioProcessors.get(element);
+  if (!processor) return;
+  remoteAudioProcessors.delete(element);
+  processor.source.disconnect();
+  processor.gain.disconnect();
+  await processor.context.close().catch(() => undefined);
 }
 function armPlaybackRetry(element: HTMLAudioElement): void {
   const retry = () => {

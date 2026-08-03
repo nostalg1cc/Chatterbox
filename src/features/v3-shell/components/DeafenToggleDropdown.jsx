@@ -1,5 +1,66 @@
-import { ChevronDown, HeadphoneOff, Headphones } from "lucide-react";
+import { ChevronDown, HeadphoneOff, Headphones, Volume2 } from "lucide-react";
+import { usePreferences } from "@/stores/preferences";
 import { AudioDeviceMenu } from "./AudioDeviceMenu";
 import { useUiSounds } from "../hooks/useUiSounds";
-const MENU_ACTION_WIDTH=22;
-export function DeafenToggleDropdown({isDeafened,onToggle,isMenuOpen,onMenuOpenChange}) { const sounds=useUiSounds(); const Icon=isDeafened?HeadphoneOff:Headphones; return <div className="audio-control"><button type="button" aria-label={isDeafened?"Enable audio":"Deafen audio"} aria-pressed={isDeafened} aria-haspopup="menu" aria-expanded={isMenuOpen} className={`icon-button microphone-button${isDeafened?" is-muted":""}`} onClick={(event)=>{const rect=event.currentTarget.getBoundingClientRect(); if(event.clientX>=rect.right-MENU_ACTION_WIDTH) onMenuOpenChange(!isMenuOpen); else {onToggle?.(); onMenuOpenChange(false);}}} onPointerEnter={(event)=>event.pointerType==="mouse"&&sounds.hover()}><Icon/><ChevronDown className={isMenuOpen?"microphone-button__arrow is-open":"microphone-button__arrow"}/></button>{isMenuOpen&&<div className="audio-dropdown" role="menu"><span className="audio-dropdown__arrow"/><AudioDeviceMenu kind="output" open={isMenuOpen} onSelect={()=>onMenuOpenChange(false)}/></div>}</div>; }
+
+const MENU_ACTION_WIDTH = 22;
+
+export function DeafenToggleDropdown({
+  isDeafened,
+  onToggle,
+  isMenuOpen,
+  onMenuOpenChange,
+}) {
+  const sounds = useUiSounds();
+  const partnerVoiceBoost = usePreferences((state) => state.partnerVoiceBoost);
+  const setPreference = usePreferences((state) => state.setPreference);
+  const Icon = isDeafened ? HeadphoneOff : Headphones;
+
+  return (
+    <div className="audio-control">
+      <button
+        type="button"
+        aria-label={isDeafened ? "Enable audio" : "Deafen audio"}
+        aria-pressed={isDeafened}
+        aria-haspopup="menu"
+        aria-expanded={isMenuOpen}
+        className={`icon-button microphone-button${isDeafened ? " is-muted" : ""}`}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (event.clientX >= rect.right - MENU_ACTION_WIDTH) onMenuOpenChange(!isMenuOpen);
+          else {
+            onToggle?.();
+            onMenuOpenChange(false);
+          }
+        }}
+        onPointerEnter={(event) => event.pointerType === "mouse" && sounds.hover()}
+      >
+        <Icon />
+        <ChevronDown className={isMenuOpen ? "microphone-button__arrow is-open" : "microphone-button__arrow"} />
+      </button>
+      {isMenuOpen && (
+        <div className="audio-dropdown deafen-dropdown" role="menu">
+          <span className="audio-dropdown__arrow" />
+          <AudioDeviceMenu kind="output" open={isMenuOpen} onSelect={() => onMenuOpenChange(false)} />
+          <div className="deafen-volume">
+            <Volume2 aria-hidden="true" />
+            <div className="deafen-volume__body">
+              <div>
+                <span>Partner voice boost</span>
+                <output>{partnerVoiceBoost}%</output>
+              </div>
+              <input
+                type="range"
+                min={100}
+                max={200}
+                value={partnerVoiceBoost}
+                aria-label="Partner voice boost"
+                onChange={(event) => setPreference("partnerVoiceBoost", Number(event.target.value))}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
