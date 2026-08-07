@@ -725,8 +725,13 @@ async function connectRoomChannel(
 }
 
 function scheduleSignalingRecovery(room: VoiceRoom, sessionId: string): void {
-  if (signalingRecoveryTimer || signalingRecoveryAttempts >= 3) return;
-  const delay = Math.min(8_000, 1_000 * 2 ** signalingRecoveryAttempts);
+  if (signalingRecoveryTimer) return;
+  // Keep retrying the signaling channel for as long as the call is still
+  // wanted (conditions are re-checked below on every attempt). A network
+  // blip that also drops the Realtime socket must not leave the call stuck
+  // in "reconnecting" forever with no further attempts and no way out short
+  // of leaving and rejoining.
+  const delay = Math.min(8_000, 1_000 * 2 ** Math.min(signalingRecoveryAttempts, 10));
   signalingRecoveryTimer = setTimeout(() => {
     signalingRecoveryTimer = null;
     const state = useVoice.getState();

@@ -26,6 +26,27 @@ interface RemoteAudioProcessor {
 // stream or the partner's local volume.
 const remoteAudioProcessors = new WeakMap<HTMLAudioElement, RemoteAudioProcessor>();
 
+// A slider drag fires many rapid preference updates, each triggering an async
+// configure/dispose call for the same element. Without serialising them, two
+// in-flight calls can both see no processor yet, each create their own
+// AudioContext, and race to set element.srcObject last — the audible
+// break/mute. Chaining every call for an element through one queue makes them
+// run one at a time so each sees the previous call's finished state.
+const remoteAudioQueues = new WeakMap<HTMLAudioElement, Promise<void>>();
+
+function queueRemoteAudioTask(
+  element: HTMLAudioElement,
+  task: () => Promise<void>
+): Promise<void> {
+  const previous = remoteAudioQueues.get(element) ?? Promise.resolve();
+  const next = previous.then(task, task);
+  remoteAudioQueues.set(
+    element,
+    next.catch(() => undefined)
+  );
+  return next;
+}
+
 function audioConstraints(deviceId: string, noiseSuppression: boolean): MediaTrackConstraints {
   return {
     deviceId: deviceId === "default" ? undefined : { exact: deviceId },
@@ -183,7 +204,20 @@ export async function configureMediaOutput(
     }
   }
 }
-export async function configureRemoteAudio(
+export function configureRemoteAudio(
+  element: HTMLAudioElement,
+  options: {
+    stream?: MediaStream;
+    outputVolume: number;
+    outputDeviceId: string;
+    deafened: boolean;
+    partnerVoiceBoost?: number;
+  }
+): Promise<void> {
+  return queueRemoteAudioTask(element, () => applyRemoteAudioConfig(element, options));
+}
+
+async function applyRemoteAudioConfig(
   element: HTMLAudioElement,
   {
     stream,
@@ -237,11 +271,13 @@ export async function configureRemoteAudio(
   }
 }
 
-export async function disposeRemoteAudio(element: HTMLAudioElement): Promise<void> {
-  element.pause();
-  await disposeRemoteAudioProcessor(element);
-  element.srcObject = null;
-  element.remove();
+export function disposeRemoteAudio(element: HTMLAudioElement): Promise<void> {
+  return queueRemoteAudioTask(element, async () => {
+    element.pause();
+    await disposeRemoteAudioProcessor(element);
+    element.srcObject = null;
+    element.remove();
+  });
 }
 
 async function ensureRemoteAudioProcessor(

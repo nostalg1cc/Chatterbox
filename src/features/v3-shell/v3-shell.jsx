@@ -152,6 +152,7 @@ export function V3Shell() {
   const partnerPresence = usePresenceStatus(partnerId);
   const typingUserId = useChat((state) => activeId ? state.typing[activeId] : null);
   const replyTo = useChat((state) => state.replyTo);
+  const replyTargets = useChat((state) => state.replyTargets);
   const voiceRooms = useVoice((state) => state.rooms);
   const voiceParticipantsByConversation = useVoice((state) => state.participants);
   const activeVoiceId = useVoice((state) => state.activeConversationId);
@@ -211,6 +212,9 @@ export function V3Shell() {
       lastVoiceHealthRef.current = voiceStatus;
     } else lastVoiceHealthRef.current = null;
   }, [voiceStatus]);
+  useEffect(() => {
+    if (replyTo) document.getElementById("message-composer")?.focus();
+  }, [replyTo]);
   const dismissAlert = useCallback((id) => {
     setActiveAlert((currentAlert) => (currentAlert?.id === id ? null : currentAlert));
   }, []);
@@ -245,6 +249,7 @@ export function V3Shell() {
       setIsSelfTyping(false);
       if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
       uiSounds.click();
+      document.getElementById("message-composer")?.focus();
     } else if (pendingMedia) {
       setMediaStage("ready");
     }
@@ -381,6 +386,15 @@ export function V3Shell() {
             const marker = systemLabel(message);
             const dateChanged = !previous || new Date(previous.created_at).toDateString() !== new Date(message.created_at).toDateString();
             if (marker) return <HistoryMarker key={message.id}>{marker}</HistoryMarker>;
+            const replyTarget = message.reply_to_message_id ? replyTargets[message.reply_to_message_id] : null;
+            const replyTargetProfile = replyTarget ? (replyTarget.sender_id === userId ? selfProfile : partnerProfile) : null;
+            const replyPreview = message.reply_to_message_id ? {
+              target: replyTarget ?? null,
+              authorName: replyTarget ? displayName(replyTargetProfile, "Message") : null,
+              authorAvatar: replyTarget ? avatarUrl(replyTargetProfile) : null,
+              authorNameColor: replyTargetProfile?.name_color,
+              onJump: replyTarget ? () => document.getElementById("message-" + replyTarget.id)?.scrollIntoView({ behavior: "smooth", block: "center" }) : null,
+            } : null;
             return (
               <div key={message.id}>
                 {dateChanged && <HistoryMarker>{dayLabel(message.created_at)}</HistoryMarker>}
@@ -400,6 +414,7 @@ export function V3Shell() {
                   isEdited={Boolean(message.edited_at)}
                   timestamp={messageTimestamp(message.created_at)}
                   sourceMessage={message}
+                  replyPreview={replyPreview}
                   decorationActive={decorationGroups.autoplay.has(message.id) || hoveredDecorationHeaderId === decorationGroups.headers.get(message.id)}
                   onDecorationHoverChange={(hovered) => setHoveredDecorationHeaderId(hovered ? decorationGroups.headers.get(message.id) : null)}
                 />

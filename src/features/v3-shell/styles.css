@@ -1123,7 +1123,7 @@ body {
   display: grid;
   width: 480px;
   max-width: calc(100vw - 32px);
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 38px minmax(0, 1fr);
   align-items: start;
   gap: 10px;
   color: #d9d9d9;
@@ -1133,8 +1133,8 @@ body {
 .message-template__avatar {
   position: relative;
   display: block;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   overflow: hidden;
   border-radius: 50%;
   background: rgba(12, 12, 12, 0.3);
@@ -1187,7 +1187,7 @@ body {
 }
 
 .message-template__name {
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
   opacity: 0.9;
   text-shadow: 0 2px 2px rgba(0, 0, 0, 0.35);
@@ -1204,7 +1204,7 @@ body {
 .message-template__body {
   margin: 5px 0 0;
   color: rgba(247, 246, 242, 0.9);
-  font-size: 15px;
+  font-size: 15.5px;
   overflow-wrap: anywhere;
   word-break: break-word;
   font-weight: 400;
@@ -1212,6 +1212,119 @@ body {
   text-shadow: 0 2px 2px rgba(0, 0, 0, 0.35);
   transform-origin: left top;
   animation: message-copy-in 360ms cubic-bezier(0.22, 0.78, 0.3, 1) 215ms both;
+}
+/* Reply reference row: no card/background, a small hook connects it down to
+   the avatar below it (Discord-style), so it reads as "part of" the message
+   underneath rather than a separate boxed element. */
+.message-template--has-reply .message-template__avatar,
+.message-template--has-reply .message-template__content {
+  grid-row: 2;
+}
+/* The self-message variant hardcodes grid-row: 1 on avatar/content at equal
+   specificity further down this file; this combined selector outranks it so
+   the reply row (row 1) never overlaps the avatar/message row (row 2) on own
+   messages, regardless of source order between the two rules. */
+.message-template--has-reply.message-template--self .message-template__avatar,
+.message-template--has-reply.message-template--self .message-template__content {
+  grid-row: 2;
+}
+.message-template__reply-row {
+  position: relative;
+  z-index: 1;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 3px 48px;
+  padding: 0;
+  border: 0;
+  color: rgba(217, 217, 217, 0.6);
+  font: inherit;
+  text-align: left;
+  background: none;
+  cursor: pointer;
+}
+.message-template--self .message-template__reply-row {
+  margin: 0 48px 3px auto;
+  flex-direction: row-reverse;
+}
+/* A dedicated grid item sharing the avatar's own column/row, instead of a
+   pseudo-element positioned off the reply row's fit-content box (which drifted
+   out of alignment whenever the row's own width changed). Anchoring to the
+   fixed-width avatar column guarantees the stub always lands centred on the
+   avatar below it, and "height: 100%; align-items: flex-end" guarantees its
+   tip always lands exactly on the row 1 / row 2 boundary. */
+.message-template__reply-hook {
+  display: flex;
+  grid-column: 1;
+  grid-row: 1;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  padding-bottom: 2px;
+}
+.message-template--self .message-template__reply-hook { grid-column: 2; }
+.message-template__reply-hook::before {
+  content: "";
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.22);
+}
+.message-template__reply-row:hover { color: #fff; }
+.message-template__reply-row:hover .message-template__reply-name { text-decoration: underline; }
+.message-template__reply-row--unavailable {
+  cursor: default;
+  font-style: italic;
+  color: rgba(217, 217, 217, 0.4);
+}
+.message-template__reply-row--unavailable::before { display: none; }
+.message-template__reply-icon { flex: none; width: 12px; height: 12px; color: rgba(235, 235, 235, 0.45); }
+.message-template__reply-avatar {
+  position: relative;
+  flex: none;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+.message-template__reply-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.message-template__reply-name { flex: none; font-size: 11.5px; font-weight: 600; }
+.message-template__reply-thumb {
+  position: relative;
+  flex: none;
+  display: block;
+  width: 18px;
+  height: 18px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #0f0f0f;
+}
+.message-template__reply-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.message-template__reply-thumb-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  color: #fff;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+  transform: translate(-50%, -50%);
+}
+.message-template__reply-copy {
+  overflow: hidden;
+  min-width: 0;
+  max-width: 280px;
+  color: rgba(217, 217, 217, 0.5);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .message-list {
   display: grid;
@@ -1392,6 +1505,22 @@ body {
   right: 30px;
 }
 
+/* Native window chrome (drag region, min/max/close) is Tauri-only; on web/PWA
+   WindowControls renders nothing, so free up the header instead of reserving
+   space for it. Also re-affirm centering and cap width so a wide control row
+   (mid-call, with soundboard/screenshare/mic/deafen visible) can't push past
+   a narrow viewport and read as shifted off to one side. */
+@media (max-width: 640px) {
+  .top-navigation-controls { display: none; }
+  .top-audio-controls {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 24px);
+    gap: 10px;
+  }
+}
+
 .bottom-composer {
   position: fixed;
   bottom: 30px;
@@ -1433,7 +1562,7 @@ body {
   justify-content: flex-end;
 }
 .message-template--self {
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr) 38px;
 }
 
 .message-template--self .message-template__avatar {
@@ -1669,7 +1798,7 @@ body {
 .audio-device-menu button { width:100%; padding:7px 8px; border:0; border-radius:9px; color:rgba(240,240,240,.86); font:inherit; font-size:12px; text-align:left; background:transparent; cursor:pointer; }
 .audio-device-menu button:hover, .audio-device-menu button.is-selected { background:rgba(255,255,255,.12); }
 .audio-device-menu small { padding:7px 8px; color:rgba(217,217,217,.55); font-size:11px; }
-.v3-message-actions { position:absolute; top:-8px; right:0; z-index:6; display:flex; align-items:center; gap:2px; padding:4px; border-radius:16px; opacity:0; pointer-events:none; background:#1e1e1e; box-shadow:0 0 0 1.25px rgba(0,0,0,.8),0 4px 10px rgba(0,0,0,.4); transition:opacity 130ms ease; }
+.v3-message-actions { position:absolute; top:-8px; right:0; left:auto; z-index:6; display:flex; align-items:center; gap:2px; padding:4px; border-radius:16px; opacity:0; pointer-events:none; background:#1e1e1e; box-shadow:0 0 0 1.25px rgba(0,0,0,.8),0 4px 10px rgba(0,0,0,.4); transition:opacity 130ms ease; }
 .message-template { position:relative; }
 .message-template:hover .v3-message-actions, .v3-message-actions:focus-within { opacity:1; pointer-events:auto; }
 .v3-message-actions > button { display:grid; width:25px; height:25px; place-items:center; padding:0; border:0; border-radius:50%; color:rgba(230,230,230,.8); background:transparent; cursor:pointer; }
@@ -1682,7 +1811,7 @@ body {
 .v3-reaction-chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
 .v3-reaction-chips button { padding:3px 6px; border-radius:9px; background:rgba(255,255,255,.08); font-size:12px; }
 .v3-reaction-chips button.is-mine { background:rgba(255,255,255,.16); }
-.message-template--self .v3-message-actions { right:46px; }
+.message-template--self .v3-message-actions { left:0; right:auto; }
 .v3-file-input { display:none; }
 .v3-pending-media { display:flex; align-items:center; gap:8px; align-self:flex-end; padding:6px 10px; border-radius:12px; color:rgba(235,235,235,.78); font-size:12px; background:#1e1e1e; box-shadow:0 0 0 1.25px rgba(0,0,0,.8); }
 .v3-pending-media button { padding:0; border:0; color:rgba(235,235,235,.65); font:inherit; background:transparent; cursor:pointer; text-decoration:underline; }
@@ -1705,10 +1834,13 @@ body {
 .voice-call-button.is-connected .voice-call-button__avatars { left: 31px; }
 .voice-call-button.is-connected .voice-call-button__time { left: 58px; right: 10px; }
 
-/* V3 interaction tray: the shared surface owns the material; action glyphs stay plain. */
+/* V3 interaction tray: the shared surface owns the material; action glyphs stay plain.
+   Anchored opposite the avatar (right on partner messages, left on your own)
+   so it never sits over the avatar and always hovers the message's open side. */
 .v3-message-actions {
   top: -10px;
   right: 0;
+  left: auto;
   gap: 1px;
   padding: 4px;
   overflow: visible;
@@ -1757,21 +1889,51 @@ body {
   gap: 4px;
 }
 .message-template--self .v3-reaction-chips { margin-left: auto; }
+/* The actual V3 button material: translucent dark fill + hairline ring +
+   a top-lit gradient edge (same recipe as .icon-button), not a flat card. */
 .v3-reaction-chips button {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 7px;
-  border: 1px solid rgba(255,255,255,.14);
+  gap: 5px;
+  padding: 4px 9px;
+  border: 0;
   border-radius: 999px;
+  overflow: hidden;
   color: rgba(245,245,245,.92);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.1;
-  background: rgba(255,255,255,.07);
-  transition: background 140ms ease, border-color 140ms ease;
+  background: rgba(12, 12, 12, 0.3);
+  box-shadow: 0 0 0 1.25px rgba(0, 0, 0, 0.8);
+  transition: box-shadow 180ms ease-in-out;
 }
-.v3-reaction-chips button:hover { background: rgba(255,255,255,.13); border-color: rgba(255,255,255,.24); }
-.v3-reaction-chips button.is-mine { border-color: rgba(0,179,57,.68); background: rgba(0,179,57,.18); }
+.v3-reaction-chips button::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.16) 45%,
+    rgba(255, 255, 255, 0.05) 72%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.v3-reaction-chips button > * { position: relative; z-index: 2; }
+.v3-reaction-chips button:hover {
+  box-shadow: 0 0 0 1.25px rgba(0, 0, 0, 0.8), 0 4px 10px rgba(0, 0, 0, 0.45);
+}
+.v3-reaction-chips button.is-mine {
+  background: rgba(0, 179, 57, 0.28);
+  box-shadow: 0 0 0 1.25px rgba(8, 78, 49, 0.92);
+}
 .message-template--grouped .v3-reaction-chips { margin-top: 4px; }
 
 /* V3 soundboard mirrors the complete V2 behavior inside the V3 menu geometry. */
@@ -2013,6 +2175,21 @@ body {
 }
 .message-template--self .v3-inline-editor { margin-left: auto; text-align: right; }
 .v3-inline-editor:focus { border-bottom-color: rgba(255,255,255,.55); }
+.v3-inline-editor-hint {
+  margin: 5px 0 0;
+  color: rgba(217, 217, 217, 0.48);
+  font-size: 11px;
+}
+.message-template--self .v3-inline-editor-hint { text-align: right; }
+.v3-inline-editor-hint kbd {
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: rgba(235, 235, 235, 0.75);
+  font: inherit;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
 
 .v3-pending-media > button {
   width: 28px;
