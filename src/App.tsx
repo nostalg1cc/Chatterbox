@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { V3Shell } from "@/features/v3-shell/v3-shell";
+import { AuthScreen } from "@/features/auth/auth-screen";
 import { KeybindManager } from "@/features/settings/keybind-manager";
 import { isTauri } from "@/lib/tauri";
 import { useAuth } from "@/stores/auth";
@@ -11,6 +12,7 @@ import { useVoice } from "@/stores/voice";
 
 export default function App() {
   const userId = useAuth((state) => state.userId);
+  const status = useAuth((state) => state.status);
 
   useEffect(() => { useAuth.getState().init(); }, []);
   useEffect(() => { if (!userId) return; return useVoice.getState().init(userId); }, [userId]);
@@ -32,5 +34,17 @@ export default function App() {
     return () => { disposed = true; };
   }, []);
 
-  return <TooltipProvider delayDuration={300}><KeybindManager /><V3Shell /><Toaster position="top-center" /></TooltipProvider>;
+  return (
+    <TooltipProvider delayDuration={300}>
+      <KeybindManager />
+      {status === "signedIn" ? (
+        <V3Shell />
+      ) : status === "signedOut" ? (
+        <AuthScreen />
+      ) : (
+        <div className="flex h-screen items-center justify-center bg-background" />
+      )}
+      <Toaster position="top-center" />
+    </TooltipProvider>
+  );
 }

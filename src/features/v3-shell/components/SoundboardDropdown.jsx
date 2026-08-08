@@ -8,8 +8,9 @@ import { useSoundboard } from "@/stores/soundboard";
 import { DropdownButton } from "./DropdownButton";
 
 function avatarUrl(profile) {
-  if (!profile?.avatar_path) return null;
-  const url = supabase.storage.from("avatars").getPublicUrl(profile.avatar_path).data.publicUrl;
+  const path = profile?.avatar_animated_path || profile?.avatar_path;
+  if (!path) return null;
+  const url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
   return profile.avatar_updated_at ? url + "?v=" + encodeURIComponent(profile.avatar_updated_at) : url;
 }
 

@@ -151,6 +151,7 @@ export const useChat = create<ChatState>()((set, get) => ({
     ]);
     if (convRes.error || overviewRes.error) {
       toast.error("Couldn't load conversations.");
+      set({ loaded: true });
       return;
     }
     const conversations = sortConversations((convRes.data ?? []) as Conversation[]);

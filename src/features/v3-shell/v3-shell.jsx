@@ -5,6 +5,7 @@ import { SettingsDialog } from "@/features/settings/settings-dialog";
 import { playAppSound } from "@/lib/app-sounds";
 import { decorationUrl } from "@/lib/avatar-decorations";
 import { supabase } from "@/lib/supabase";
+import { isTauri } from "@/lib/tauri";
 import { prepareChatMedia } from "@/lib/media";
 import { toast } from "sonner";
 import { useAuth } from "@/stores/auth";
@@ -57,7 +58,7 @@ function displayName(profile, fallback = "Unknown") {
 }
 
 function avatarUrl(profile) {
-  const path = profile?.avatar_path;
+  const path = profile?.avatar_animated_path || profile?.avatar_path;
   if (!path) return null;
   const url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
   return profile?.avatar_updated_at ? `${url}?v=${encodeURIComponent(profile.avatar_updated_at)}` : url;
@@ -457,8 +458,8 @@ export function V3Shell() {
         </div>}
         <div className="composer-row">
           <input ref={attachmentInputRef} className="v3-file-input" type="file" accept="image/*,video/*" onChange={(event) => { void prepareAttachment(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-          <ActionButton label="Attach media" icon={Paperclip} className="composer-attach-button" onClick={() => attachmentInputRef.current?.click()} />
-          <InputBar value={composerValue} onChange={handleComposerChange} onSubmit={() => void handleComposerSubmit()} onPaste={handleComposerPaste} />
+          {isTauri && <ActionButton label="Attach media" icon={Paperclip} className="composer-attach-button" onClick={() => attachmentInputRef.current?.click()} />}
+          <InputBar value={composerValue} onChange={handleComposerChange} onSubmit={() => void handleComposerSubmit()} onPaste={handleComposerPaste} onAttach={isTauri ? undefined : () => attachmentInputRef.current?.click()} />
         </div>
       </div>
       <div className="temporarily-hidden" aria-hidden="true">

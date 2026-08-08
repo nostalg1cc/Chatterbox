@@ -592,6 +592,29 @@ body {
   opacity: 1;
 }
 
+/* PWA-only: the attach button lives inside the composer pill instead of as a
+   separate button next to it (see composer-row in v3-shell.jsx). */
+.text-input-bar--with-attach { padding-left: 10px; }
+.text-input-bar__attach {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: rgba(217, 217, 217, 0.68);
+  background: transparent;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.text-input-bar__attach:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+.text-input-bar__attach svg { width: 16px; height: 16px; }
+
 .text-input-bar__label {
   position: absolute;
   width: 1px;
@@ -1513,6 +1536,10 @@ body {
 @media (max-width: 640px) {
   .top-navigation-controls { display: none; }
   .top-audio-controls {
+    /* env(safe-area-inset-top) reports the notch/status-bar height on iOS
+       (0 elsewhere), so this pushes the header below it without affecting
+       Android/desktop where the inset is 0 and the max(30px, ...) floor wins. */
+    top: max(30px, calc(env(safe-area-inset-top, 0px) + 14px));
     left: 50%;
     right: auto;
     transform: translateX(-50%);

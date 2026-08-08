@@ -11,8 +11,9 @@ function nameFor(profile) {
 }
 
 function avatarFor(profile) {
-  if (!profile?.avatar_path) return null;
-  const publicUrl = supabase.storage.from("avatars").getPublicUrl(profile.avatar_path).data.publicUrl;
+  const path = profile?.avatar_animated_path || profile?.avatar_path;
+  if (!path) return null;
+  const publicUrl = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
   return profile.avatar_updated_at ? `${publicUrl}?v=${encodeURIComponent(profile.avatar_updated_at)}` : publicUrl;
 }
 
