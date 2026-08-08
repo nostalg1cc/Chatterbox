@@ -473,6 +473,10 @@ async function prepareCloudinaryImage(file: File): Promise<PreparedMedia> {
     if (bitmap.width * bitmap.height > 25_000_000) {
       throw new Error("Images can be up to 25 megapixels.");
     }
+    // Cloudinary delivers a c_limit,w_1920 rendition; store those bounded
+    // dimensions (not the raw source size) or the messages_media_metadata_valid
+    // check constraint (media_width/height <= 1920) rejects the insert.
+    const dimensions = fitWithin(bitmap.width, bitmap.height, 1920, 1920);
     return {
       kind: "image",
       blob: file,
@@ -480,8 +484,8 @@ async function prepareCloudinaryImage(file: File): Promise<PreparedMedia> {
       uploadMimeType: file.type || "image/*",
       extension: "webp",
       provider: "cloudinary",
-      width: bitmap.width,
-      height: bitmap.height,
+      width: dimensions.width,
+      height: dimensions.height,
       durationSeconds: null,
       originalName: file.name,
     };
