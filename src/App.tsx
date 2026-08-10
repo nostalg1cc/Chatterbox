@@ -26,6 +26,12 @@ export default function App() {
         const update = await check();
         if (!update || disposed) return;
         await update.downloadAndInstall();
+        if (disposed) return;
+        // The NSIS installer just replaced the exe on disk - give the
+        // filesystem/AV a moment to release it before relaunching, or the
+        // new process can read a still-locked/partially-flushed binary and
+        // crash immediately (observed as a 0xc0000409 fail-fast on launch).
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
         if (!disposed) await invoke("restart_app");
       } catch (error) {
         console.warn("Automatic update failed", error);

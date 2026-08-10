@@ -267,6 +267,9 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
           setUpdateProgress(100);
         }
       });
+      // Give the filesystem/AV a moment to release the just-replaced exe
+      // before relaunching - see the matching comment in App.tsx.
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
       await invoke("restart_app");
     } catch (error) {
       setUpdateError(error instanceof Error ? error.message : "Unknown updater error.");
