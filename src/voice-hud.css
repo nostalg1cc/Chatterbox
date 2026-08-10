@@ -40,7 +40,10 @@ body,
   align-items: flex-start;
   justify-content: center;
   gap: 12px;
-  padding: 10px;
+  /* Extra left clearance so the speaking glow (which grows with intensity)
+     has room to render before hitting the window's own edge - the window
+     canvas ends at padding, it doesn't clip against the monitor. */
+  padding: 10px 10px 10px 24px;
 }
 
 .voice-hud__participant {
@@ -52,6 +55,7 @@ body,
 }
 
 .voice-hud__avatar {
+  --intensity: 0;
   position: relative;
   display: grid;
   width: 40px;
@@ -60,11 +64,16 @@ body,
   place-items: center;
   border-radius: 50%;
   background: rgba(12, 12, 12, 0.55);
-  box-shadow: 0 0 0 4px rgba(150, 150, 150, 0.45), 0 2px 8px rgba(0, 0, 0, 0.5);
-  transition: box-shadow 160ms ease;
+  box-shadow: 0 0 0 4px rgba(150, 150, 150, 0), 0 2px 8px rgba(0, 0, 0, 0.5);
+  transform: scale(1);
+  transition: box-shadow 120ms ease-out, transform 120ms ease-out;
 }
 .voice-hud__avatar.is-speaking {
-  box-shadow: 0 0 0 4px #00d084, 0 0 18px rgba(0, 208, 132, 0.65), 0 2px 8px rgba(0, 0, 0, 0.5);
+  box-shadow:
+    0 0 0 calc(4px + var(--intensity) * 2px) #00d084,
+    0 0 calc(14px + var(--intensity) * 8px) rgba(0, 208, 132, calc(0.5 + var(--intensity) * 0.4)),
+    0 2px 8px rgba(0, 0, 0, 0.5);
+  transform: scale(calc(1 + var(--intensity) * 0.08));
 }
 .voice-hud__avatar::before {
   position: absolute;

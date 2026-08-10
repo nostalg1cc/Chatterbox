@@ -15,6 +15,7 @@ export interface VoiceHudParticipant {
   nameFont: NameFont | null;
   nameWeight: NameWeight | null;
   speaking: boolean;
+  level: number;
 }
 
 const HUD_LABEL = "voice-hud";

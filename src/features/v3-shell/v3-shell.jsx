@@ -163,6 +163,7 @@ export function V3Shell() {
   const muted = useVoice((state) => state.muted);
   const deafened = useVoice((state) => state.deafened);
   const voiceSpeaking = useVoice((state) => state.speaking);
+  const voiceLevel = useVoice((state) => state.level);
   const sharingScreen = useVoice((state) => state.sharingScreen);
   const voiceHudScale = usePreferences((state) => state.voiceHudScale);
   const voiceHudShowNames = usePreferences((state) => state.voiceHudShowNames);
@@ -184,8 +185,9 @@ export function V3Shell() {
       nameFont: profile?.name_font ?? null,
       nameWeight: profile?.name_weight ?? null,
       speaking: Boolean(voiceSpeaking[participant.user_id]),
+      level: voiceLevel[participant.user_id] ?? 0,
     };
-  }), [voiceParticipants, userId, selfProfile, partnerProfile, voiceSpeaking]);
+  }), [voiceParticipants, userId, selfProfile, partnerProfile, voiceSpeaking, voiceLevel]);
   // Collapse a run of consecutive voice_started/voice_ended markers (no real
   // chat message between them) down to just the last one, as long as every
   // call in that run was under 10 minutes - short join/leave/reconnect

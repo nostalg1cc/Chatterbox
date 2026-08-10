@@ -984,6 +984,7 @@ function KeybindRow({
         setRecording(false);
         return;
       }
+      if (!event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) return;
       const binding = eventKeybind(event);
       if (!binding) return;
       onChange(binding);

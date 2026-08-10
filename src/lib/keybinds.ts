@@ -18,6 +18,7 @@ export function keybindLabel(binding: string): string {
     .join(" + ");
 }
 export function globalKeybind(binding: string): string | null {
+  if (!binding.includes("+")) return null;
   const converted = binding
     .replace(/Key([A-Z])/g, "$1")
     .replace(/Digit([0-9])/g, "$1")

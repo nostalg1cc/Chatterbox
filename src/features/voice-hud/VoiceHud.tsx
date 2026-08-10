@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { DecoratedText } from "@/components/decorated-text";
 import type { VoiceHudParticipant, VoiceHudUpdate } from "@/lib/voice-hud";
@@ -63,7 +63,10 @@ function ParticipantRow({
 }) {
   return (
     <div className="voice-hud__participant">
-      <span className={"voice-hud__avatar" + (participant.speaking ? " is-speaking" : "")}>
+      <span
+        className={"voice-hud__avatar" + (participant.speaking ? " is-speaking" : "")}
+        style={{ "--intensity": participant.speaking ? participant.level : 0 } as CSSProperties}
+      >
         <span className="voice-hud__avatar-photo">
           {participant.avatar ? (
             <img src={participant.avatar} alt="" />

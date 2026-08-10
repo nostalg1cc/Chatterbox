@@ -53,6 +53,7 @@ interface VoiceState {
   participants: Record<string, VoiceParticipant[]>;
   /** Per-user_id voice activity, for the in-call talking indicator/HUD. */
   speaking: Record<string, boolean>;
+  level: Record<string, number>;
   status: VoiceConnectionStatus;
   activeConversationId: string | null;
   sessionId: string | null;
@@ -77,7 +78,7 @@ const ICE_SERVERS: RTCIceServer[] = [
 ];
 const HEARTBEAT_MS = 45_000;
 const TURN_CREDENTIAL_TTL_SAFETY_MS = 10 * 60_000;
-const CHANNEL_TIMEOUT_MS = 12_000;
+const CHANNEL_TIMEOUT_MS = 15_000;
 
 let currentUserId: string | null = null;
 let discoveryChannel: RealtimeChannel | null = null;
@@ -123,6 +124,16 @@ function setSpeaking(userId: string, value: boolean): void {
   );
 }
 
+function setLevel(userId: string, value: number): void {
+  useVoice.setState((state) => {
+    const previous = state.level[userId] ?? 0;
+    // Round to avoid a state update (and downstream HUD emit) on every
+    // 50ms tick when the level barely moved.
+    if (Math.abs(previous - value) < 0.03 && value !== 0) return state;
+    return { level: { ...state.level, [userId]: value } };
+  });
+}
+
 // Prefer tapping the pipeline's own gain node in its own already-running
 // AudioContext (the exact signal actually being sent) over asking a second,
 // independent AudioContext to consume the same MediaStreamTrack.
@@ -132,7 +143,11 @@ function startLocalVoiceActivity(pipeline: MicrophonePipeline): VoiceActivityMon
   const source = pipeline.context && pipeline.gain
     ? { context: pipeline.context, node: pipeline.gain }
     : pipeline.outputStream;
-  return monitorVoiceActivity(source, (value) => setSpeaking(userId, value));
+  return monitorVoiceActivity(
+    source,
+    (value) => setSpeaking(userId, value),
+    (value) => setLevel(userId, value)
+  );
 }
 
 usePreferences.subscribe((state, previousState) => {
@@ -150,6 +165,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   rooms: {},
   participants: {},
   speaking: {},
+  level: {},
   status: "idle",
   activeConversationId: null,
   sessionId: null,
@@ -253,7 +269,12 @@ export const useVoice = create<VoiceState>()((set, get) => ({
       }));
 
       await refreshTurnCredentials();
-      await connectRoomChannel(room, sessionId);
+      try {
+        await connectRoomChannel(room, sessionId);
+      } catch (error) {
+        if (get().sessionId !== sessionId) throw error;
+        await connectRoomChannel(room, sessionId);
+      }
       playAppSound("voice_join");
     } catch (error) {
       const message =
@@ -1003,7 +1024,11 @@ function handleRemoteTrack(event: RTCTrackEvent): void {
       const conversationId = useVoice.getState().activeConversationId;
       const remoteUserId = conversationId ? voicePartnerId(conversationId) : null;
       if (remoteUserId) {
-        remoteVoiceActivity = monitorVoiceActivity(remoteAudioStream, (value) => setSpeaking(remoteUserId, value));
+        remoteVoiceActivity = monitorVoiceActivity(
+          remoteAudioStream,
+          (value) => setSpeaking(remoteUserId, value),
+          (value) => setLevel(remoteUserId, value)
+        );
       }
     }
     event.track.onended = () => {

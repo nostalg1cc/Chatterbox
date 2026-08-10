@@ -7,6 +7,14 @@ const SPEAKING_THRESHOLD = 0.02;
 // between words don't flicker the indicator off and on.
 const SPEAKING_HOLD_MS = 300;
 const SAMPLE_INTERVAL_MS = 50;
+// Peak amplitude that maps to a full-intensity (1.0) level report. Set above
+// normal talking peaks so intensity has headroom without needing a shout to
+// visibly move.
+const LEVEL_CEILING = 0.14;
+// Curve applied to the normalized 0-1 ratio before reporting it. >1 pulls
+// down the low end a bit, so normal speaking volume sits mid-range rather
+// than pinning near-max immediately.
+const LEVEL_CURVE = 1.25;
 
 export interface VoiceActivityMonitor {
   stop: () => void;
@@ -32,7 +40,11 @@ function isMediaStream(source: VoiceActivitySource): source is MediaStream {
  */
 export function monitorVoiceActivity(
   source: VoiceActivitySource,
-  onChange: (speaking: boolean) => void
+  onChange: (speaking: boolean) => void,
+  // Continuous 0-1 loudness for the current tick, scaled against the same
+  // threshold used for the speaking gate. Purely additive - never affects
+  // the speaking/hold logic above.
+  onLevel?: (level: number) => void
 ): VoiceActivityMonitor {
   let stopped = false;
   let speaking = false;
@@ -88,6 +100,14 @@ export function monitorVoiceActivity(
           speaking = next;
           onChange(speaking);
         }
+
+        if (onLevel) {
+          const ratio = Math.min(
+            1,
+            Math.max(0, (peak - SPEAKING_THRESHOLD) / (LEVEL_CEILING - SPEAKING_THRESHOLD))
+          );
+          onLevel(next ? ratio ** LEVEL_CURVE : 0);
+        }
       }, SAMPLE_INTERVAL_MS);
     } catch (error) {
       // Voice-activity display is optional polish and must never affect the
@@ -101,6 +121,7 @@ export function monitorVoiceActivity(
       stopped = true;
       if (interval) clearInterval(interval);
       if (speaking) onChange(false);
+      if (onLevel) onLevel(0);
       // Detach from the tapped node so a shared, longer-lived context (the
       // microphone pipeline's own) isn't left with a dangling connection.
       if (tappedNode && analyserNode) {
