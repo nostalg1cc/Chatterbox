@@ -1,0 +1,196 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+.voice-hud-viewport {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+/* Fixed "base" size at 100% scale; the whole box is transform-scaled to the
+   overlay-size preference in VoiceHud.tsx, and the window itself is resized
+   to match (see src/lib/voice-hud.ts) so content always fills the window
+   exactly instead of leaving dead space or clipping. */
+.voice-hud {
+  display: flex;
+  width: 200px;
+  height: 140px;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px;
+}
+
+.voice-hud__participant {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-hud__avatar {
+  position: relative;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(12, 12, 12, 0.55);
+  box-shadow: 0 0 0 4px rgba(150, 150, 150, 0.45), 0 2px 8px rgba(0, 0, 0, 0.5);
+  transition: box-shadow 160ms ease;
+}
+.voice-hud__avatar.is-speaking {
+  box-shadow: 0 0 0 4px #00d084, 0 0 18px rgba(0, 208, 132, 0.65), 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.voice-hud__avatar::before {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 1px;
+  border-radius: 50%;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.16) 45%,
+    rgba(255, 255, 255, 0.05) 72%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.voice-hud__avatar-photo {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.voice-hud__avatar-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.voice-hud__fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 15px;
+  font-weight: 600;
+}
+.voice-hud__decoration {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  width: 142%;
+  height: 142%;
+  max-width: none;
+  object-fit: contain;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.voice-hud__name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+
+/* --- Name decoration/font/weight, copied by hand from src/index.css ---
+   This window is a separate, minimal Vite entry (src/voice-hud.tsx) that
+   deliberately does not load the full app stylesheet, so these rules are
+   duplicated rather than imported. Source: src/index.css lines ~122-131 and
+   ~621-669. Keep in sync if those change. */
+.name-font-sans { font-family: "Google Sans Flex Variable", "Segoe UI Variable", sans-serif; }
+.name-font-rounded { font-family: "Arial Rounded MT Bold", "Segoe UI Rounded", "Google Sans Flex Variable", sans-serif; }
+.name-font-serif { font-family: Georgia, "Times New Roman", serif; }
+.name-font-mono { font-family: "Cascadia Mono", Consolas, monospace; }
+.name-weight-regular { font-weight: 400; }
+.name-weight-medium { font-weight: 500; }
+.name-weight-bold { font-weight: 700; }
+.name-weight-black { font-weight: 900; }
+
+.text-decoration { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.text-decoration-active.text-decoration-bouncy { animation: text-bounce .75s ease-in-out infinite; }
+.text-decoration-active.text-decoration-wavy { animation: text-wave 1.2s ease-in-out infinite; }
+.text-decoration-active.text-decoration-gradient { background: linear-gradient(90deg,#fff,#a78bfa,#60a5fa,#fff); background-size: 240% 100%; animation: text-gradient 2.2s linear infinite; color: transparent; background-clip: text; }
+.text-decoration-active.text-decoration-sparkles { text-shadow: 0 0 6px #fff,0 0 12px #a78bfa; animation: text-sparkle 1s ease-in-out infinite alternate; }
+.text-decoration-active.text-decoration-fuzzy { animation: text-fuzzy .28s steps(2) infinite; }
+.text-decoration-active.text-decoration-resize { animation: text-resize 1s ease-in-out infinite; }
+.text-decoration-active.text-decoration-glitch { animation: text-glitch .35s steps(2) infinite; text-shadow: 1px 0 #f00,-1px 0 #0ff; }
+.text-decoration-active.text-decoration-particle { text-shadow: 0 0 5px #fff, 4px -4px 0 -3px #a78bfa, -5px 5px 0 -3px #60a5fa; animation: text-particle 1s ease-in-out infinite; }
+@keyframes text-bounce { 50% { transform: translateY(-2px); } }
+@keyframes text-wave { 50% { transform: translateY(-1px) rotate(-1deg); } }
+@keyframes text-gradient { to { background-position: 240% 0; } }
+@keyframes text-sparkle { to { filter: brightness(1.35); } }
+@keyframes text-fuzzy { 50% { filter: blur(.45px); } }
+@keyframes text-resize { 50% { transform: scale(1.04); } }
+@keyframes text-glitch { 50% { transform: translate(1px,-.5px); } }
+@keyframes text-particle { 50% { transform: translateY(-1px); } }
+
+.text-effect-letters { display: inline-flex; white-space: pre; }
+.text-effect-letter { display: inline-block; will-change: transform; }
+.text-effect-bouncy-letters .text-effect-letter { animation: sera-name-bounce 1.9s cubic-bezier(.33,.02,.23,1) infinite; animation-delay: calc(var(--letter-index) * 78ms); }
+.text-effect-wavy-letters .text-effect-letter { animation: sera-name-wave 1.05s ease-in-out infinite; animation-delay: calc(var(--letter-index) * 90ms); }
+@keyframes sera-name-bounce { 0%, 24%, 100% { transform: translateY(0); } 12% { transform: translateY(-.24em); } }
+@keyframes sera-name-wave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.13em); } }
+.text-effect-sparkles-wrap,
+.text-effect-particles-wrap { position: relative; display: inline-flex; overflow: visible; }
+.text-effect-content { position: relative; z-index: 1; }
+.text-effect-sparkle { position: absolute; z-index: 2; overflow: visible; fill: currentColor; color: #d9c5ff; filter: drop-shadow(0 0 2px rgb(180 135 255 / .9)); pointer-events: none; animation: sera-name-sparkle 1.85s ease-in-out infinite both; }
+@keyframes sera-name-sparkle { 0%, 100% { opacity: 0; transform: translate(-50%,-50%) scale(.25) rotate(0); } 45% { opacity: 1; transform: translate(-50%,-50%) scale(1) rotate(90deg); } }
+.text-effect-particle { position: absolute; z-index: 2; width: 2px; height: 2px; border-radius: 999px; background: currentColor; color: #a78bfa; pointer-events: none; box-shadow: 0 0 4px currentColor; animation: sera-name-particle 1.45s ease-in-out infinite both; }
+@keyframes sera-name-particle { 0%,100% { opacity: 0; transform: translate(0,0) scale(.5); } 50% { opacity: .9; transform: translate(3px,-5px) scale(1); } }
+.text-effect-gradient { display: inline-block; color: transparent; background: linear-gradient(100deg, #f7d35b, #ed92ff, #78b8ff, #f7d35b); background-size: 300% 100%; background-clip: text; -webkit-background-clip: text; animation: sera-name-gradient 3.2s linear infinite; }
+@keyframes sera-name-gradient { to { background-position: 300% 0; } }
+.text-effect-glitch { position: relative; display: inline-block; isolation: isolate; }
+.text-effect-glitch::before,
+.text-effect-glitch::after { content: attr(data-text); position: absolute; inset: 0; pointer-events: none; opacity: .76; clip-path: inset(0 0 0 0); }
+.text-effect-glitch::before { color: #55dfff; transform: translateX(-1px); text-shadow: -1px 0 #55dfff; animation: sera-name-glitch-a 1.65s steps(2,end) infinite; }
+.text-effect-glitch::after { color: #ff78a7; transform: translateX(1px); text-shadow: 1px 0 #ff78a7; animation: sera-name-glitch-b 1.2s steps(2,end) infinite; }
+@keyframes sera-name-glitch-a { 0%, 83%, 100% { clip-path: inset(0 0 100% 0); } 84% { clip-path: inset(14% 0 63% 0); } 89% { clip-path: inset(60% 0 17% 0); } 94% { clip-path: inset(33% 0 45% 0); } }
+@keyframes sera-name-glitch-b { 0%, 76%, 100% { clip-path: inset(100% 0 0 0); } 77% { clip-path: inset(49% 0 25% 0); } 83% { clip-path: inset(8% 0 72% 0); } 91% { clip-path: inset(68% 0 9% 0); } }
+.text-effect-fuzzy-canvas { display: inline-block; vertical-align: middle; max-width: 100%; image-rendering: auto; }
+.text-effect-resize { position: relative; display: inline-flex; padding: 0 3px; border: 1px solid rgb(116 178 255 / .72); border-radius: 3px; box-shadow: 0 0 0 1px rgb(16 16 16 / .75); }
+.text-effect-resize > i { position: absolute; width: 3px; height: 3px; border: 1px solid #9bc8ff; border-radius: 1px; background: #182433; }
+.text-effect-resize > i:nth-of-type(1) { top: -3px; left: -3px; }
+.text-effect-resize > i:nth-of-type(2) { top: -3px; right: -3px; }
+.text-effect-resize > i:nth-of-type(3) { bottom: -3px; left: -3px; }
+.text-effect-resize > i:nth-of-type(4) { right: -3px; bottom: -3px; }
+@media (prefers-reduced-motion: reduce) {
+  .text-effect-letter, .text-effect-sparkle, .text-effect-particle, .text-effect-gradient, .text-effect-glitch::before, .text-effect-glitch::after { animation: none !important; }
+}

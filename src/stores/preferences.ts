@@ -31,6 +31,8 @@ interface PreferencesState {
 acrylicDim: number;
   experimentalV2: boolean;
   globalVoiceShortcuts: boolean;
+  voiceHudScale: number;
+  voiceHudShowNames: boolean;
   keybinds: KeybindPreferences;
   setPreference: <K extends keyof PreferencesData>(key: K, value: PreferencesData[K]) => void;
 }
@@ -60,6 +62,8 @@ const defaults: PreferencesData = {
 acrylicDim: 55,
   experimentalV2: false,
   globalVoiceShortcuts: false,
+  voiceHudScale: 70,
+  voiceHudShowNames: false,
   keybinds: {
     toggleMute: "Ctrl+Shift+KeyM",
     toggleDeafen: "Ctrl+Shift+KeyD",

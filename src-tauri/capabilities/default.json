@@ -13,6 +13,13 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-is-maximized",
     "core:window:allow-close",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-position",
+    "core:window:allow-set-size",
+    "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-primary-monitor",
+    "core:event:allow-emit-to"
   ]
 }

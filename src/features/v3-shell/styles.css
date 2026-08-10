@@ -35,7 +35,7 @@
 }
 
 :root {
-  background: #1e1e1e;
+  background: #2a2b2b;
   font-family: "Google Sans Flex", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-optical-sizing: auto;
   font-stretch: 112.5%;
@@ -55,16 +55,61 @@ body,
 
 body {
   min-height: 100vh;
-  background: #1e1e1e;
+  background: #2a2b2b;
   user-select: none;
 }
 
 .stage {
+  position: relative;
   display: grid;
   width: 100%;
   min-height: 100vh;
   place-items: center;
-  background: #1e1e1e;
+  background: #2a2b2b;
+  isolation: isolate;
+}
+
+/* Film-grain so the flat background doesn't read as dead-flat. */
+.stage::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.12;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.35' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Bleeds in from top-center while voice is active - a true circle (equal
+   width/height, never an ellipse) spanning the full window width, centred
+   on the top edge so only its lower half shows, fading to transparent.
+   Shares the noise layer's z-index/stacking so it sits on the background,
+   never over real controls - .stage's "isolation: isolate" contains both.
+   #00b339 matches the app's existing house green (connected-call button,
+   save buttons); the earlier #00d084 read too teal/blue. */
+.v3-call-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  height: 50vw;
+  pointer-events: none;
+  /* Fade all the way to the true edge (100%, not a stop short of it) so the
+     visible color actually reaches the full window width instead of fading
+     out while still short of it. Center sits above the visible area (-20%
+     of the box height) so less of the circle shows - a thinner cap instead
+     of a near-full half-circle. */
+  background: radial-gradient(circle 50vw at 50% -20%, rgba(0, 179, 57, 0.22), rgba(0, 179, 57, 0) 100%);
+  transform: scale(0);
+  transform-origin: 50% 0%;
+  opacity: 0;
+  transition: transform 420ms cubic-bezier(0.22, 0.78, 0.3, 1), opacity 320ms ease;
+}
+.v3-call-glow.is-active {
+  transform: scale(1);
+  opacity: 1;
 }
 
 .button-group {
@@ -91,7 +136,7 @@ body {
   cursor: pointer;
   font-family: inherit;
   font-stretch: inherit;
-  background: rgba(12, 12, 12, 0.3);
+  background: rgba(44, 45, 45, 0.45);
   box-shadow: 0 0 0 1.25px rgba(0, 0, 0, 0.8);
   transition: box-shadow 180ms ease-in-out, transform 80ms ease-out;
 }
@@ -410,7 +455,7 @@ body {
   min-height: 72px;
   transform: translateX(-50%);
   border-radius: 25.01px;
-  background: rgba(12, 12, 12, 0.3);
+  background: rgba(44, 45, 45, 0.45);
   box-shadow:
     0 0 0 1.25px rgba(0, 0, 0, 0.8),
     0 4px 10px rgba(0, 0, 0, 0.45);
@@ -457,7 +502,7 @@ body {
   left: -8px;
   content: "";
   border-right: 8px solid transparent;
-  border-bottom: 8px solid rgba(12, 12, 12, 0.3);
+  border-bottom: 8px solid rgba(44, 45, 45, 0.45);
   border-left: 8px solid transparent;
 }
 .microphone-button {
@@ -537,7 +582,7 @@ body {
   overflow: hidden;
   border-radius: 25.01px;
   color: #d9d9d9;
-  background: rgba(12, 12, 12, 0.3);
+  background: rgba(44, 45, 45, 0.45);
   box-shadow: 0 0 0 1.25px rgba(0, 0, 0, 0.8);
   transition: box-shadow 180ms ease-in-out;
 }
@@ -677,7 +722,7 @@ body {
   flex: none;
   overflow: hidden;
   border-radius: 50%;
-  background: rgba(12, 12, 12, 0.3);
+  background: rgba(44, 45, 45, 0.45);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8);
   transition: box-shadow 180ms ease-in-out;
 }
@@ -754,7 +799,7 @@ body {
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
-  background: rgba(12, 12, 12, 0.3);
+  background: rgba(44, 45, 45, 0.45);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8);
   -webkit-backdrop-filter: blur(45px);
   backdrop-filter: blur(45px);
@@ -921,7 +966,7 @@ body {
   border-radius: 14px;
   color: #d9d9d9;
   cursor: pointer;
-  background: rgba(12, 12, 12, 0.3);
+  background: rgba(44, 45, 45, 0.45);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8);
   -webkit-backdrop-filter: blur(45px);
   backdrop-filter: blur(45px);
@@ -996,7 +1041,7 @@ body {
   border-radius: 14px;
   color: #d9d9d9;
   opacity: 0;
-  background: rgba(12, 12, 12, 0.3);
+  background: rgba(44, 45, 45, 0.45);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8);
   transform: translateY(-72px) scale(0.62);
   transform-origin: 50% 0;
@@ -1160,7 +1205,7 @@ body {
   height: 38px;
   overflow: hidden;
   border-radius: 50%;
-  background: rgba(12, 12, 12, 0.3);
+  background: rgba(44, 45, 45, 0.45);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8);
   animation: message-avatar-in 380ms cubic-bezier(0.22, 0.72, 0.3, 1) both;
 }
@@ -1711,7 +1756,7 @@ body {
 .status-bar,
 .mini-badge,
 .top-alert {
-  background: #1e1e1e;
+  background: #2c2d2d;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
@@ -1825,13 +1870,13 @@ body {
 .audio-device-menu button { width:100%; padding:7px 8px; border:0; border-radius:9px; color:rgba(240,240,240,.86); font:inherit; font-size:12px; text-align:left; background:transparent; cursor:pointer; }
 .audio-device-menu button:hover, .audio-device-menu button.is-selected { background:rgba(255,255,255,.12); }
 .audio-device-menu small { padding:7px 8px; color:rgba(217,217,217,.55); font-size:11px; }
-.v3-message-actions { position:absolute; top:-8px; right:0; left:auto; z-index:6; display:flex; align-items:center; gap:2px; padding:4px; border-radius:16px; opacity:0; pointer-events:none; background:#1e1e1e; box-shadow:0 0 0 1.25px rgba(0,0,0,.8),0 4px 10px rgba(0,0,0,.4); transition:opacity 130ms ease; }
+.v3-message-actions { position:absolute; top:-8px; right:0; left:auto; z-index:6; display:flex; align-items:center; gap:2px; padding:4px; border-radius:16px; opacity:0; pointer-events:none; background:#2c2d2d; box-shadow:0 0 0 1.25px rgba(0,0,0,.8),0 4px 10px rgba(0,0,0,.4); transition:opacity 130ms ease; }
 .message-template { position:relative; }
 .message-template:hover .v3-message-actions, .v3-message-actions:focus-within { opacity:1; pointer-events:auto; }
 .v3-message-actions > button { display:grid; width:25px; height:25px; place-items:center; padding:0; border:0; border-radius:50%; color:rgba(230,230,230,.8); background:transparent; cursor:pointer; }
 .v3-message-actions > button:hover { background:rgba(255,255,255,.12); color:#fff; }
 .v3-message-actions svg { width:15px; height:15px; }
-.v3-reaction-picker { position:absolute; right:0; bottom:calc(100% + 7px); display:flex; gap:2px; padding:5px; border-radius:15px; background:#1e1e1e; box-shadow:0 0 0 1.25px rgba(0,0,0,.8),0 4px 10px rgba(0,0,0,.4); }
+.v3-reaction-picker { position:absolute; right:0; bottom:calc(100% + 7px); display:flex; gap:2px; padding:5px; border-radius:15px; background:#2c2d2d; box-shadow:0 0 0 1.25px rgba(0,0,0,.8),0 4px 10px rgba(0,0,0,.4); }
 .v3-reaction-picker button,.v3-reaction-chips button { border:0; color:#fff; cursor:pointer; }
 .v3-reaction-picker button { width:27px; height:27px; border-radius:50%; background:transparent; }
 .v3-reaction-picker button:hover { background:rgba(255,255,255,.12); }
@@ -1840,10 +1885,10 @@ body {
 .v3-reaction-chips button.is-mine { background:rgba(255,255,255,.16); }
 .message-template--self .v3-message-actions { left:0; right:auto; }
 .v3-file-input { display:none; }
-.v3-pending-media { display:flex; align-items:center; gap:8px; align-self:flex-end; padding:6px 10px; border-radius:12px; color:rgba(235,235,235,.78); font-size:12px; background:#1e1e1e; box-shadow:0 0 0 1.25px rgba(0,0,0,.8); }
+.v3-pending-media { display:flex; align-items:center; gap:8px; align-self:flex-end; padding:6px 10px; border-radius:12px; color:rgba(235,235,235,.78); font-size:12px; background:#2c2d2d; box-shadow:0 0 0 1.25px rgba(0,0,0,.8); }
 .v3-pending-media button { padding:0; border:0; color:rgba(235,235,235,.65); font:inherit; background:transparent; cursor:pointer; text-decoration:underline; }
 .message-template__decoration,.partner-avatar-button__decoration { width:124%; }
-.partner-avatar-button__presence { position:absolute; z-index:5; right:-1px; bottom:-1px; width:11px; height:11px; border:2px solid #1e1e1e; border-radius:50%; background:#6b6b6b; }
+.partner-avatar-button__presence { position:absolute; z-index:5; right:-1px; bottom:-1px; width:11px; height:11px; border:2px solid #2c2d2d; border-radius:50%; background:#6b6b6b; }
 .partner-avatar-button__presence.is-online { background:#00d084; }
 .partner-avatar-button__presence.is-away { background:#f0a238; }
 .v3-pending-media { max-width:100%; overflow:hidden; }
@@ -1872,7 +1917,7 @@ body {
   padding: 4px;
   overflow: visible;
   border-radius: 25px;
-  background: #1e1e1e;
+  background: #2c2d2d;
   box-shadow: 0 0 0 1.25px rgba(0, 0, 0, 0.82), 0 4px 10px rgba(0, 0, 0, 0.35);
 }
 .v3-message-actions::before,
@@ -1900,7 +1945,7 @@ body {
 .v3-reaction-picker {
   z-index: 8;
   border-radius: 18px;
-  background: #1e1e1e;
+  background: #2c2d2d;
   box-shadow: 0 0 0 1.25px rgba(0,0,0,.82), 0 5px 12px rgba(0,0,0,.36);
 }
 .v3-reaction-picker button { position: relative; z-index: 1; }
@@ -1930,7 +1975,7 @@ body {
   color: rgba(245,245,245,.92);
   font-size: 13px;
   line-height: 1.1;
-  background: rgba(12, 12, 12, 0.3);
+  background: rgba(44, 45, 45, 0.45);
   box-shadow: 0 0 0 1.25px rgba(0, 0, 0, 0.8);
   transition: box-shadow 180ms ease-in-out;
 }
@@ -2066,7 +2111,7 @@ body {
   margin-top: 5px;
   padding: 8px;
   border-radius: 14px;
-  background: #1e1e1e;
+  background: #2c2d2d;
   box-shadow: 0 0 0 1.25px rgba(0,0,0,.82);
 }
 .message-template--self .v3-inline-editor { margin-left: auto; text-align: left; }
@@ -2115,7 +2160,7 @@ body {
   padding: 7px 9px;
   border-radius: 16px;
   color: rgba(238,238,238,.86);
-  background: #1e1e1e;
+  background: #2c2d2d;
   box-shadow: 0 0 0 1.25px rgba(0,0,0,.82);
 }
 .v3-reply-banner::before,
@@ -2366,8 +2411,8 @@ body {
 
 .v3-chat-switcher { position: relative; z-index: 20; }
 .v3-chat-switcher__trigger { overflow: visible; }
-.v3-chat-switcher__chevron { position: absolute; z-index: 7; right: -8px; top: -5px; width: 11px; height: 11px; padding: 1px; border-radius: 50%; color: rgba(235,235,235,.74); background: #1e1e1e; box-shadow: 0 0 0 1px rgba(255,255,255,.12); }
-.v3-chat-switcher__menu { position: absolute; top: calc(100% + 12px); left: 0; width: 224px; max-height: min(390px, calc(100vh - 128px)); overflow: auto; padding: 9px; border-radius: 14px; color: rgba(235,235,235,.92); background: #1e1e1e; box-shadow: 0 8px 22px rgba(0,0,0,.35), 0 0 0 1.25px rgba(0,0,0,.82); }
+.v3-chat-switcher__chevron { position: absolute; z-index: 7; right: -8px; top: -5px; width: 11px; height: 11px; padding: 1px; border-radius: 50%; color: rgba(235,235,235,.74); background: #2c2d2d; box-shadow: 0 0 0 1px rgba(255,255,255,.12); }
+.v3-chat-switcher__menu { position: absolute; top: calc(100% + 12px); left: 0; width: 224px; max-height: min(390px, calc(100vh - 128px)); overflow: auto; padding: 9px; border-radius: 14px; color: rgba(235,235,235,.92); background: #2c2d2d; box-shadow: 0 8px 22px rgba(0,0,0,.35), 0 0 0 1.25px rgba(0,0,0,.82); }
 .v3-chat-switcher__menu > p { margin: 2px 4px 7px; color: rgba(217,217,217,.52); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .v3-chat-switcher__list { display: grid; gap: 3px; }
 .v3-chat-switcher__list > button { display: flex; align-items: center; gap: 9px; width: 100%; min-width: 0; padding: 7px; border: 0; border-radius: 10px; color: inherit; font: inherit; font-size: 13px; text-align: left; background: transparent; cursor: pointer; }
@@ -2442,14 +2487,14 @@ body {
 }
 @keyframes v3-loading-spin { to { transform: rotate(360deg); } }
 /* V3 settings: one calm, solid surface with a persistent profile-save affordance. */
-.v3-settings-dialog { color: rgba(245,245,245,.94); background: #1e1e1e !important; box-shadow: 0 18px 60px rgba(0,0,0,.62), 0 0 0 1.25px rgba(0,0,0,.82) !important; }
+.v3-settings-dialog { color: rgba(245,245,245,.94); background: #2c2d2d !important; box-shadow: 0 18px 60px rgba(0,0,0,.62), 0 0 0 1.25px rgba(0,0,0,.82) !important; }
 .v3-settings-dialog::before { position:absolute; inset:0; z-index:0; padding:1.25px; border-radius:inherit; pointer-events:none; content:""; background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,.04) 28%,transparent 55%); -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask-composite:xor; mask-composite:exclude; }
 .v3-settings-dialog > * { position: relative; z-index: 1; }
 .v3-settings-sidebar { background: #191919 !important; }
 .v3-settings-sidebar [role="tab"] { min-height:40px; border-radius:14px; color:rgba(225,225,225,.64); transition:color 150ms ease,background 150ms ease,box-shadow 150ms ease; }
 .v3-settings-sidebar [role="tab"]:hover { color:rgba(255,255,255,.94); background:rgba(255,255,255,.06); }
 .v3-settings-sidebar [role="tab"][data-state="active"] { color:#fff; background:#2a2a2a; box-shadow:0 0 0 1.25px rgba(0,0,0,.78),inset 0 1px rgba(255,255,255,.13); }
-.v3-settings-content { background:#1e1e1e; }
+.v3-settings-content { background:#2c2d2d; }
 .v3-settings-content [role="tabpanel"] { scrollbar-color:rgba(255,255,255,.22) transparent; }
 .v3-settings-content .bg-card,.v3-settings-content .surface-panel,.v3-settings-content .bg-muted\/20,.v3-settings-content .bg-muted\/35 { background:#252525 !important; }
 .v3-settings-content .border-white\/\[0\.14\],.v3-settings-content .border-white\/\[0\.13\],.v3-settings-content .border-white\/\[0\.11\] { border-color:rgba(0,0,0,.78) !important; box-shadow:inset 0 1px rgba(255,255,255,.10); }
@@ -2555,4 +2600,32 @@ body {
   padding: 10px 0 8px;
   border-top: 0;
   border-bottom: 1px solid rgba(255,255,255,.10);
+}
+
+/* TEMP - drop-shadow preview, swapped for a plain 1.25px black/50% border.
+   Delete this block to restore the normal ring+elevation shadows; nothing
+   above was changed to make this work. Covers every surface that used the
+   "0 0 0 1.25px rgba(0,0,0,...)" ring treatment. */
+.icon-button,
+.icon-button:hover,
+.audio-dropdown,
+.text-input-bar,
+.text-input-bar:focus-within,
+.v3-message-actions,
+.v3-reaction-picker,
+.v3-reply-banner,
+.v3-pending-media,
+.v3-rich-link,
+.v3-reaction-chips button,
+.v3-reaction-chips button:hover,
+.v3-chat-switcher__menu,
+.v3-settings-dialog,
+.v3-settings-sidebar [role="tab"][data-state="active"],
+[data-sonner-toaster] [data-sonner-toast].cn-toast,
+.v3-settings-close,
+.v3-settings-content [role="tabpanel"] > section > form,
+.v3-settings-content button:not([role="switch"]),
+.v3-settings-content .sticky.top-0 {
+  box-shadow: none !important;
+  border: 1.25px solid rgba(0, 0, 0, 0.5) !important;
 }

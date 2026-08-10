@@ -6,12 +6,14 @@ import { playAppSound } from "@/lib/app-sounds";
 import { decorationUrl } from "@/lib/avatar-decorations";
 import { supabase } from "@/lib/supabase";
 import { isTauri } from "@/lib/tauri";
+import { hideVoiceHud, resizeVoiceHud, showVoiceHud, updateVoiceHud } from "@/lib/voice-hud";
 import { prepareChatMedia } from "@/lib/media";
 import { toast } from "sonner";
 import { useAuth } from "@/stores/auth";
 import { useChat } from "@/stores/chat";
 import { useProfiles } from "@/stores/profiles";
 import { usePresenceStatus } from "@/stores/presence";
+import { usePreferences } from "@/stores/preferences";
 import { useVoice } from "@/stores/voice";
 import {
   CircleAlert,
@@ -160,21 +162,60 @@ export function V3Shell() {
   const voiceStatus = useVoice((state) => state.status);
   const muted = useVoice((state) => state.muted);
   const deafened = useVoice((state) => state.deafened);
+  const voiceSpeaking = useVoice((state) => state.speaking);
   const sharingScreen = useVoice((state) => state.sharingScreen);
+  const voiceHudScale = usePreferences((state) => state.voiceHudScale);
+  const voiceHudShowNames = usePreferences((state) => state.voiceHudShowNames);
   const voiceParticipants = activeId ? voiceParticipantsByConversation[activeId] ?? EMPTY_PARTICIPANTS : EMPTY_PARTICIPANTS;
   const voiceRoom = activeId ? voiceRooms[activeId] : undefined;
   const joinedVoice = activeVoiceId === activeId;
   const typingProfile = typingUserId === userId ? selfProfile : partnerProfile;
   const replyProfile = replyTo?.sender_id === userId ? selfProfile : partnerProfile;
-  const voiceParticipantDetails = voiceParticipants.map((participant) => {
+  const voiceParticipantDetails = useMemo(() => voiceParticipants.map((participant) => {
     const isSelf = participant.user_id === userId;
     const profile = isSelf ? selfProfile : partnerProfile;
     return {
       id: participant.user_id,
       avatar: avatarUrl(profile),
       name: displayName(profile, isSelf ? "You" : "Partner"),
+      avatarDecoration: profile?.avatar_decoration ?? null,
+      nameColor: profile?.name_color ?? null,
+      nameDecoration: profile?.name_decoration ?? null,
+      nameFont: profile?.name_font ?? null,
+      nameWeight: profile?.name_weight ?? null,
+      speaking: Boolean(voiceSpeaking[participant.user_id]),
     };
-  });
+  }), [voiceParticipants, userId, selfProfile, partnerProfile, voiceSpeaking]);
+  // Collapse a run of consecutive voice_started/voice_ended markers (no real
+  // chat message between them) down to just the last one, as long as every
+  // call in that run was under 10 minutes - short join/leave/reconnect
+  // bursts otherwise spam the whole history with one line per event.
+  const collapsedVoiceMarkerIds = useMemo(() => {
+    const skip = new Set();
+    let runStart = -1;
+    let runEnd = -1;
+    let hasLongCall = false;
+    const flush = () => {
+      if (runStart !== -1 && runEnd > runStart && !hasLongCall) {
+        for (let i = runStart; i < runEnd; i += 1) skip.add(liveMessages[i].id);
+      }
+      runStart = -1;
+      runEnd = -1;
+      hasLongCall = false;
+    };
+    liveMessages.forEach((message, index) => {
+      const isVoiceEvent = message.message_kind === "voice_started" || message.message_kind === "voice_ended";
+      if (!isVoiceEvent) {
+        flush();
+        return;
+      }
+      if (runStart === -1) runStart = index;
+      runEnd = index;
+      if (message.message_kind === "voice_ended" && (message.voice_duration_seconds ?? 0) >= 600) hasLongCall = true;
+    });
+    flush();
+    return skip;
+  }, [liveMessages]);
   const hasActiveMessages = Boolean(activeId && Object.prototype.hasOwnProperty.call(messagesByConversation, activeId));
   const isInitialLoad = !loaded || (conversations.length > 0 && (!activeId || !hasActiveMessages));
   const uiSounds = useUiSounds();
@@ -216,6 +257,23 @@ export function V3Shell() {
   useEffect(() => {
     if (replyTo) document.getElementById("message-composer")?.focus();
   }, [replyTo]);
+  useEffect(() => {
+    if (!isTauri) return;
+    if (joinedVoice) void showVoiceHud(voiceHudScale);
+    else void hideVoiceHud();
+    // Scale is intentionally excluded here: opening/closing the HUD should
+    // only react to joining/leaving voice, not to the slider mid-call (that's
+    // handled by the resize effect below without a hide/show flash).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [joinedVoice]);
+  useEffect(() => {
+    if (!isTauri || !joinedVoice) return;
+    void resizeVoiceHud(voiceHudScale);
+  }, [joinedVoice, voiceHudScale]);
+  useEffect(() => {
+    if (!isTauri || !joinedVoice) return;
+    void updateVoiceHud({ participants: voiceParticipantDetails, scale: voiceHudScale, showNames: voiceHudShowNames });
+  }, [joinedVoice, voiceParticipantDetails, voiceHudScale, voiceHudShowNames]);
   const dismissAlert = useCallback((id) => {
     setActiveAlert((currentAlert) => (currentAlert?.id === id ? null : currentAlert));
   }, []);
@@ -357,11 +415,13 @@ export function V3Shell() {
 
   return (
     <main className="stage" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/")); if (file) void prepareAttachment(file); }}>
+      <div className={"v3-call-glow" + (joinedVoice ? " is-active" : "")} aria-hidden="true" />
       <div
         className="window-drag-region"
         data-tauri-drag-region
         aria-hidden="true"
-      />      <div className="v3-window-controls">
+      />
+      <div className="v3-window-controls">
         <WindowControls />
       </div>
       {activeAlert && (
@@ -386,7 +446,10 @@ export function V3Shell() {
             const profile = isSelf ? selfProfile : partnerProfile;
             const marker = systemLabel(message);
             const dateChanged = !previous || new Date(previous.created_at).toDateString() !== new Date(message.created_at).toDateString();
-            if (marker) return <HistoryMarker key={message.id}>{marker}</HistoryMarker>;
+            if (marker) {
+              if (collapsedVoiceMarkerIds.has(message.id)) return null;
+              return <HistoryMarker key={message.id}>{marker}</HistoryMarker>;
+            }
             const replyTarget = message.reply_to_message_id ? replyTargets[message.reply_to_message_id] : null;
             const replyTargetProfile = replyTarget ? (replyTarget.sender_id === userId ? selfProfile : partnerProfile) : null;
             const replyPreview = message.reply_to_message_id ? {

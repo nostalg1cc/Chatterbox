@@ -13,6 +13,7 @@ import {
 import { playAppSound } from "@/lib/app-sounds";
 import { playSoundboardUrl, preloadSoundboardClip, type SoundboardPlayback } from "@/lib/soundboard-audio";
 import { createCloudflareScreenPublisher, createCloudflareScreenSubscriber } from "@/lib/cloudflare-realtime";
+import { monitorVoiceActivity, type VoiceActivityMonitor } from "@/lib/voice-activity";
 import { supabase } from "@/lib/supabase";
 import type {
   VoiceConnectionStatus,
@@ -50,6 +51,8 @@ interface RpcStatus {
 interface VoiceState {
   rooms: Record<string, VoiceRoom>;
   participants: Record<string, VoiceParticipant[]>;
+  /** Per-user_id voice activity, for the in-call talking indicator/HUD. */
+  speaking: Record<string, boolean>;
   status: VoiceConnectionStatus;
   activeConversationId: string | null;
   sessionId: string | null;
@@ -104,11 +107,33 @@ let connectionRecoveryInProgress = false;
 let peerRebuildAttempts = 0;
 let signalingRecoveryAttempts = 0;
 let disconnecting = false;
+let localVoiceActivity: VoiceActivityMonitor | null = null;
+let remoteVoiceActivity: VoiceActivityMonitor | null = null;
 let pendingCandidates: RTCIceCandidateInit[] = [];
 let lastRemoteSoundboardAt = 0;
 const remoteSoundboardPlaybacks = new Map<string, SoundboardPlayback>();
 const cancelledRemoteSoundboardPlaybacks = new Set<string>();
 const pendingSoundboardReadiness = new Map<string, { resolve: (ready: boolean) => void; timeout: number }>();
+
+function setSpeaking(userId: string, value: boolean): void {
+  useVoice.setState((state) =>
+    state.speaking[userId] === value
+      ? state
+      : { speaking: { ...state.speaking, [userId]: value } }
+  );
+}
+
+// Prefer tapping the pipeline's own gain node in its own already-running
+// AudioContext (the exact signal actually being sent) over asking a second,
+// independent AudioContext to consume the same MediaStreamTrack.
+function startLocalVoiceActivity(pipeline: MicrophonePipeline): VoiceActivityMonitor | null {
+  if (!currentUserId) return null;
+  const userId = currentUserId;
+  const source = pipeline.context && pipeline.gain
+    ? { context: pipeline.context, node: pipeline.gain }
+    : pipeline.outputStream;
+  return monitorVoiceActivity(source, (value) => setSpeaking(userId, value));
+}
 
 usePreferences.subscribe((state, previousState) => {
   if (state.soundboardVolume !== previousState.soundboardVolume) {
@@ -124,6 +149,7 @@ let joinAttempt = 0;
 export const useVoice = create<VoiceState>()((set, get) => ({
   rooms: {},
   participants: {},
+  speaking: {},
   status: "idle",
   activeConversationId: null,
   sessionId: null,
@@ -167,6 +193,8 @@ export const useVoice = create<VoiceState>()((set, get) => ({
       microphone = await createPreferredMicrophone();
       if (attempt !== joinAttempt) { await stopMicrophonePipeline(microphone); microphone = null; return; }
       applyLocalMuteState();
+      localVoiceActivity?.stop();
+      localVoiceActivity = startLocalVoiceActivity(microphone);
 
       const { data, error } = await supabase.rpc("join_voice_room", {
         p_conversation_id: conversationId,
@@ -626,6 +654,8 @@ async function replaceMicrophone(): Promise<void> {
     const old = microphone;
     microphone = replacement;
     applyLocalMuteState();
+    localVoiceActivity?.stop();
+    localVoiceActivity = startLocalVoiceActivity(replacement);
 
     const nextTrack = replacement.outputStream.getAudioTracks()[0] ?? null;
     const sender = peerConnection
@@ -969,6 +999,13 @@ function handleRemoteTrack(event: RTCTrackEvent): void {
       deafened: useVoice.getState().deafened,
       partnerVoiceBoost: usePreferences.getState().partnerVoiceBoost,
     });
+    if (!remoteVoiceActivity) {
+      const conversationId = useVoice.getState().activeConversationId;
+      const remoteUserId = conversationId ? voicePartnerId(conversationId) : null;
+      if (remoteUserId) {
+        remoteVoiceActivity = monitorVoiceActivity(remoteAudioStream, (value) => setSpeaking(remoteUserId, value));
+      }
+    }
     event.track.onended = () => {
       remoteAudioStream?.removeTrack(event.track);
       if (!remoteAudioStream?.getAudioTracks().length && remoteAudio) remoteAudio.srcObject = null;
@@ -1305,6 +1342,8 @@ function closePeerConnection(setSolo = true): void {
     remoteAudio.srcObject = null;
   }
   remoteAudioStream = null;
+  remoteVoiceActivity?.stop();
+  remoteVoiceActivity = null;
   remoteSessionId = null;
   pendingCandidates = [];
   makingOffer = false;
@@ -1347,6 +1386,8 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
 
   const microphoneToStop = microphone;
   microphone = null;
+  localVoiceActivity?.stop();
+  localVoiceActivity = null;
 
   useVoice.setState((current) => {
     const participants = { ...current.participants };

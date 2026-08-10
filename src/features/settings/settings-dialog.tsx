@@ -733,6 +733,30 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
                   </div>
                 </div>
 
+                {isTauri && (
+                  <div className="divide-y divide-white/[0.10] rounded-lg border border-white/[0.14] bg-card">
+                    <div className="p-4">
+                      <p className="text-sm font-medium">Floating voice indicator</p>
+                      <p className="mt-0.5 mb-3 text-xs text-muted-foreground">
+                        A small always-on-top window showing who's talking, for when Nitro is minimized behind a game.
+                      </p>
+                      <VolumeSetting
+                        label="Overlay size"
+                        value={preferences.voiceHudScale}
+                        min={60}
+                        max={160}
+                        onChange={(value) => preferences.setPreference("voiceHudScale", value)}
+                      />
+                    </div>
+                    <ToggleRow
+                      title="Show names"
+                      description="Display each participant's name next to their avatar in the overlay."
+                      checked={preferences.voiceHudShowNames}
+                      onChange={(value) => preferences.setPreference("voiceHudShowNames", value)}
+                    />
+                  </div>
+                )}
+
                 <div className="divide-y divide-white/[0.10] rounded-lg border border-white/[0.14] bg-card">
                   <ToggleRow
                     title="Interface sounds"

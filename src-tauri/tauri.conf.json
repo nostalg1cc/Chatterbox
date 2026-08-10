@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Nitro",
-  "version": "0.1.35",
+  "version": "0.1.36",
   "identifier": "io.github.nostalg1cc.dislight",
   "build": {
     "frontendDist": "../dist",
@@ -24,6 +24,27 @@
         "decorations": false,
         "transparent": true,
         "shadow": false,
+        "theme": "Dark"
+      },
+      {
+        "label": "voice-hud",
+        "url": "voice-hud.html",
+        "title": "Nitro Voice",
+        "width": 200,
+        "height": 140,
+        "minWidth": 40,
+        "minHeight": 40,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "visible": false,
         "theme": "Dark"
       }
     ],

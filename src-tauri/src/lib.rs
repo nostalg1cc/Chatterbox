@@ -6,11 +6,14 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 fn apply_native_corner_preference(window: &tauri::WebviewWindow) {
     use std::ffi::c_void;
     use windows_sys::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUNDSMALL,
+        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
     };
 
     if let Ok(hwnd) = window.hwnd() {
-        let preference = DWMWCP_ROUNDSMALL;
+        // DWMWCP_ROUND matches the standard ~10px radius native Windows 11
+        // apps get; DWMWCP_ROUNDSMALL (the previous value) is a much subtler
+        // radius that reads as sharp-cornered at a glance.
+        let preference = DWMWCP_ROUND;
         unsafe {
             let _ = DwmSetWindowAttribute(
                 hwnd.0 as _,
