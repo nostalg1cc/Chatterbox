@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { WindowControls } from "@/components/titlebar";
 import { ScreenSharePreview } from "@/features/chat/screen-share-preview";
 import { SettingsDialog } from "@/features/settings/settings-dialog";
 import { playAppSound } from "@/lib/app-sounds";
@@ -42,6 +41,7 @@ import { TopAlert } from "./components/TopAlert";
 import { TypingIndicator } from "./components/TypingIndicator";
 import { VoiceCallButton } from "./components/VoiceCallButton";
 import { V3ChatSwitcher } from "./components/V3ChatSwitcher";
+import { V3Lightbox } from "./components/V3Lightbox";
 import { useUiSounds } from "./hooks/useUiSounds";
 import "./styles.css";
 
@@ -418,14 +418,7 @@ export function V3Shell() {
   return (
     <main className="stage" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/")); if (file) void prepareAttachment(file); }}>
       <div className={"v3-call-glow" + (joinedVoice ? " is-active" : "")} aria-hidden="true" />
-      <div
-        className="window-drag-region"
-        data-tauri-drag-region
-        aria-hidden="true"
-      />
-      <div className="v3-window-controls">
-        <WindowControls />
-      </div>
+      <div className="window-drag-region" data-tauri-drag-region aria-hidden="true" />
       {activeAlert && (
         <div className="top-alert-region" aria-live="polite" aria-atomic="true">
           <TopAlert
@@ -544,6 +537,8 @@ export function V3Shell() {
         ))}
         <SoundToggleButton />
       </div>
+
+      <V3Lightbox />
     </main>
   );
 }

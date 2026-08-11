@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { getCachedMedia, putCachedMedia } from "@/lib/media-cache";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
+import { useLightbox } from "@/stores/lightbox";
 import { configureMediaOutput } from "@/lib/voice-media";
 
 const CLOUDINARY_BASE = "https://res.cloudinary.com/lnkoms9m";
@@ -99,7 +100,15 @@ export function V3MediaAttachment({ message, alignEnd = false }) {
           const nextVolume = Math.round((event.currentTarget.volume * 10000) / Math.max(1, outputVolume));
           if (usePreferences.getState().mediaVolume !== nextVolume) setPreference("mediaVolume", nextVolume);
         }} />
-      ) : <img className="v3-media" src={url} alt="Chat attachment" loading="lazy" />}
+      ) : (
+        <img
+          className="v3-media"
+          src={url}
+          alt="Chat attachment"
+          loading="lazy"
+          onClick={() => useLightbox.getState().show(url)}
+        />
+      )}
       {local && message.media_deleted_at && <span className="v3-media-saved">Saved locally</span>}
     </div>
   );

@@ -148,9 +148,6 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             if let Some(window) = app.get_webview_window("main") {
                 apply_native_corner_preference(&window);
-                if let Err(error) = window_vibrancy::apply_mica(&window, Some(true)) {
-                    log::warn!("Mica not applied: {error}");
-                }
             }
             Ok(())
         })

@@ -1728,15 +1728,6 @@ body {
 
 
 
-/* Dedicated, transparent titlebar hit-area. Floating controls remain above it. */
-.window-drag-region {
-  position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 4;
-  height: 70px;
-}
 
 .message-template__fallback {
   display: grid;
@@ -1772,15 +1763,30 @@ body {
 }
 
 /* Native-style Tauri window controls, attached directly to the app edge. */
-.v3-window-controls {
+/* Transparent titlebar hit-area. In-app UI that sits in this same top band
+   (nav controls, the call button, ...) uses a higher z-index within .stage
+   and stays clickable above it - only truly empty top-strip space drags. */
+.window-drag-region {
   position: fixed;
   top: 0;
   right: 0;
-  z-index: 12;
+  left: 0;
+  z-index: 4;
+  height: 70px;
+}
+
+/* Portaled to <body> (see components/titlebar.tsx) so the controls always
+   sit above every dialog/overlay - z-index alone can't do that from inside
+   .stage, which uses isolation:isolate. */
+.global-window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 999001;
   height: 32px;
 }
 
-.v3-window-controls .window-controls {
+.global-window-controls .window-controls {
   height: 32px;
   border: 0;
   border-radius: 0;
@@ -1792,7 +1798,7 @@ body {
   transform: none;
 }
 
-.v3-window-controls .window-control {
+.global-window-controls .window-control {
   width: 46px;
   min-width: 46px;
   height: 32px;
@@ -1804,18 +1810,18 @@ body {
   box-shadow: none;
 }
 
-.v3-window-controls .window-control > svg {
+.global-window-controls .window-control > svg {
   width: 14px;
   height: 14px;
   stroke-width: 1.25;
 }
 
-.v3-window-controls .window-control:hover {
+.global-window-controls .window-control:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.1);
 }
 
-.v3-window-controls .window-control-close:hover {
+.global-window-controls .window-control-close:hover {
   color: #fff;
   background: #e81123;
 }
@@ -1829,9 +1835,9 @@ body {
   display: none;
 }
 
-.v3-window-controls,
-.v3-window-controls .window-controls,
-.v3-window-controls .window-control {
+.global-window-controls,
+.global-window-controls .window-controls,
+.global-window-controls .window-control {
   border-radius: 0 !important;
 }
 
@@ -1893,11 +1899,50 @@ body {
 .partner-avatar-button__presence.is-away { background:#f0a238; }
 .v3-pending-media { max-width:100%; overflow:hidden; }
 .v3-pending-media img,.v3-pending-media video { display:block; width:auto; max-width:190px; height:66px; border-radius:10px; object-fit:cover; background:#0b0b0b; }
-.v3-rich-link { display:block; max-width:min(760px,100%); margin-top:9px; overflow:hidden; border-radius:14px; color:inherit; text-align:left; text-decoration:none; background:#202020; box-shadow:0 0 0 1.25px rgba(0,0,0,.8); }
+.v3-rich-link { display:block; max-width:100%; margin-top:9px; overflow:hidden; border-radius:12px; color:inherit; text-align:left; text-decoration:none; background:rgba(255,255,255,.03); }
 .v3-rich-link--self { margin-left:auto; }
-.v3-rich-link>img { display:block; width:100%; max-height:360px; object-fit:cover; }
-.v3-rich-link>div { display:grid; gap:5px; padding:13px 14px; }
-.v3-rich-link strong { font-size:14px; font-weight:600; }.v3-rich-link span { color:rgba(235,235,235,.65); font-size:12px; line-height:1.4; }.v3-rich-link small { color:rgba(235,235,235,.48); font-size:10px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; }.v3-chat-link { color:#88bfff; text-decoration:underline; text-underline-offset:2px; }
+.v3-rich-link>img { display:block; width:100%; max-height:220px; object-fit:cover; }
+.v3-rich-link>div { display:grid; gap:4px; padding:10px 12px; }
+.v3-rich-link strong { font-size:13.5px; font-weight:600; }.v3-rich-link span { color:rgba(235,235,235,.65); font-size:12px; line-height:1.4; }.v3-rich-link small { color:rgba(235,235,235,.45); font-size:10px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; }.v3-chat-link { color:#88bfff; text-decoration:underline; text-underline-offset:2px; }
+
+/* Tweet embeds render as a redirected message, not a card: a quiet left
+   accent bar instead of a filled/bordered box, matching how a forwarded
+   message reads rather than a link-preview widget. */
+.v3-tweet-embed { display:flex; flex-direction:column; gap:8px; max-width:100%; margin-top:9px; padding-left:11px; border-left:2px solid rgba(255,255,255,.16); }
+.v3-tweet-embed--self { margin-left:auto; }
+.v3-tweet-embed__link { all:unset; display:flex; flex-direction:column; gap:6px; width:100%; cursor:pointer; }
+.v3-tweet-embed__source { display:inline-flex; align-items:center; gap:5px; color:rgba(235,235,235,.5); font-size:10.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+.v3-tweet-embed__source svg { width:11px; height:11px; flex:none; }
+.v3-tweet-embed__author { display:flex; align-items:center; gap:8px; }
+.v3-tweet-embed__author img,
+.v3-tweet-embed__avatar-fallback { width:28px; height:28px; flex:none; border-radius:50%; object-fit:cover; }
+.v3-tweet-embed__avatar-fallback { display:grid; place-items:center; background:#3a3b3b; color:rgba(235,235,235,.85); font-size:12px; font-weight:600; }
+.v3-tweet-embed__author-text { display:flex; flex-direction:column; line-height:1.2; text-align:left; }
+.v3-tweet-embed__author-text strong { font-size:13.5px; font-weight:600; }
+.v3-tweet-embed__author-text span { color:rgba(235,235,235,.5); font-size:12px; }
+.v3-tweet-embed__text { color:rgba(235,235,235,.92); font-size:13.5px; line-height:1.42; text-align:left; white-space:pre-wrap; overflow-wrap:anywhere; }
+.v3-tweet-embed__video { display:block; width:100%; max-width:100%; max-height:420px; border-radius:12px; background:#000; cursor:auto; }
+.v3-tweet-embed__photos { display:grid; gap:3px; max-width:100%; border-radius:12px; overflow:hidden; }
+.v3-tweet-embed__photos img { display:block; width:100%; height:100%; object-fit:cover; cursor:zoom-in; }
+.v3-tweet-embed__photos--1 { grid-template-columns:1fr; }
+.v3-tweet-embed__photos--1 img { max-height:420px; }
+.v3-tweet-embed__photos--2 { grid-template-columns:1fr 1fr; aspect-ratio:16/9; }
+.v3-tweet-embed__photos--3 { grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; aspect-ratio:1/1; }
+.v3-tweet-embed__photos--3 img:first-child { grid-row:1 / span 2; }
+.v3-tweet-embed__photos--4 { grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; aspect-ratio:1/1; }
+
+img.v3-media { cursor:zoom-in; }
+
+/* Full-view lightbox: covers the app's own viewport edge-to-edge (not OS
+   fullscreen), pillarboxes the image via object-fit:contain with no inset
+   padding or rounding. Pure click actions: click the image (or backdrop) to
+   close, wheel to zoom, Escape also closes - no buttons. */
+.v3-lightbox { position:fixed; inset:0; z-index:999; display:flex; align-items:center; justify-content:center; background:#000; cursor:zoom-out; }
+.v3-lightbox__media { display:block; max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; border-radius:0; cursor:zoom-out; }
+/* Lets the window still be dragged while viewing an image, without needing
+   the app's own drag strip underneath (this overlay sits above .stage). */
+.v3-lightbox__drag-region { position:absolute; top:0; left:0; right:0; z-index:1; height:50px; }
+
 /* V3 voice control always uses the standard labelled-button geometry. */
 .voice-call-button.icon-button--label { min-width: 94px; }
 .voice-call-button.is-connected { width: 142px; min-width: 142px; background: #00b339; box-shadow: 0 0 0 1.25px rgba(0, 74, 30, .9); }
@@ -2514,6 +2559,9 @@ body {
 .v3-settings-close { position:absolute !important; z-index:20 !important; top:14px !important; right:14px !important; display:grid; width:34px; height:34px; place-items:center; padding:0; border:0; border-radius:50%; color:rgba(235,235,235,.72); background:#252525; box-shadow:0 0 0 1.25px rgba(0,0,0,.82),inset 0 1px rgba(255,255,255,.13); cursor:pointer; }
 .v3-settings-close:hover { color:#fff; background:#343434; }
 .v3-settings-close svg { width:17px; height:17px; }
+/* Lets the window still be dragged while Settings is open, without covering
+   the close button (which sits above this at z-index:20). */
+.v3-settings-drag-region { position:absolute; top:0; left:0; right:56px; z-index:1; height:44px; }
 .v3-settings-content [role="tabpanel"] > section > form { padding:16px; border-radius:18px; background:#252525; box-shadow:0 0 0 1.25px rgba(0,0,0,.78),inset 0 1px rgba(255,255,255,.10); }
 .v3-settings-content button:not([role="switch"]) { border-color:rgba(0,0,0,.78); background:#2a2a2a; box-shadow:0 0 0 1px rgba(0,0,0,.52),inset 0 1px rgba(255,255,255,.10); }
 .v3-settings-content button:not([role="switch"]):hover { background:#343434; }
@@ -2615,7 +2663,6 @@ body {
 .v3-reaction-picker,
 .v3-reply-banner,
 .v3-pending-media,
-.v3-rich-link,
 .v3-reaction-chips button,
 .v3-reaction-chips button:hover,
 .v3-chat-switcher__menu,

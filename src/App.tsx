@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { GlobalTitlebar } from "@/components/titlebar";
 import { V3Shell } from "@/features/v3-shell/v3-shell";
 import { AuthScreen } from "@/features/auth/auth-screen";
 import { KeybindManager } from "@/features/settings/keybind-manager";
@@ -42,6 +43,7 @@ export default function App() {
 
   return (
     <TooltipProvider delayDuration={300}>
+      <GlobalTitlebar />
       <KeybindManager />
       {status === "signedIn" ? (
         <V3Shell />

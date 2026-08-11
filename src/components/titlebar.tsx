@@ -1,14 +1,8 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { CopyRegular, DismissRegular, SquareRegular, SubtractRegular } from "@fluentui/react-icons";
 import { Button } from "@/components/ui/button";
 import { appWindow, isTauri } from "@/lib/tauri";
-
-export function Titlebar() {
-  if (!isTauri) return null;
-  return (
-    <div data-tauri-drag-region aria-label="Move window" className="pointer-events-auto absolute top-0 left-0 z-40 h-8 w-72" />
-  );
-}
 
 export function WindowControls() {
   const [maximized, setMaximized] = useState(false);
@@ -39,4 +33,18 @@ export function WindowControls() {
       </Button>
     </div>
   );
+}
+
+// Portaled straight to <body> so the window controls stay clickable above
+// every dialog/overlay (Settings, the media lightbox, etc) - those live
+// inside .stage, which uses isolation:isolate, so no z-index set inside that
+// context can out-rank something outside it. This is just the small
+// top-right button cluster, not the drag strip: a full-width drag region up
+// here would sit on top of in-app UI (the call button, nav controls, ...)
+// that normally lives in that same top band, making it unclickable. Dragging
+// while an overlay is open is instead handled by a drag strip inside that
+// overlay itself (see DialogContent and V3Lightbox).
+export function GlobalTitlebar() {
+  if (!isTauri || typeof document === "undefined") return null;
+  return createPortal(<div className="global-window-controls"><WindowControls /></div>, document.body);
 }

@@ -9,13 +9,32 @@ const corsHeaders = {
 const MAX_HTML_BYTES = 384 * 1024;
 const FETCH_TIMEOUT_MS = 5_000;
 
-type LinkPreview = {
+type SitePreview = {
+  kind: "site";
   url: string;
   title: string;
   description?: string;
   siteName?: string;
   image?: string;
 };
+
+type TweetMedia = {
+  type: "photo" | "video" | "gif";
+  url: string;
+  thumbnailUrl?: string;
+  width?: number;
+  height?: number;
+};
+
+type TweetPreview = {
+  kind: "tweet";
+  url: string;
+  author: { name: string; handle: string; avatarUrl?: string };
+  text: string;
+  media: TweetMedia[];
+};
+
+type LinkPreview = SitePreview | TweetPreview;
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: corsHeaders });
@@ -122,6 +141,66 @@ async function fetchDocument(initialUrl: URL) {
   throw new Error("Too many redirects.");
 }
 
+function isTweetUrl(url: URL) {
+  const hostname = url.hostname.toLowerCase().replace(/^(www|mobile)\./, "");
+  if (hostname !== "twitter.com" && hostname !== "x.com") return false;
+  return /^\/[^/]+\/status\/\d+/.test(url.pathname) || /^\/i\/status\/\d+/.test(url.pathname);
+}
+
+// twitter.com/x.com serve almost no usable markup to a logged-out fetch, so a
+// generic OG scrape can't recover tweet text, the author, or media. fxtwitter
+// (the open-source "FixTweet" project) exposes exactly that as JSON, keyed
+// off the same /user/status/id path shape - no API key needed.
+async function fetchTweetPreview(url: URL): Promise<TweetPreview | null> {
+  try {
+    const apiUrl = `https://api.fxtwitter.com${url.pathname}`;
+    const response = await fetch(apiUrl, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: { "user-agent": "Nitro Link Preview/1.0", accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const tweet = data?.tweet;
+    if (!tweet || typeof tweet.text !== "string" || !tweet.author?.screen_name) return null;
+
+    const media: TweetMedia[] = [];
+    for (const photo of tweet.media?.photos ?? []) {
+      const safe = typeof photo?.url === "string" ? isSafeHttpUrl(photo.url) : null;
+      if (safe?.protocol !== "https:") continue;
+      media.push({ type: "photo", url: safe.href, width: photo.width, height: photo.height });
+    }
+    for (const video of tweet.media?.videos ?? []) {
+      const safe = typeof video?.url === "string" ? isSafeHttpUrl(video.url) : null;
+      if (safe?.protocol !== "https:") continue;
+      const thumb = typeof video?.thumbnail_url === "string" ? isSafeHttpUrl(video.thumbnail_url) : null;
+      media.push({
+        type: video.type === "gif" ? "gif" : "video",
+        url: safe.href,
+        thumbnailUrl: thumb?.protocol === "https:" ? thumb.href : undefined,
+        width: video.width,
+        height: video.height,
+      });
+    }
+
+    const avatar = typeof tweet.author.avatar_url === "string" ? isSafeHttpUrl(tweet.author.avatar_url) : null;
+    const tweetUrl = typeof tweet.url === "string" ? isSafeHttpUrl(tweet.url) : null;
+    return {
+      kind: "tweet",
+      url: tweetUrl?.href ?? url.href,
+      author: {
+        name: text(tweet.author.name ?? "", 80) || tweet.author.screen_name,
+        handle: tweet.author.screen_name,
+        avatarUrl: avatar?.protocol === "https:" ? avatar.href : undefined,
+      },
+      text: text(tweet.text, 600),
+      media: media.slice(0, 4),
+    };
+  } catch (error) {
+    console.warn("Tweet preview unavailable", error instanceof Error ? error.message : "unknown");
+    return null;
+  }
+}
+
 const handler = withSupabase({ auth: "user" }, async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
@@ -129,6 +208,12 @@ const handler = withSupabase({ auth: "user" }, async (req) => {
   if (typeof body?.url !== "string" || body.url.length > 2_048) return json({ error: "Invalid URL" }, 400);
   const requestedUrl = isSafeHttpUrl(body.url);
   if (!requestedUrl) return json({ error: "Unsupported URL" }, 400);
+
+  if (isTweetUrl(requestedUrl)) {
+    const tweetPreview = await fetchTweetPreview(requestedUrl);
+    if (tweetPreview) return json({ preview: tweetPreview });
+    // Fall through to the generic scrape below as a fallback.
+  }
 
   try {
     const { url, html } = await fetchDocument(requestedUrl);
@@ -139,7 +224,7 @@ const handler = withSupabase({ auth: "user" }, async (req) => {
     const siteName = text(meta(html, ["og:site_name"]), 80);
     const imageValue = meta(html, ["og:image", "twitter:image"]);
     const imageUrl = imageValue ? isSafeHttpUrl(imageValue, url.href) : null;
-    const preview: LinkPreview = { url: url.href, title };
+    const preview: SitePreview = { kind: "site", url: url.href, title };
     if (description) preview.description = description;
     if (siteName) preview.siteName = siteName;
     if (imageUrl?.protocol === "https:") preview.image = imageUrl.href;

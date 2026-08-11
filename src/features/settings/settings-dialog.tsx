@@ -350,6 +350,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
             <XIcon aria-hidden="true" />
           </button>
         </DialogClose>
+        <div className="v3-settings-drag-region" data-tauri-drag-region aria-hidden="true" />
 
         <Tabs
           value={tab}
