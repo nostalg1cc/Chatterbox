@@ -17,7 +17,7 @@ function remoteMediaUrl(path) {
     : `${CLOUDINARY_BASE}/video/upload/c_limit,h_720,w_1280/f_mp4,vc_h264,ac_aac,br_av:video_(value_2500k;mode_cbr);audio_(value_128k),fps_30,q_auto:good/dislight/chat-media/${id}.mp4`;
 }
 
-export function V3MediaAttachment({ message, alignEnd = false }) {
+export function V3MediaAttachment({ message }) {
   const userId = useAuth((state) => state.userId);
   const [url, setUrl] = useState(null);
   const [local, setLocal] = useState(false);
@@ -92,9 +92,8 @@ export function V3MediaAttachment({ message, alignEnd = false }) {
 
   if (failed) return <span className="v3-media-unavailable">Media is unavailable</span>;
   if (!url) return <span className="v3-media-loading">Loading media…</span>;
-  const wrapClass = alignEnd ? "v3-media-wrap v3-media-wrap--self" : "v3-media-wrap";
   return (
-    <div className={wrapClass}>
+    <div className="v3-media-wrap">
       {message.media_kind === "video" ? (
         <video ref={videoRef} className="v3-media" src={url} controls playsInline preload="metadata" onVolumeChange={(event) => {
           const nextVolume = Math.round((event.currentTarget.volume * 10000) / Math.max(1, outputVolume));

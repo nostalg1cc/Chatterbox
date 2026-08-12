@@ -973,6 +973,8 @@ function KeybindRow({
   onChange: (value: string) => void;
 }) {
   const [recording, setRecording] = useState(false);
+  const globalVoiceShortcuts = usePreferences((state) => state.globalVoiceShortcuts);
+  const isGlobalCapable = action === "toggleMute" || action === "toggleDeafen";
 
   useEffect(() => {
     if (!recording) return;
@@ -988,22 +990,32 @@ function KeybindRow({
         setRecording(false);
         return;
       }
-      if (!event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey) return;
       const binding = eventKeybind(event);
       if (!binding) return;
+      // Bare keys (no modifier) can't be registered as an OS-wide global
+      // shortcut - globalKeybind() already skips sending those to Rust, so
+      // this only works while Nitro's window is focused. That's fine for
+      // app-only actions, but worth a heads-up for mute/deafen when global
+      // shortcuts are turned on, since the expectation there is "works
+      // anywhere".
+      if (isGlobalCapable && globalVoiceShortcuts && !binding.includes("+")) {
+        toast.info("That shortcut will only work while Nitro is focused - bare keys can't be registered as a system-wide global shortcut.");
+      }
       onChange(binding);
       setRecording(false);
     };
     window.addEventListener("keydown", capture, true);
     return () => window.removeEventListener("keydown", capture, true);
-  }, [onChange, recording]);
+  }, [onChange, recording, isGlobalCapable, globalVoiceShortcuts]);
 
   return (
     <div className="flex items-center gap-4 p-4">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{KEYBIND_LABELS[action]}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {action === "openSoundboard" ? "Available while connected to voice." : "Press Escape to cancel or Backspace to clear."}
+          {recording
+            ? "Waiting for a key combination…"
+            : action === "openSoundboard" ? "Available while connected to voice." : "Press Escape to cancel or Backspace to clear."}
         </p>
       </div>
       <Button

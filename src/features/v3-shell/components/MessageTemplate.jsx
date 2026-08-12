@@ -8,8 +8,8 @@ import { V3MessageActions } from "./V3MessageActions";
 import { V3ReplyPreview } from "./V3ReplyPreview";
 import { V3RichMessage } from "./V3RichMessage";
 
-export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration, nameColor, nameFont, nameWeight, message, timestamp, isSelf, showMeta = true, media, sourceMessage, isDeleted = false, isEdited = false, decorationActive = false, onDecorationHoverChange, replyPreview = null }) {
-  const className = ["message-template", isSelf && "message-template--self", !showMeta && "message-template--grouped", replyPreview && "message-template--has-reply"].filter(Boolean).join(" ");
+export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration, nameColor, nameFont, nameWeight, message, timestamp, showMeta = true, media, sourceMessage, isDeleted = false, isEdited = false, decorationActive = false, onDecorationHoverChange, replyPreview = null }) {
+  const className = ["message-template", !showMeta && "message-template--grouped", replyPreview && "message-template--has-reply"].filter(Boolean).join(" ");
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(sourceMessage?.content ?? "");
@@ -40,7 +40,11 @@ export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration
       {replyPreview && (
         <>
           <V3ReplyPreview target={replyPreview.target} authorName={replyPreview.authorName} authorAvatar={replyPreview.authorAvatar} authorNameColor={replyPreview.authorNameColor} onJump={replyPreview.onJump} />
-          <span className="message-template__reply-hook" aria-hidden="true" />
+          <span className="message-template__reply-hook" aria-hidden="true">
+            <svg viewBox="0 0 48 20" fill="none">
+              <path d="M44 5 H27 Q19 5 19 13 V20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </span>
         </>
       )}
       <span className="message-template__avatar" aria-hidden="true">
@@ -50,7 +54,7 @@ export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration
         {showMeta && decoration && <img className="message-template__decoration" src={decoration} alt="" />}
       </span>
       <div className="message-template__content">
-        {showMeta && <header className="message-template__header">{isSelf ? <>{timeNode}{nameNode}</> : <>{nameNode}{timeNode}</>}</header>}
+        {showMeta && <header className="message-template__header">{nameNode}{timeNode}</header>}
         {editing ? (
           <>
             <textarea className="v3-inline-editor" autoFocus value={draft} aria-label="Edit message" onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setEditing(false); } if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (!saving) void saveEdit(); } }} />
@@ -59,8 +63,8 @@ export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration
         ) : (
           <>
             {isDeleted ? <span className="message-template__state">(deleted)</span> : <>
-              {message && <V3RichMessage content={message} alignEnd={isSelf} />}
-              {media && <V3MediaAttachment message={media} alignEnd={isSelf} />}
+              {message && <V3RichMessage content={message} />}
+              {media && <V3MediaAttachment message={media} />}
               {isEdited && <span className="message-template__state">(edited)</span>}
             </>}
           </>

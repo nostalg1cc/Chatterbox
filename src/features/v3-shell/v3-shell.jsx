@@ -6,6 +6,7 @@ import { decorationUrl } from "@/lib/avatar-decorations";
 import { supabase } from "@/lib/supabase";
 import { isTauri } from "@/lib/tauri";
 import { hideVoiceHud, resizeVoiceHud, showVoiceHud, updateVoiceHud } from "@/lib/voice-hud";
+import { eventKeybind } from "@/lib/keybinds";
 import { prepareChatMedia } from "@/lib/media";
 import { toast } from "sonner";
 import { useAuth } from "@/stores/auth";
@@ -332,6 +333,34 @@ export function V3Shell() {
     event.preventDefault();
     void prepareAttachment(file);
   }
+
+  // Type-to-focus: with no other UI element specifically focused, jump
+  // straight into the composer and start typing rather than requiring a
+  // click first - like Discord/Slack.
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (!activeId || event.ctrlKey || event.altKey || event.metaKey) return;
+      if (event.key.length !== 1) return; // only plain printable characters
+      const active = document.activeElement;
+      const tag = active?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active?.isContentEditable) return;
+      if (active?.closest?.('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return;
+      // A configured keybind (mute, leave voice, etc.) takes priority over
+      // typing, even if it happens to be a bare key.
+      const binding = eventKeybind(event);
+      if (binding && Object.values(usePreferences.getState().keybinds).includes(binding)) return;
+      const input = document.getElementById("message-composer");
+      if (!input) return;
+      event.preventDefault();
+      const next = composerValue + event.key;
+      handleComposerChange(next);
+      input.focus();
+      requestAnimationFrame(() => input.setSelectionRange(next.length, next.length));
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeId, composerValue]);
+
   function showAlert() {
     const variant = alertVariants[alertVariantIndex];
 
@@ -465,7 +494,6 @@ export function V3Shell() {
                   nameColor={profile?.name_color}
                   nameFont={profile?.name_font}
                   nameWeight={profile?.name_weight}
-                  isSelf={isSelf}
                   showMeta={startsNewMessageGroup(message, previous)}
                   message={message.deleted_at ? null : message.content}
                   media={!message.deleted_at && message.media_kind ? message : null}

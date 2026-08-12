@@ -135,13 +135,13 @@ function TweetMedia({ media }) {
   );
 }
 
-function TweetEmbed({ preview, alignEnd }) {
+function TweetEmbed({ preview }) {
   const open = (event) => {
     event.preventDefault();
     void openLink(preview.url);
   };
   return (
-    <div className={`v3-tweet-embed${alignEnd ? " v3-tweet-embed--self" : ""}`}>
+    <div className="v3-tweet-embed">
       <button type="button" className="v3-tweet-embed__link" onClick={open}>
         <span className="v3-tweet-embed__source">
           <XIcon />
@@ -165,14 +165,14 @@ function TweetEmbed({ preview, alignEnd }) {
   );
 }
 
-function SiteEmbed({ preview, alignEnd }) {
+function SiteEmbed({ preview }) {
   const open = (event) => {
     event.preventDefault();
     void openLink(preview.url);
   };
   return (
     <a
-      className={`v3-rich-link${alignEnd ? " v3-rich-link--self" : ""}`}
+      className="v3-rich-link"
       href={preview.url}
       target="_blank"
       rel="noreferrer"
@@ -188,7 +188,7 @@ function SiteEmbed({ preview, alignEnd }) {
   );
 }
 
-export function V3RichMessage({ content, alignEnd = false }) {
+export function V3RichMessage({ content }) {
   const url = useMemo(() => {
     const first = content.match(URL_PART)?.[0];
     return first ? splitTrailingPunctuation(first).url : null;
@@ -226,8 +226,8 @@ export function V3RichMessage({ content, alignEnd = false }) {
           <LinkText content={content} hidden={preview ? url : null} />
         </p>
       )}
-      {preview?.kind === "tweet" && <TweetEmbed preview={preview} alignEnd={alignEnd} />}
-      {preview?.kind === "site" && <SiteEmbed preview={preview} alignEnd={alignEnd} />}
+      {preview?.kind === "tweet" && <TweetEmbed preview={preview} />}
+      {preview?.kind === "site" && <SiteEmbed preview={preview} />}
     </>
   );
 }

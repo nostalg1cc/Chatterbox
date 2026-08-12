@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { toast } from "sonner";
@@ -10,6 +10,10 @@ import { useVoice } from "@/stores/voice";
 export function KeybindManager() {
   const globalVoiceShortcuts = usePreferences((state) => state.globalVoiceShortcuts);
   const keybinds = usePreferences((state) => state.keybinds);
+  // Actions ("mute"/"deafen") whose global registration failed last time
+  // (e.g. claimed by another app) - the in-window shortcut stays live for
+  // those instead of silently doing nothing.
+  const failedGlobalActionsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -20,11 +24,11 @@ export function KeybindManager() {
       const voice = useVoice.getState();
 
       if (binding === preferences.keybinds.toggleMute) {
-        if (isTauri && preferences.globalVoiceShortcuts) return;
+        if (isTauri && preferences.globalVoiceShortcuts && !failedGlobalActionsRef.current.has("mute")) return;
         event.preventDefault();
         voice.toggleMute();
       } else if (binding === preferences.keybinds.toggleDeafen) {
-        if (isTauri && preferences.globalVoiceShortcuts) return;
+        if (isTauri && preferences.globalVoiceShortcuts && !failedGlobalActionsRef.current.has("deafen")) return;
         event.preventDefault();
         voice.toggleDeafen();
       } else if (binding === preferences.keybinds.leaveVoice && voice.activeConversationId) {
@@ -69,12 +73,23 @@ export function KeybindManager() {
     const deafenShortcut = globalVoiceShortcuts ? globalKeybind(keybinds.toggleDeafen) : null;
     let disposed = false;
 
-    void invoke("configure_global_voice_shortcuts", {
+    void invoke<string[]>("configure_global_voice_shortcuts", {
       enabled: globalVoiceShortcuts,
       muteShortcut,
       deafenShortcut,
+    }).then((failed) => {
+      if (disposed) return;
+      failedGlobalActionsRef.current = new Set(failed);
+      if (failed.length > 0) {
+        toast.warning(
+          `Could not register the global ${failed.join("/")} shortcut - it's already used by another app. It'll still work while Nitro is focused.`
+        );
+      }
     }).catch((error) => {
       if (!disposed) {
+        // The whole call failing (not just one shortcut) - fall back to
+        // local handling for both rather than leaving neither working.
+        failedGlobalActionsRef.current = new Set(["mute", "deafen"]);
         console.warn("Global shortcuts unavailable", error);
         toast.error(typeof error === "string" ? error : "Could not register global voice shortcuts.");
       }

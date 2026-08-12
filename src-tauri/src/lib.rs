@@ -89,19 +89,26 @@ fn register_global_voice_shortcut(app: &tauri::AppHandle, shortcut: &str, action
         .map_err(|error| error.to_string())
 }
 
+// Returns the action names ("mute"/"deafen") that could NOT be registered
+// (e.g. already claimed by another app) - anything not in that list is live.
+// A single conflicting shortcut must not take the other one down with it:
+// this used to abort and unregister everything on the first failure, so one
+// bad binding silently killed every global shortcut, including ones that had
+// already registered fine.
 #[tauri::command]
 fn configure_global_voice_shortcuts(
     app: tauri::AppHandle,
     enabled: bool,
     mute_shortcut: Option<String>,
     deafen_shortcut: Option<String>,
-) -> Result<(), String> {
+) -> Result<Vec<String>, String> {
     clear_global_voice_shortcuts(&app)?;
     if !enabled {
-        return Ok(());
+        return Ok(Vec::new());
     }
 
     let mut registered = Vec::new();
+    let mut failed = Vec::new();
     let requested = [
         (mute_shortcut.filter(|shortcut| !shortcut.trim().is_empty()), "mute"),
         (deafen_shortcut.filter(|shortcut| !shortcut.trim().is_empty()), "deafen"),
@@ -109,12 +116,12 @@ fn configure_global_voice_shortcuts(
     for (shortcut, action) in requested {
         let Some(shortcut) = shortcut else { continue };
         if registered.iter().any(|existing: &String| existing.eq_ignore_ascii_case(&shortcut)) {
-            let _ = app.global_shortcut().unregister_multiple(registered.iter().map(String::as_str));
-            return Err("Mute and deafen cannot use the same global shortcut.".to_string());
+            failed.push(action.to_string());
+            continue;
         }
-        if let Err(error) = register_global_voice_shortcut(&app, &shortcut, action) {
-            let _ = app.global_shortcut().unregister_multiple(registered.iter().map(String::as_str));
-            return Err(format!("Could not register {shortcut}: {error}"));
+        if register_global_voice_shortcut(&app, &shortcut, action).is_err() {
+            failed.push(action.to_string());
+            continue;
         }
         registered.push(shortcut);
     }
@@ -122,7 +129,7 @@ fn configure_global_voice_shortcuts(
     let state = app.state::<GlobalVoiceShortcuts>();
     let mut shortcuts = state.0.lock().map_err(|_| "Global shortcut state is unavailable.".to_string())?;
     *shortcuts = registered;
-    Ok(())
+    Ok(failed)
 }
 
 #[tauri::command]
