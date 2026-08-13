@@ -97,15 +97,16 @@ function TweetVideo({ url, poster, loop }) {
   }, [url]);
 
   return (
-    <video
-      className="v3-tweet-embed__video"
-      src={blobUrl ?? undefined}
-      poster={poster}
-      controls
-      playsInline
-      loop={loop}
-      onClick={(event) => event.stopPropagation()}
-    />
+    <div className="v3-tweet-embed__media-frame" onClick={(event) => event.stopPropagation()}>
+      <video
+        className="v3-tweet-embed__video"
+        src={blobUrl ?? undefined}
+        poster={poster}
+        controls
+        playsInline
+        loop={loop}
+      />
+    </div>
   );
 }
 

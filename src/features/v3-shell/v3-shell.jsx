@@ -21,7 +21,7 @@ import {
   CircleX,
   LoaderCircle,
   MessageCircle,
-  Paperclip,  ScreenShare,
+  ScreenShare,
   Settings,
   X,
   TriangleAlert,
@@ -191,7 +191,7 @@ export function V3Shell() {
   }), [voiceParticipants, userId, selfProfile, partnerProfile, voiceSpeaking, voiceLevel]);
   // Collapse a run of consecutive voice_started/voice_ended markers (no real
   // chat message between them) down to just the last one, as long as every
-  // call in that run was under 10 minutes - short join/leave/reconnect
+  // call in that run was under 15 minutes - short join/leave/reconnect
   // bursts otherwise spam the whole history with one line per event.
   const collapsedVoiceMarkerIds = useMemo(() => {
     const skip = new Set();
@@ -214,7 +214,7 @@ export function V3Shell() {
       }
       if (runStart === -1) runStart = index;
       runEnd = index;
-      if (message.message_kind === "voice_ended" && (message.voice_duration_seconds ?? 0) >= 600) hasLongCall = true;
+      if (message.message_kind === "voice_ended" && (message.voice_duration_seconds ?? 0) >= 900) hasLongCall = true;
     });
     flush();
     return skip;
@@ -544,8 +544,7 @@ export function V3Shell() {
         </div>}
         <div className="composer-row">
           <input ref={attachmentInputRef} className="v3-file-input" type="file" accept="image/*,video/*" onChange={(event) => { void prepareAttachment(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-          {isTauri && <ActionButton label="Attach media" icon={Paperclip} className="composer-attach-button" onClick={() => attachmentInputRef.current?.click()} />}
-          <InputBar value={composerValue} onChange={handleComposerChange} onSubmit={() => void handleComposerSubmit()} onPaste={handleComposerPaste} onAttach={isTauri ? undefined : () => attachmentInputRef.current?.click()} />
+          <InputBar value={composerValue} onChange={handleComposerChange} onSubmit={() => void handleComposerSubmit()} onPaste={handleComposerPaste} onAttach={() => attachmentInputRef.current?.click()} />
         </div>
       </div>
       <div className="temporarily-hidden" aria-hidden="true">
