@@ -1593,7 +1593,26 @@ body {
 
 .message-template--grouped { margin-top: -7px; }
 .message-template--grouped .message-template__avatar { visibility: hidden; }
-.message-template__decoration { position: absolute; z-index: 3; top: 50%; left: 50%; width: 118%; max-width: none; height: auto; pointer-events: none; transform: translate(-50%, -50%); }
+/* Grouped messages hide the avatar entirely, but a Discord-style timestamp
+   still reveals itself in that same gutter on hover - visibility:visible
+   here opts back out of the parent's visibility:hidden above. */
+.message-template__hover-timestamp {
+  position: absolute;
+  top: 4px;
+  left: -6px;
+  visibility: visible;
+  width: 50px;
+  color: rgba(217, 217, 217, 0.4);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.message-template:hover .message-template__hover-timestamp { opacity: 1; }
 .v3-media {
   display: block;
   max-width: 100%;
@@ -1638,7 +1657,7 @@ body {
 .v3-file-input { display:none; }
 .v3-pending-media { display:flex; align-items:center; gap:8px; align-self:flex-end; padding:6px 10px; border-radius:12px; color:rgba(235,235,235,.78); font-size:12px; background:#252626; box-shadow:0 0 0 1.25px rgba(0,0,0,.8); }
 .v3-pending-media button { padding:0; border:0; color:rgba(235,235,235,.65); font:inherit; background:transparent; cursor:pointer; text-decoration:underline; }
-.message-template__decoration,.partner-avatar-button__decoration { width:124%; }
+.partner-avatar-button__decoration { width:124%; }
 .partner-avatar-button__presence { position:absolute; z-index:5; right:-1px; bottom:-1px; width:11px; height:11px; border:2px solid var(--material-color); border-radius:50%; background:#6b6b6b; }
 .partner-avatar-button__presence.is-online { background:#00d084; }
 .partner-avatar-button__presence.is-away { background:#f0a238; }
@@ -1705,8 +1724,8 @@ img.v3-media { cursor:zoom-in; }
    fullscreen), pillarboxes the image via object-fit:contain with no inset
    padding or rounding. Pure click actions: click the image (or backdrop) to
    close, wheel to zoom, Escape also closes - no buttons. */
-.v3-lightbox { position:fixed; inset:0; z-index:999; display:flex; align-items:center; justify-content:center; background:#000; cursor:zoom-out; }
-.v3-lightbox__media { display:block; max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; border-radius:0; cursor:zoom-out; }
+.v3-lightbox { position:fixed; inset:0; z-index:999; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#000; }
+.v3-lightbox__media { display:block; width:100%; height:100%; object-fit:contain; border-radius:0; user-select:none; -webkit-user-drag:none; }
 /* Lets the window still be dragged while viewing an image, without needing
    the app's own drag strip underneath (this overlay sits above .stage). */
 .v3-lightbox__drag-region { position:absolute; top:0; left:0; right:0; z-index:1; height:50px; }
@@ -1896,7 +1915,6 @@ img.v3-media { cursor:zoom-in; }
 .voice-call-button.is-connected .voice-call-button__time { left: 58px; right: 10px; }
 
 /* V3 composition feedback and inline editing. */
-.message-template__decoration,
 .partner-avatar-button__decoration { width: 130%; }
 
 .v3-inline-editor {
@@ -2172,35 +2190,20 @@ img.v3-media { cursor:zoom-in; }
 .soundboard-volume span { width: 31px; flex: none; color: rgba(230,230,230,.62); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
 
 /* V3 parity: cache-aware media, scroll-back history, and compact DM switcher. */
-/* Media frame: same glass material as buttons/dropdowns/etc, but on the
-   wrapper (a plain div) instead of the img/video itself - a replaced
-   element's own bitmap paints over everything inside its box, so a ring
-   tight against the photo's edge is nearly invisible. The small padding
-   here gives the gradient stroke an actual visible strip to sweep across. */
+/* Plain layout container, no material - just sizing/rounding. The actual
+   img/video (or the photo grid tiles) carry their own border-radius, this
+   is a safety-net clip for mismatched aspect ratios. */
 .v3-media-wrap,
 .v3-tweet-embed__media-frame,
 .v3-tweet-embed__photos {
-  --material-color: #0b0b0b;
   width: fit-content;
-  max-width: min(720px, 100%);
+  /* Match the message column's own width (480px) instead of stretching
+     wider - Discord's embeds sit flush with the text above them, not
+     wider than it. */
+  max-width: min(480px, 100%);
   margin-top: 8px;
-  padding: 4px;
   border-radius: 15px;
-  /* clip-path instead of overflow:hidden - a rounded overflow:hidden clip
-     on a grid/video child is a known Chromium spot where the child's own
-     composited layer can bleed a pixel or two past the curve; clip-path
-     always clips to the exact shape regardless of what's inside. */
-  clip-path: inset(0 round 15px);
-  background-image:
-    linear-gradient(var(--material-color), var(--material-color)),
-    var(--material-stroke),
-    linear-gradient(var(--material-color), var(--material-color));
-  background-blend-mode: normal, color-dodge, normal;
-  background-origin: border-box;
-  background-clip: padding-box, border-box, border-box;
-  border: 1.25px solid transparent;
-  outline: 1.25px solid rgba(0, 0, 0, 0.8);
-  outline-offset: 0;
+  overflow: hidden;
 }
 .v3-media-wrap .v3-media { margin-top: 0; }
 .v3-media-saved { display: inline-flex; margin-top: 5px; padding: 2px 6px; border-radius: 999px; color: rgba(217,217,217,.62); font-size: 10px; background: rgba(0,0,0,.28); }
@@ -2208,11 +2211,7 @@ img.v3-media { cursor:zoom-in; }
 
 /* Decorations deliberately live outside the image clip; both layers use the same centre point. */
 .message-template__avatar { overflow: visible; }
-.message-template__avatar > img:not(.message-template__decoration),
-.message-template__avatar > .message-template__fallback { position: absolute; inset: 0; z-index: 1; overflow: hidden; border-radius: 50%; }
-.message-template__decoration,
 .partner-avatar-button__decoration { top: 50%; left: 50%; width: 136%; height: 136%; max-width: none; object-fit: contain; object-position: center; transform: translate(-50%, -50%); transform-origin: center; }
-.message-template__avatar::before { z-index: 4; }
 .partner-avatar-button__presence { z-index: 6; }
 
 .v3-chat-switcher { position: relative; z-index: 20; }
@@ -2233,7 +2232,6 @@ img.v3-media { cursor:zoom-in; }
 
 /* V3 refinement: partner presence is easier to read; history frames need a little more room than header frames. */
 .partner-avatar-button__presence { right: -2px; bottom: -2px; width: 13px; height: 13px; border-width: 2px; }
-.message-template__decoration { width: 142%; height: 142%; }
 
 /* Message decorations own a fixed square canvas around a separately clipped photo. */
 .message-template__avatar { overflow: visible; border-radius: 50%; }

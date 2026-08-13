@@ -30,6 +30,13 @@ supabase/.temp/
 
 # Large source library; avatar decorations are delivered from Cloudinary.
 stuff/new deco/
+
+# Dead-code holding pen: files moved out of src/ instead of deleted, so a
+# git revert alone won't bring them back - kept locally, never committed.
+/BAK/
+# Git Bash's `2>nul` doesn't hit the real null device on Windows the way
+# cmd.exe's does - it creates a literal empty file named "nul" instead.
+/nul
 # Local updater signing material and emergency recovery backup.
 .dislight-updater.key.local
 .dislight-updater.key.local.pub

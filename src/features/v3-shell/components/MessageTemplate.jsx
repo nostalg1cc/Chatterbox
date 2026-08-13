@@ -66,6 +66,7 @@ export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration
           {avatar ? <img src={avatar} alt="" /> : <span className="message-template__fallback">{name.slice(0, 1).toUpperCase()}</span>}
         </span>}
         {showMeta && decoration && <img className="message-template__decoration" src={decoration} alt="" />}
+        {!showMeta && <time className="message-template__hover-timestamp" aria-hidden="true">{timestamp}</time>}
       </motion.span>
       <div className="message-template__content">
         {showMeta && (

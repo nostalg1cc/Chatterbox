@@ -25,6 +25,7 @@ interface PreferencesState {
   interfaceSoundVolume: number;
   soundboardVolume: number;
   pinnedSoundIds: string[];
+  recentDecorationIds: string[];
   windowMaterial: WindowMaterial;
   noiseSuppression: boolean;
   noiseSuppressionEngine: "native" | "rnnoise";
@@ -56,6 +57,7 @@ const defaults: PreferencesData = {
   interfaceSoundVolume: 65,
   soundboardVolume: 80,
   pinnedSoundIds: [],
+  recentDecorationIds: [],
   windowMaterial: "mica",
   noiseSuppression: false,
   noiseSuppressionEngine: "native",

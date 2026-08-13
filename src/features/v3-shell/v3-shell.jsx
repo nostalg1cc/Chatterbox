@@ -245,6 +245,14 @@ export function V3Shell() {
   const isInitialLoad = !loaded || (conversations.length > 0 && (!activeId || !hasActiveMessages));
   const uiSounds = useUiSounds();
   const messageHistoryRef = useRef(null);
+  const messageListRef = useRef(null);
+  // Explicit "should this stay pinned to the bottom" intent, instead of a
+  // pixel-gap re-check every time - content can grow across several async
+  // stages (an image, then a tweet/link embed fetch resolving later, then
+  // another), and re-deriving "near enough to the bottom" after each one
+  // drifts further off with every stage. Tracking intent instead means it
+  // stays correct no matter how many stages there are.
+  const atBottomRef = useRef(true);
   const loadingOlderRef = useRef(false);
   const prependRestoreRef = useRef(null);
   const initialConversationRef = useRef(null);
@@ -433,8 +441,12 @@ export function V3Shell() {
     const restore = prependRestoreRef.current;
     if (!history || !restore) return;
     history.scrollTop = history.scrollHeight - restore.height + restore.top;
-    prependRestoreRef.current = null;
-  }, [liveMessages]);
+    // Leave prependRestoreRef set - the effect below (same liveMessages
+    // change, but a passive effect so it always runs after this layout
+    // effect) still needs to see "this update was a prepend" so it doesn't
+    // undo the restore above with its own scroll-to-bottom logic. It clears
+    // the ref once it's done checking.
+  }, [liveMessages, isInitialLoad]);
 
   useEffect(() => {
     const history = messageHistoryRef.current;
@@ -444,14 +456,47 @@ export function V3Shell() {
     lastMessageCountRef.current = count;
     if (initialConversationRef.current !== activeId) {
       initialConversationRef.current = activeId;
+      atBottomRef.current = true;
       requestAnimationFrame(() => { history.scrollTop = history.scrollHeight; });
       return;
     }
-    if (prependRestoreRef.current || count <= previousCount) return;
+    if (prependRestoreRef.current) {
+      prependRestoreRef.current = null;
+      return;
+    }
+    if (count <= previousCount) return;
     const last = liveMessages[count - 1];
-    const nearBottom = history.scrollHeight - history.scrollTop - history.clientHeight < 80;
-    if (nearBottom || last?.sender_id === userId) requestAnimationFrame(() => { history.scrollTop = history.scrollHeight; });
-  }, [activeId, liveMessages, userId]);
+    if (atBottomRef.current || last?.sender_id === userId) {
+      atBottomRef.current = true;
+      requestAnimationFrame(() => { history.scrollTop = history.scrollHeight; });
+    }
+    // isInitialLoad is the real gate here: the .message-history section
+    // doesn't exist in the DOM at all until it flips false (a loading
+    // shell renders in its place), so messageHistoryRef.current is still
+    // null on every render before that - this effect would otherwise run
+    // once too early, bail out on the null ref, and never get a second
+    // chance once the section actually mounts, since activeId/liveMessages
+    // may not change again right at that transition.
+  }, [activeId, liveMessages, userId, isInitialLoad]);
+
+  // Messages can grow taller after they're already on screen - an image or
+  // tweet/link embed finishing its own async load, for instance - which the
+  // effect above never sees since liveMessages itself didn't change. Content
+  // can grow across several such stages in a row (image, then a link-preview
+  // fetch resolving later, then another) - re-pin on every single one of
+  // them as long as atBottomRef is still true, rather than only once, so it
+  // actually converges on the true final bottom instead of settling short.
+  useEffect(() => {
+    const history = messageHistoryRef.current;
+    const list = messageListRef.current;
+    if (!history || !list) return;
+    const observer = new ResizeObserver(() => {
+      if (prependRestoreRef.current || !atBottomRef.current) return;
+      history.scrollTop = history.scrollHeight;
+    });
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [activeId, isInitialLoad]);
 
   useEffect(() => {
     function closeDropdownOnOutsideClick(event) {
@@ -483,8 +528,8 @@ export function V3Shell() {
         </div>
       )}
 
-      <section ref={messageHistoryRef} className="message-history" aria-label="Chat messages" onScroll={(event) => { if (event.currentTarget.scrollTop < 96) void loadOlderMessages(); }}>
-        <div className="message-list">
+      <section ref={messageHistoryRef} className="message-history" aria-label="Chat messages" onScroll={(event) => { const el = event.currentTarget; atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; if (el.scrollTop < 96) void loadOlderMessages(); }}>
+        <div className="message-list" ref={messageListRef}>
           {hasMore && <div className="v3-load-older">{loadingOlder ? "Loading earlier messages…" : "Scroll up for earlier messages"}</div>}
           {liveMessages.map((message, index) => {
             const previous = liveMessages[index - 1];

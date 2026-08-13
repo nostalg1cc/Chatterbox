@@ -88,6 +88,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
   const [decoration, setDecoration] = useState<string | null>(null);
   const [decorationPickerOpen, setDecorationPickerOpen] = useState(false);
   const [decorationSearch, setDecorationSearch] = useState("");
+  const decorationGridRef = useRef<HTMLDivElement>(null);
   const [availableDecorations, setAvailableDecorations] = useState(AVATAR_DECORATIONS);
   const [nameDecoration, setNameDecoration] = useState<string | null>(null);
   const [nameFont, setNameFont] = useState<NameFont>("sans");
@@ -305,6 +306,26 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
     if (!query) return availableDecorations;
     return availableDecorations.filter((item) => item.label.toLowerCase().includes(query) || item.id.includes(query));
   }, [availableDecorations, decorationSearch]);
+
+  function selectDecoration(id: string | null) {
+    setDecoration(id);
+    setDecorationPickerOpen(false);
+    if (!id) return;
+    const recent = [id, ...usePreferences.getState().recentDecorationIds.filter((existing) => existing !== id)].slice(0, 5);
+    preferences.setPreference("recentDecorationIds", recent);
+  }
+
+  // Jump straight to whatever's currently selected instead of making the
+  // user hunt for it in a grid of however many decorations there are.
+  useEffect(() => {
+    if (!decorationPickerOpen) return;
+    const frame = requestAnimationFrame(() => {
+      if (!decoration) return;
+      const target = decorationGridRef.current?.querySelector(`[data-decoration-id="${CSS.escape(decoration)}"]`);
+      target?.scrollIntoView({ block: "center" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [decorationPickerOpen, decoration]);
 
   return (
     <Dialog
@@ -530,9 +551,30 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
                         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                         <Input value={decorationSearch} onChange={(event) => setDecorationSearch(event.target.value)} placeholder="Search decorations" className="pl-9" autoFocus />
                       </div>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground"><span>{filteredDecorations.length} decorations</span><button type="button" onClick={() => setDecoration(null)} className="hover:text-foreground">Use none</button></div>
-                      <div className="grid max-h-[52vh] grid-cols-4 gap-x-5 gap-y-6 overflow-y-auto px-2 py-3 sm:grid-cols-6">
-                        {filteredDecorations.map((item) => <button key={item.id} type="button" title={item.label} aria-label={item.label} onClick={() => { setDecoration(item.id); setDecorationPickerOpen(false); }} className={cn("group relative aspect-square rounded-lg border border-white/[0.12] bg-black/15 transition-colors hover:border-white/[0.32] hover:bg-white/[0.08]", decoration === item.id && "border-white/70 bg-white/[0.12] ring-1 ring-white/[0.18]")}><img src={decorationUrl(item.id, false) ?? undefined} alt="" className="absolute -inset-1 size-[calc(100%+0.5rem)] max-w-none object-contain" loading="lazy" /></button>)}
+                      {preferences.recentDecorationIds.length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs text-muted-foreground">Recently used</p>
+                          <div className="flex gap-2">
+                            {preferences.recentDecorationIds.map((id) => (
+                              <button
+                                key={id}
+                                type="button"
+                                title={availableDecorations.find((item) => item.id === id)?.label ?? "Recent decoration"}
+                                onClick={() => selectDecoration(id)}
+                                className={cn(
+                                  "group relative size-12 shrink-0 rounded-lg border border-white/[0.12] bg-black/15 transition-colors hover:border-white/[0.32] hover:bg-white/[0.08]",
+                                  decoration === id && "border-white/70 bg-white/[0.12] ring-1 ring-white/[0.18]"
+                                )}
+                              >
+                                <img src={decorationUrl(id, false) ?? undefined} alt="" className="absolute -inset-1 size-[calc(100%+0.5rem)] max-w-none object-contain" loading="lazy" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-xs text-muted-foreground"><span>{filteredDecorations.length} decorations</span><button type="button" onClick={() => selectDecoration(null)} className="hover:text-foreground">Use none</button></div>
+                      <div ref={decorationGridRef} className="grid max-h-[52vh] grid-cols-4 gap-x-5 gap-y-6 overflow-y-auto px-2 py-3 sm:grid-cols-6">
+                        {filteredDecorations.map((item) => <button key={item.id} type="button" data-decoration-id={item.id} title={item.label} aria-label={item.label} onClick={() => selectDecoration(item.id)} className={cn("group relative aspect-square rounded-lg border border-white/[0.12] bg-black/15 transition-colors hover:border-white/[0.32] hover:bg-white/[0.08]", decoration === item.id && "border-white/70 bg-white/[0.12] ring-1 ring-white/[0.18]")}><img src={decorationUrl(item.id, false) ?? undefined} alt="" className="absolute -inset-1 size-[calc(100%+0.5rem)] max-w-none object-contain" loading="lazy" /></button>)}
                       </div>
                     </div>
                   </DialogContent>
