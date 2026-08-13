@@ -1090,7 +1090,6 @@ body {
   box-shadow: var(--material-shadow);
   outline: 1.25px solid rgba(0, 0, 0, 0.8);
   outline-offset: 0;
-  animation: message-avatar-in 380ms cubic-bezier(0.22, 0.72, 0.3, 1) both;
 }
 
 .message-template__avatar::before {
@@ -1128,7 +1127,6 @@ body {
   min-width: 0;
   line-height: 1;
   transform-origin: left center;
-  animation: message-copy-in 330ms cubic-bezier(0.22, 0.78, 0.3, 1) 115ms both;
 }
 
 .message-template__name {
@@ -1156,7 +1154,6 @@ body {
   line-height: 1.35;
   text-shadow: 0 2px 2px rgba(0, 0, 0, 0.35);
   transform-origin: left top;
-  animation: message-copy-in 360ms cubic-bezier(0.22, 0.78, 0.3, 1) 215ms both;
   user-select: text;
 }
 /* Reply reference row: no card/background, a small hook connects it down to
@@ -1264,42 +1261,6 @@ body {
   width: 480px;
   max-width: calc(100vw - 32px);
   gap: 14px;
-}
-@keyframes message-avatar-in {
-  0% {
-    opacity: 0;
-    transform: translateX(-56px) scale(0.62);
-  }
-
-  64% {
-    opacity: 1;
-    transform: translateX(7px) scale(1.03);
-  }
-
-  83% {
-    transform: translateX(-1px) scale(0.996);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-@keyframes message-copy-in {
-  0% {
-    opacity: 0;
-    transform: translateX(-30px) scale(0.92);
-  }
-
-  70% {
-    opacity: 1;
-    transform: translateX(3px) scale(1.01);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
 }
 .typing-indicator {
   display: flex;
@@ -1631,7 +1592,7 @@ body {
 }
 
 .message-template--grouped { margin-top: -7px; }
-.message-template--grouped .message-template__avatar { visibility: hidden; animation: none; }
+.message-template--grouped .message-template__avatar { visibility: hidden; }
 .message-template__decoration { position: absolute; z-index: 3; top: 50%; left: 50%; width: 118%; max-width: none; height: auto; pointer-events: none; transform: translate(-50%, -50%); }
 .v3-media {
   display: block;
@@ -1726,9 +1687,13 @@ body {
 .v3-tweet-embed__media-frame { display:block; }
 .v3-tweet-embed__video { display:block; width:100%; max-width:100%; max-height:420px; border-radius:10px; background:#000; cursor:auto; }
 .v3-tweet-embed__photos { display:grid; gap:3px; max-width:100%; border-radius:12px; overflow:hidden; }
-.v3-tweet-embed__photos img { display:block; width:100%; height:100%; object-fit:cover; cursor:zoom-in; }
+/* Round the photos themselves, not just the grid container that clips them -
+   a parent overflow:hidden/clip-path with a rounded corner can still let a
+   grid child bleed a pixel past the curve in Chromium/WebView2, so this is
+   the belt-and-suspenders fix that doesn't depend on that clip working. */
+.v3-tweet-embed__photos img { display:block; width:100%; height:100%; border-radius:4px; object-fit:cover; cursor:zoom-in; }
 .v3-tweet-embed__photos--1 { grid-template-columns:1fr; }
-.v3-tweet-embed__photos--1 img { max-height:420px; }
+.v3-tweet-embed__photos--1 img { max-height:420px; border-radius:10px; }
 .v3-tweet-embed__photos--2 { grid-template-columns:1fr 1fr; aspect-ratio:16/9; }
 .v3-tweet-embed__photos--3 { grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; aspect-ratio:1/1; }
 .v3-tweet-embed__photos--3 img:first-child { grid-row:1 / span 2; }
@@ -2221,7 +2186,11 @@ img.v3-media { cursor:zoom-in; }
   margin-top: 8px;
   padding: 4px;
   border-radius: 15px;
-  overflow: hidden;
+  /* clip-path instead of overflow:hidden - a rounded overflow:hidden clip
+     on a grid/video child is a known Chromium spot where the child's own
+     composited layer can bleed a pixel or two past the curve; clip-path
+     always clips to the exact shape regardless of what's inside. */
+  clip-path: inset(0 round 15px);
   background-image:
     linear-gradient(var(--material-color), var(--material-color)),
     var(--material-stroke),

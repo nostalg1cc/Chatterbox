@@ -8,6 +8,8 @@ export type AppSound =
   | "deafen_on"
   | "mute_off"
   | "mute_on"
+  | "message"
+  | "reaction"
   | "notification_single"
   | "ui_click"
   | "ui_hover"
@@ -22,13 +24,15 @@ type SinkCapableAudio = HTMLAudioElement & {
 type Tone = { frequency: number; offset: number; duration: number; volume: number; waveform?: OscillatorType };
 
 const fileBySound: Record<AppSound, string> = {
-  voice_join: "ui/pop_open.mp3",
-  voice_leave: "ui/pop_close.mp3",
-  voice_reconnect: "ui/toggle_off.mp3",
-  deafen_off: "ui/toggle_on.mp3",
-  deafen_on: "ui/toggle_off.mp3",
-  mute_off: "ui/toggle_on.mp3",
-  mute_on: "ui/toggle_off.mp3",
+  voice_join: "ui/voice_connected_join.wav",
+  voice_leave: "ui/voice_disconnect.wav",
+  voice_reconnect: "ui/voice_unstable_reconnect.wav",
+  deafen_off: "ui/toggle_positive.wav",
+  deafen_on: "ui/toggle_negative.wav",
+  mute_off: "ui/toggle_positive.wav",
+  mute_on: "ui/toggle_negative.wav",
+  message: "ui/message_new.wav",
+  reaction: "ui/reaction.wav",
   notification_single: "ui/button_soft.mp3",
   ui_click: "ui/button_soft.mp3",
   ui_hover: "ui/button_squishy.mp3",
@@ -36,6 +40,28 @@ const fileBySound: Record<AppSound, string> = {
   ui_menu_open: "ui/pop_open.mp3",
   ui_menu_close: "ui/pop_close.mp3",
 };
+
+// These WAVs are mastered close to full scale, much louder at the same
+// linear <audio>.volume than the tiny synthesized placeholder tones (whose
+// oscillator gain maxes out around 0.08) - attenuate them so they sit at
+// roughly the same perceived loudness as the rest of the interface instead
+// of jumping out every time one plays.
+const FILE_BACKED_GAIN = 0.45;
+
+// These have real recorded audio behind them (user-provided files, not the
+// synthesized placeholder tones) - play the file directly instead of the
+// tone sequence that every other AppSound falls back to.
+const FILE_BACKED_SOUNDS = new Set<AppSound>([
+  "mute_on",
+  "mute_off",
+  "deafen_on",
+  "deafen_off",
+  "message",
+  "reaction",
+  "voice_join",
+  "voice_leave",
+  "voice_reconnect",
+]);
 
 const sources = new Map<AppSound, string>();
 const lastPlayedAt = new Map<AppSound, number>();
@@ -156,11 +182,11 @@ export function playAppSound(sound: AppSound, force = false): void {
   lastPlayedAt.set(sound, now);
 
   const volumeScale = Math.min(1, Math.max(0, preferences.interfaceSoundVolume / 100));
-  if (playToneSequence(studyTones(sound), volumeScale, preferences.outputDeviceId)) return;
+  if (!FILE_BACKED_SOUNDS.has(sound) && playToneSequence(studyTones(sound), volumeScale, preferences.outputDeviceId)) return;
 
   const audio = new Audio(sources.get(sound) ?? sourceFor(sound));
   audio.preload = "auto";
-  audio.volume = volumeScale;
+  audio.volume = FILE_BACKED_SOUNDS.has(sound) ? volumeScale * FILE_BACKED_GAIN : volumeScale;
   void routeAndPlay(audio, preferences.outputDeviceId);
 }
 

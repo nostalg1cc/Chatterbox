@@ -426,6 +426,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       created_at: new Date().toISOString(),
     };
     applyReaction(optimistic, set);
+    playAppSound("reaction");
     const { error } = await supabase.from("reactions").insert({
       id: optimistic.id,
       message_id: message.id,
@@ -471,7 +472,7 @@ export const useChat = create<ChatState>()((set, get) => ({
             if (isViewing) {
               get().markRead(msg.conversation_id);
             } else {
-              playAppSound("notification_single");
+              playAppSound("message");
               set((s) => ({
                 unread: {
                   ...s.unread,

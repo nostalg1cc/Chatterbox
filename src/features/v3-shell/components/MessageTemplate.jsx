@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { decorationUrl } from "@/lib/avatar-decorations";
 import { DecoratedText } from "@/components/decorated-text";
 import { nameColorClass } from "@/lib/name-colors";
@@ -8,7 +9,14 @@ import { V3MessageActions } from "./V3MessageActions";
 import { V3ReplyPreview } from "./V3ReplyPreview";
 import { V3RichMessage } from "./V3RichMessage";
 
-export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration, nameColor, nameFont, nameWeight, message, timestamp, showMeta = true, media, sourceMessage, isDeleted = false, isEdited = false, decorationActive = false, onDecorationHoverChange, replyPreview = null }) {
+// Same curve/timing as the old message-avatar-in / message-copy-in CSS
+// keyframes, just driven by framer-motion instead.
+const AVATAR_ANIMATE = { opacity: [0, 1, 1, 1], x: [-56, 7, -1, 0], scale: [0.62, 1.03, 0.996, 1] };
+const AVATAR_TRANSITION = { duration: 0.38, times: [0, 0.64, 0.83, 1], ease: [0.22, 0.72, 0.3, 1] };
+const HEADER_ANIMATE = { opacity: [0, 1, 1], x: [-30, 3, 0], scale: [0.92, 1.01, 1] };
+const HEADER_TRANSITION = { duration: 0.33, delay: 0.115, times: [0, 0.7, 1], ease: [0.22, 0.78, 0.3, 1] };
+
+export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration, nameColor, nameFont, nameWeight, message, timestamp, showMeta = true, media, sourceMessage, isDeleted = false, deletedCount = 1, isEdited = false, decorationActive = false, onDecorationHoverChange, replyPreview = null }) {
   const className = ["message-template", !showMeta && "message-template--grouped", replyPreview && "message-template--has-reply"].filter(Boolean).join(" ");
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -47,14 +55,29 @@ export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration
           </span>
         </>
       )}
-      <span className="message-template__avatar" aria-hidden="true">
+      <motion.span
+        className="message-template__avatar"
+        aria-hidden="true"
+        initial={showMeta ? { opacity: 0, x: -56, scale: 0.62 } : false}
+        animate={AVATAR_ANIMATE}
+        transition={AVATAR_TRANSITION}
+      >
         {showMeta && <span className="message-template__avatar-photo">
           {avatar ? <img src={avatar} alt="" /> : <span className="message-template__fallback">{name.slice(0, 1).toUpperCase()}</span>}
         </span>}
         {showMeta && decoration && <img className="message-template__decoration" src={decoration} alt="" />}
-      </span>
+      </motion.span>
       <div className="message-template__content">
-        {showMeta && <header className="message-template__header">{nameNode}{timeNode}</header>}
+        {showMeta && (
+          <motion.header
+            className="message-template__header"
+            initial={{ opacity: 0, x: -30, scale: 0.92 }}
+            animate={HEADER_ANIMATE}
+            transition={HEADER_TRANSITION}
+          >
+            {nameNode}{timeNode}
+          </motion.header>
+        )}
         {editing ? (
           <>
             <textarea className="v3-inline-editor" autoFocus value={draft} aria-label="Edit message" onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setEditing(false); } if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (!saving) void saveEdit(); } }} />
@@ -62,7 +85,7 @@ export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration
           </>
         ) : (
           <>
-            {isDeleted ? <span className="message-template__state">(deleted)</span> : <>
+            {isDeleted ? <span className="message-template__state">{deletedCount > 1 ? `(${deletedCount} messages deleted)` : "(deleted)"}</span> : <>
               {message && <V3RichMessage content={message} />}
               {media && <V3MediaAttachment message={media} />}
               {isEdited && <span className="message-template__state">(edited)</span>}

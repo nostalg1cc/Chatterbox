@@ -219,6 +219,28 @@ export function V3Shell() {
     flush();
     return skip;
   }, [liveMessages]);
+  // Collapse a run of consecutive deleted messages within the same visual
+  // group (same sender, no real content or event between them) down to a
+  // single "(N deleted)" line instead of one empty "(deleted)" row each.
+  const deletedRuns = useMemo(() => {
+    const counts = new Map();
+    const hidden = new Set();
+    let runStart = -1;
+    const flush = (end) => {
+      if (runStart !== -1 && end - runStart > 1) {
+        counts.set(liveMessages[runStart].id, end - runStart);
+        for (let i = runStart + 1; i < end; i += 1) hidden.add(liveMessages[i].id);
+      }
+      runStart = -1;
+    };
+    liveMessages.forEach((message, index) => {
+      const isDeletedChat = message.message_kind === "chat" && Boolean(message.deleted_at);
+      if (!isDeletedChat || startsNewMessageGroup(message, liveMessages[index - 1])) flush(index);
+      if (isDeletedChat && runStart === -1) runStart = index;
+    });
+    flush(liveMessages.length);
+    return { counts, hidden };
+  }, [liveMessages]);
   const hasActiveMessages = Boolean(activeId && Object.prototype.hasOwnProperty.call(messagesByConversation, activeId));
   const isInitialLoad = !loaded || (conversations.length > 0 && (!activeId || !hasActiveMessages));
   const uiSounds = useUiSounds();
@@ -310,7 +332,7 @@ export function V3Shell() {
       useChat.getState().setReplyTo(null);
       setIsSelfTyping(false);
       if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
-      uiSounds.click();
+      uiSounds.message();
       document.getElementById("message-composer")?.focus();
     } else if (pendingMedia) {
       setMediaStage("ready");
@@ -474,6 +496,7 @@ export function V3Shell() {
               if (collapsedVoiceMarkerIds.has(message.id)) return null;
               return <HistoryMarker key={message.id}>{marker}</HistoryMarker>;
             }
+            if (deletedRuns.hidden.has(message.id)) return null;
             const replyTarget = message.reply_to_message_id ? replyTargets[message.reply_to_message_id] : null;
             const replyTargetProfile = replyTarget ? (replyTarget.sender_id === userId ? selfProfile : partnerProfile) : null;
             const replyPreview = message.reply_to_message_id ? {
@@ -498,6 +521,7 @@ export function V3Shell() {
                   message={message.deleted_at ? null : message.content}
                   media={!message.deleted_at && message.media_kind ? message : null}
                   isDeleted={Boolean(message.deleted_at)}
+                  deletedCount={deletedRuns.counts.get(message.id) ?? 1}
                   isEdited={Boolean(message.edited_at)}
                   timestamp={messageTimestamp(message.created_at)}
                   sourceMessage={message}

@@ -9,5 +9,6 @@ export function useUiSounds() {
     toggle: (isDisabled) => playAppSound(isDisabled ? "mute_off" : "mute_on"),
     menu: (isOpen) => playAppSound(isOpen ? "ui_menu_open" : "ui_menu_close"),
     alert: () => playAppSound("notification_single"),
+    message: () => playAppSound("message"),
   };
 }

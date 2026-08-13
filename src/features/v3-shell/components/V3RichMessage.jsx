@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { isTauri } from "@/lib/tauri";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { supabase } from "@/lib/supabase";
@@ -223,9 +224,14 @@ export function V3RichMessage({ content }) {
   return (
     <>
       {content && (
-        <p className="message-template__body">
+        <motion.p
+          className="message-template__body"
+          initial={{ opacity: 0, x: -30, scale: 0.92 }}
+          animate={{ opacity: [0, 1, 1], x: [-30, 3, 0], scale: [0.92, 1.01, 1] }}
+          transition={{ duration: 0.36, delay: 0.215, times: [0, 0.7, 1], ease: [0.22, 0.78, 0.3, 1] }}
+        >
           <LinkText content={content} hidden={preview ? url : null} />
-        </p>
+        </motion.p>
       )}
       {preview?.kind === "tweet" && <TweetEmbed preview={preview} />}
       {preview?.kind === "site" && <SiteEmbed preview={preview} />}
