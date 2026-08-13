@@ -445,7 +445,7 @@ export function V3Shell() {
   if (isInitialLoad) return <V3LoadingShell />;
 
   return (
-    <main className="stage" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/")); if (file) void prepareAttachment(file); }}>
+    <main className={"stage" + (joinedVoice ? " is-in-call" : "")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/")); if (file) void prepareAttachment(file); }}>
       <div className={"v3-call-glow" + (joinedVoice ? " is-active" : "")} aria-hidden="true" />
       <div className="window-drag-region" data-tauri-drag-region aria-hidden="true" />
       {activeAlert && (

@@ -35,7 +35,30 @@
 }
 
 :root {
-  background: #2a2b2b;
+  background: #1e1e1e;
+  /* Shared "glass pill" material (see button.md): a solid fill clipped to
+     padding-box, a light-catching gradient stroke clipped to border-box
+     underneath it, and the same fill again behind the stroke so the ring
+     composites against the surface's own color rather than the page.
+     --material-color is the only thing that should vary per-surface. */
+  --material-color: #1f1f1f;
+  --material-stroke: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.31) 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.04) 75%,
+    rgba(255, 255, 255, 0.14) 88%,
+    rgba(255, 255, 255, 0.31) 100%
+  );
+  /* The hard contact ring is a real outline, not a spread box-shadow - an
+     outline follows border-radius exactly and uniformly around the whole
+     perimeter, where a spread-only box-shadow can render inconsistently
+     thick around very rounded corners (a likely source of "the ring looks
+     different everywhere it's used" across surfaces with different radii). */
+  --material-shadow:
+    inset 0px 10px 5px 0px rgba(255, 255, 255, 0.015),
+    inset 0px -4px 10px 0px rgba(255, 255, 255, 0.035),
+    inset 0px 4px 10px 0px rgba(255, 255, 255, 0.035);
   font-family: "Google Sans Flex", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-optical-sizing: auto;
   font-stretch: 112.5%;
@@ -55,7 +78,7 @@ body,
 
 body {
   min-height: 100vh;
-  background: #2a2b2b;
+  background: #1e1e1e;
   user-select: none;
 }
 
@@ -65,7 +88,7 @@ body {
   width: 100%;
   min-height: 100vh;
   place-items: center;
-  background: #2a2b2b;
+  background: #1e1e1e;
   isolation: isolate;
 }
 
@@ -94,22 +117,53 @@ body {
   left: 0;
   right: 0;
   z-index: 0;
-  height: 50vw;
+  height: 65vw;
   pointer-events: none;
   /* Fade all the way to the true edge (100%, not a stop short of it) so the
      visible color actually reaches the full window width instead of fading
      out while still short of it. Center sits above the visible area (-20%
      of the box height) so less of the circle shows - a thinner cap instead
      of a near-full half-circle. */
-  background: radial-gradient(circle 50vw at 50% -20%, rgba(0, 179, 57, 0.22), rgba(0, 179, 57, 0) 100%);
+  background: radial-gradient(circle 65vw at 50% -20%, rgba(0, 179, 57, 0.22), rgba(0, 179, 57, 0) 100%);
   transform: scale(0);
   transform-origin: 50% 0%;
   opacity: 0;
   transition: transform 420ms cubic-bezier(0.22, 0.78, 0.3, 1), opacity 320ms ease;
 }
+/* Same grain texture as .stage::before, masked to the glow's own circular
+   falloff so the grain fades out exactly where the green does instead of
+   showing as a hard rectangle past the visible edge of the glow. */
+.v3-call-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.35' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  -webkit-mask-image: radial-gradient(circle 65vw at 50% -20%, #000, transparent 100%);
+  mask-image: radial-gradient(circle 65vw at 50% -20%, #000, transparent 100%);
+}
 .v3-call-glow.is-active {
   transform: scale(1);
   opacity: 1;
+}
+
+/* While a call is active, the header buttons' stroke picks up a faint green
+   tint at the very top of the gradient only, as if catching light from the
+   glow above - the rest of the gradient (50% down onward) reverts to the
+   normal white so only the top edge reads as lit, not the whole ring.
+   Scoped to the top nav bars specifically, not the whole app. */
+.stage.is-in-call .top-audio-controls,
+.stage.is-in-call .top-navigation-controls {
+  --material-stroke: linear-gradient(
+    180deg,
+    rgba(180, 255, 205, 0.31) 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.04) 75%,
+    rgba(255, 255, 255, 0.14) 88%,
+    rgba(255, 255, 255, 0.31) 100%
+  );
 }
 
 .button-group {
@@ -127,8 +181,7 @@ body {
   justify-content: center;
   flex: none;
   aspect-ratio: 1;
-  overflow: hidden;
-  padding: 8px;
+  padding: 10px;
   border: 0;
   border-radius: 25.01px;
   outline: none;
@@ -139,28 +192,6 @@ body {
   background: rgba(44, 45, 45, 0.45);
   box-shadow: 0 0 0 1.25px rgba(0, 0, 0, 0.8);
   transition: box-shadow 180ms ease-in-out, transform 80ms ease-out;
-}
-
-.icon-button::before {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  padding: 1px;
-  border-radius: 25.01px;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.16) 45%,
-    rgba(255, 255, 255, 0.05) 72%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
 }
 
 .icon-button::after {
@@ -176,9 +207,7 @@ body {
 }
 
 .icon-button:hover {
-  box-shadow:
-    0 0 0 1.25px rgba(0, 0, 0, 0.8),
-    0 4px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--material-shadow), 0 4px 10px rgba(0, 0, 0, 0.45);
 }
 
 .icon-button:active {
@@ -248,19 +277,6 @@ body {
 .voice-call-button.is-connected {
   width: 128px;
   color: #f5fff9;
-  background: #248a60;
-  box-shadow:
-    0 0 0 1.25px rgba(8, 78, 49, 0.92),
-    0 4px 10px rgba(0, 0, 0, 0.45);
-}
-
-.voice-call-button.is-connected::before {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.34) 0%,
-    rgba(255, 255, 255, 0.13) 45%,
-    rgba(255, 255, 255, 0) 100%
-  );
 }
 
 .voice-call-button.is-connected::after {
@@ -346,19 +362,6 @@ body {
 
 .voice-call-button.is-leaving {
   color: #fff;
-  background: #b82f39;
-  box-shadow:
-    0 0 0 1.25px rgba(78, 13, 19, 0.9),
-    0 4px 10px rgba(0, 0, 0, 0.45);
-}
-
-.voice-call-button.is-leaving::before {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.32) 0%,
-    rgba(255, 255, 255, 0.12) 45%,
-    rgba(255, 255, 255, 0) 100%
-  );
 }
 
 .voice-call-button.is-leaving::after {
@@ -461,28 +464,6 @@ body {
     0 4px 10px rgba(0, 0, 0, 0.45);
 }
 
-.audio-dropdown::before {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  padding: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.16) 45%,
-    rgba(255, 255, 255, 0.05) 72%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-}
-
 .audio-dropdown__arrow {
   position: absolute;
   top: -9px;
@@ -523,7 +504,6 @@ body {
 
 .microphone-button.is-muted {
   color: #ffffff;
-  background: #ff3333;
 }
 .icon-button:focus-visible {
   outline: 2px solid #ffffff;
@@ -568,7 +548,6 @@ body {
 
 .sound-toggle-button.is-muted {
   color: #ffffff;
-  background: #ff3333;
 }
 
 .text-input-bar {
@@ -587,32 +566,8 @@ body {
   transition: box-shadow 180ms ease-in-out;
 }
 
-.text-input-bar::before {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  padding: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.16) 45%,
-    rgba(255, 255, 255, 0.05) 72%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-}
-
 .text-input-bar:focus-within {
-  box-shadow:
-    0 0 0 1.25px rgba(0, 0, 0, 0.8),
-    0 4px 10px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--material-shadow), 0 4px 10px rgba(0, 0, 0, 0.45);
 }
 
 .text-input-bar input {
@@ -806,27 +761,6 @@ body {
   transition: box-shadow 180ms ease-in-out, transform 80ms ease-out;
 }
 
-.status-bar::before {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  padding: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.16) 45%,
-    rgba(255, 255, 255, 0.05) 72%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-}
 
 .status-bar > svg,
 .status-bar > span {
@@ -973,27 +907,6 @@ body {
   transition: box-shadow 180ms ease-in-out, transform 80ms ease-out;
 }
 
-.mini-badge::before {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  padding: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.16) 45%,
-    rgba(255, 255, 255, 0.05) 72%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-}
 
 .mini-badge > svg {
   position: relative;
@@ -1021,14 +934,14 @@ body {
 }
 .top-alert-region {
   position: fixed;
-  top: 60px;
-  left: 50%;
+  right: 24px;
+  bottom: 24px;
+  left: auto;
   z-index: 20;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
-  transform: translateX(-50%);
   pointer-events: none;
 }
 .top-alert {
@@ -1041,12 +954,8 @@ body {
   border-radius: 14px;
   color: #d9d9d9;
   opacity: 0;
-  background: rgba(44, 45, 45, 0.45);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8);
-  transform: translateY(-72px) scale(0.62);
-  transform-origin: 50% 0;
-  -webkit-backdrop-filter: blur(45px);
-  backdrop-filter: blur(45px);
+  transform: translateY(72px) scale(0.62);
+  transform-origin: 100% 100%;
   interpolate-size: allow-keywords;
   transition:
     width 280ms cubic-bezier(0.22, 0.9, 0.25, 1),
@@ -1056,27 +965,6 @@ body {
   will-change: width, transform, opacity;
 }
 
-.top-alert::before {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  padding: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.16) 45%,
-    rgba(255, 255, 255, 0.05) 72%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-}
 
 .top-alert--icon,
 .top-alert--expanded,
@@ -1092,14 +980,8 @@ body {
 
 .top-alert--expanded {
   width: auto;
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.8),
-    0 4px 10px rgba(0, 0, 0, 0.45);
 }
 
-.top-alert--leaving {
-  animation: top-alert-leave 260ms cubic-bezier(0.4, 0, 0.8, 0.35) both;
-}
 .top-alert--leaving {
   animation: top-alert-leave 300ms cubic-bezier(0.4, 0, 0.8, 0.35) both;
 }
@@ -1158,16 +1040,16 @@ body {
 @keyframes top-alert-enter {
   0% {
     opacity: 0;
-    transform: translateY(-72px) scale(0.62);
+    transform: translateY(72px) scale(0.62);
   }
 
   64% {
     opacity: 1;
-    transform: translateY(14px) scale(1.018);
+    transform: translateY(-14px) scale(1.018);
   }
 
   83% {
-    transform: translateY(-2px) scale(0.996);
+    transform: translateY(2px) scale(0.996);
   }
 
   100% {
@@ -1184,7 +1066,7 @@ body {
 
   100% {
     opacity: 0;
-    transform: translateY(-72px) scale(0.62);
+    transform: translateY(72px) scale(0.62);
   }
 }
 .message-template {
@@ -1205,8 +1087,10 @@ body {
   height: 38px;
   overflow: hidden;
   border-radius: 50%;
-  background: rgba(44, 45, 45, 0.45);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.8);
+  background: var(--material-color);
+  box-shadow: var(--material-shadow);
+  outline: 1.25px solid rgba(0, 0, 0, 0.8);
+  outline-offset: 0;
   animation: message-avatar-in 380ms cubic-bezier(0.22, 0.72, 0.3, 1) both;
 }
 
@@ -1214,17 +1098,11 @@ body {
   position: absolute;
   inset: 0;
   z-index: 2;
-  padding: 1px;
+  padding: 1.25px;
   border-radius: inherit;
   pointer-events: none;
   content: "";
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.16) 45%,
-    rgba(255, 255, 255, 0.05) 72%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  background: var(--material-stroke);
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
@@ -1663,27 +1541,6 @@ body {
   background: rgba(255, 255, 255, 0.08);
 }
 
-/* Desktop WebView-safe material: solid controls rather than unreliable native backdrop blur. */
-.icon-button,
-.audio-dropdown,
-.text-input-bar,
-.status-bar,
-.mini-badge,
-.top-alert {
-  background: #252626;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
-.voice-call-button.is-connected {
-  background: #248a60;
-}
-
-.voice-call-button.is-leaving,
-.microphone-button.is-muted,
-.sound-toggle-button.is-muted {
-  background: #ff3333;
-}
 
 /* Native-style Tauri window controls, attached directly to the app edge. */
 /* Transparent titlebar hit-area. In-app UI that sits in this same top band
@@ -1815,7 +1672,7 @@ body {
 .v3-pending-media { display:flex; align-items:center; gap:8px; align-self:flex-end; padding:6px 10px; border-radius:12px; color:rgba(235,235,235,.78); font-size:12px; background:#252626; box-shadow:0 0 0 1.25px rgba(0,0,0,.8); }
 .v3-pending-media button { padding:0; border:0; color:rgba(235,235,235,.65); font:inherit; background:transparent; cursor:pointer; text-decoration:underline; }
 .message-template__decoration,.partner-avatar-button__decoration { width:124%; }
-.partner-avatar-button__presence { position:absolute; z-index:5; right:-1px; bottom:-1px; width:11px; height:11px; border:2px solid #252626; border-radius:50%; background:#6b6b6b; }
+.partner-avatar-button__presence { position:absolute; z-index:5; right:-1px; bottom:-1px; width:11px; height:11px; border:2px solid var(--material-color); border-radius:50%; background:#6b6b6b; }
 .partner-avatar-button__presence.is-online { background:#00d084; }
 .partner-avatar-button__presence.is-away { background:#f0a238; }
 .v3-pending-media { max-width:100%; overflow:hidden; }
@@ -1864,7 +1721,7 @@ img.v3-media { cursor:zoom-in; }
 
 /* V3 voice control always uses the standard labelled-button geometry. */
 .voice-call-button.icon-button--label { min-width: 94px; }
-.voice-call-button.is-connected { width: 142px; min-width: 142px; background: #00b339; box-shadow: 0 0 0 1.25px rgba(0, 74, 30, .9); }
+.voice-call-button.is-connected { width: 142px; min-width: 142px; }
 .voice-call-button.is-connected > svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); }
 .voice-call-button.is-connected .voice-call-button__presence { position: absolute; inset: 0; }
 .voice-call-button.is-connected .voice-call-button__avatars { left: 31px; }
@@ -1883,19 +1740,6 @@ img.v3-media { cursor:zoom-in; }
   border-radius: 25px;
   background: #252626;
   box-shadow: 0 0 0 1.25px rgba(0, 0, 0, 0.82), 0 4px 10px rgba(0, 0, 0, 0.35);
-}
-.v3-message-actions::before,
-.v3-reaction-picker::before {
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,.16) 45%, rgba(255,255,255,.04) 74%, transparent);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
 }
 .v3-message-actions > button {
   position: relative;
@@ -2048,20 +1892,16 @@ img.v3-media { cursor:zoom-in; }
 .soundboard-empty { grid-column: 1 / -1; }
 
 /* An occupied room is green; a locally connected room shows people and time, no phone glyph. */
-.voice-call-button.is-joinable,
-.voice-call-button.is-connected { background: #00b339; }
 .voice-call-button.is-joinable { width: auto; min-width: 94px; }
 .voice-call-button.is-connected {
   width: 142px;
   min-width: 142px;
   color: #f5fff9;
-  box-shadow: 0 0 0 1.25px rgba(0,74,30,.9);
 }
 .voice-call-button.is-connected > svg { display: none; }
 .voice-call-button.is-connected .voice-call-button__presence { position: absolute; inset: 0; }
 .voice-call-button.is-connected .voice-call-button__avatars { left: 12px; }
 .voice-call-button.is-connected .voice-call-button__time { left: 58px; right: 10px; }
-.voice-call-button.is-leaving { background: #ff3333; box-shadow: 0 0 0 1.25px rgba(100,15,15,.9); }
 
 /* V3 composition feedback and inline editing. */
 .message-template__decoration,
@@ -2124,19 +1964,6 @@ img.v3-media { cursor:zoom-in; }
   color: rgba(238,238,238,.86);
   background: #252626;
   box-shadow: 0 0 0 1.25px rgba(0,0,0,.82);
-}
-.v3-reply-banner::before,
-.v3-pending-media::before {
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(180deg,rgba(255,255,255,.3),rgba(255,255,255,.13) 48%,transparent);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
 }
 .v3-reply-banner__icon { position: relative; z-index: 1; color: rgba(235,235,235,.64); font-size: 18px; }
 .v3-reply-banner__copy,
@@ -2369,7 +2196,7 @@ img.v3-media { cursor:zoom-in; }
 
 .v3-chat-switcher { position: relative; z-index: 20; }
 .v3-chat-switcher__trigger { overflow: visible; }
-.v3-chat-switcher__chevron { position: absolute; z-index: 7; right: -8px; top: -5px; width: 11px; height: 11px; padding: 1px; border-radius: 50%; color: rgba(235,235,235,.74); background: #252626; box-shadow: 0 0 0 1px rgba(255,255,255,.12); }
+.v3-chat-switcher__chevron { position: absolute; z-index: 7; right: -8px; top: -5px; width: 11px; height: 11px; padding: 1px; border-radius: 50%; color: rgba(235,235,235,.74); background: var(--material-color); box-shadow: 0 0 0 1px rgba(255,255,255,.12); }
 .v3-chat-switcher__menu { position: absolute; top: calc(100% + 12px); left: 0; width: 224px; max-height: min(390px, calc(100vh - 128px)); overflow: auto; padding: 9px; border-radius: 14px; color: rgba(235,235,235,.92); background: #252626; box-shadow: 0 8px 22px rgba(0,0,0,.35), 0 0 0 1.25px rgba(0,0,0,.82); }
 .v3-chat-switcher__menu > p { margin: 2px 4px 7px; color: rgba(217,217,217,.52); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .v3-chat-switcher__list { display: grid; gap: 3px; }
@@ -2445,14 +2272,23 @@ img.v3-media { cursor:zoom-in; }
 }
 @keyframes v3-loading-spin { to { transform: rotate(360deg); } }
 /* V3 settings: one calm, solid surface with a persistent profile-save affordance. */
-.v3-settings-dialog { color: rgba(245,245,245,.94); background: #252626 !important; box-shadow: 0 18px 60px rgba(0,0,0,.62), 0 0 0 1.25px rgba(0,0,0,.82) !important; }
-.v3-settings-dialog::before { position:absolute; inset:0; z-index:0; padding:1.25px; border-radius:inherit; pointer-events:none; content:""; background:linear-gradient(180deg,rgba(255,255,255,.15),rgba(255,255,255,.04) 28%,transparent 55%); -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask-composite:xor; mask-composite:exclude; }
+.v3-settings-dialog {
+  color: rgba(245,245,245,.94);
+  background-image:
+    linear-gradient(var(--material-color), var(--material-color)),
+    var(--material-stroke),
+    linear-gradient(var(--material-color), var(--material-color)) !important;
+  background-origin: border-box !important;
+  background-clip: padding-box, border-box, border-box !important;
+  border: 1.25px solid transparent !important;
+  box-shadow: 0 18px 60px rgba(0,0,0,.62), var(--material-shadow) !important;
+}
 .v3-settings-dialog > * { position: relative; z-index: 1; }
 .v3-settings-sidebar { background: #191919 !important; }
 .v3-settings-sidebar [role="tab"] { min-height:40px; border-radius:14px; color:rgba(225,225,225,.64); transition:color 150ms ease,background 150ms ease,box-shadow 150ms ease; }
 .v3-settings-sidebar [role="tab"]:hover { color:rgba(255,255,255,.94); background:rgba(255,255,255,.06); }
 .v3-settings-sidebar [role="tab"][data-state="active"] { color:#fff; background:#2a2a2a; box-shadow:0 0 0 1.25px rgba(0,0,0,.78),inset 0 1px rgba(255,255,255,.13); }
-.v3-settings-content { background:#252626; }
+.v3-settings-content { background: var(--material-color); }
 .v3-settings-content [role="tabpanel"] { scrollbar-color:rgba(255,255,255,.22) transparent; }
 .v3-settings-content .bg-card,.v3-settings-content .surface-panel,.v3-settings-content .bg-muted\/20,.v3-settings-content .bg-muted\/35 { background:#252525 !important; }
 .v3-settings-content .border-white\/\[0\.14\],.v3-settings-content .border-white\/\[0\.13\],.v3-settings-content .border-white\/\[0\.11\] { border-color:rgba(0,0,0,.78) !important; box-shadow:inset 0 1px rgba(255,255,255,.10); }
@@ -2563,29 +2399,62 @@ img.v3-media { cursor:zoom-in; }
   border-bottom: 1px solid rgba(255,255,255,.10);
 }
 
-/* TEMP - drop-shadow preview, swapped for a plain 1.25px black/50% border.
-   Delete this block to restore the normal ring+elevation shadows; nothing
-   above was changed to make this work. Covers every surface that used the
-   "0 0 0 1.25px rgba(0,0,0,...)" ring treatment. */
+/* Glass-pill material (see button.md): a solid fill clipped to padding-box,
+   a light-catching gradient stroke clipped to border-box underneath it, and
+   the same fill again behind the stroke so the ring composites against the
+   surface's own color instead of the page behind it. --material-color is
+   the only thing that should vary per-surface - everything else here is
+   shared. Placed last so it wins over each surface's own earlier
+   background/box-shadow declarations at equal selector specificity. */
 .icon-button,
-.icon-button:hover,
 .audio-dropdown,
 .text-input-bar,
-.text-input-bar:focus-within,
+.status-bar,
+.mini-badge,
+.top-alert,
 .v3-message-actions,
 .v3-reaction-picker,
 .v3-reply-banner,
 .v3-pending-media,
-.v3-reaction-chips button,
-.v3-reaction-chips button:hover,
 .v3-chat-switcher__menu,
 .v3-settings-dialog,
-.v3-settings-sidebar [role="tab"][data-state="active"],
-[data-sonner-toaster] [data-sonner-toast].cn-toast,
-.v3-settings-close,
-.v3-settings-content [role="tabpanel"] > section > form,
-.v3-settings-content button:not([role="switch"]),
-.v3-settings-content .sticky.top-0 {
-  box-shadow: none !important;
-  border: 1.25px solid rgba(0, 0, 0, 0.5) !important;
+.v3-inline-editor {
+  background-image:
+    linear-gradient(var(--material-color), var(--material-color)),
+    var(--material-stroke),
+    linear-gradient(var(--material-color), var(--material-color));
+  background-origin: border-box;
+  background-clip: padding-box, border-box, border-box;
+  border: 1.25px solid transparent;
+  outline: 1.25px solid rgba(0, 0, 0, 0.8);
+  outline-offset: 0;
+  box-shadow: var(--material-shadow);
 }
+
+.voice-call-button.is-connected,
+.voice-call-button.is-joinable,
+.voice-call-button.is-leaving,
+.microphone-button.is-muted,
+.sound-toggle-button.is-muted {
+  /* Colored (green/red) buttons get a stronger stroke than the neutral
+     dark surfaces - the highlight needs to read against a saturated fill,
+     not just a near-black one. */
+  --material-stroke: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.26) 50%,
+    rgba(255, 255, 255, 0.08) 75%,
+    rgba(255, 255, 255, 0.26) 88%,
+    rgba(255, 255, 255, 0.55) 100%
+  );
+}
+.voice-call-button.is-connected,
+.voice-call-button.is-joinable {
+  --material-color: #00b339;
+}
+.voice-call-button.is-leaving,
+.microphone-button.is-muted,
+.sound-toggle-button.is-muted {
+  --material-color: #ff3333;
+}
+
