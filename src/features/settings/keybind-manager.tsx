@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { toast } from "sonner";
 import { eventKeybind, globalKeybind } from "@/lib/keybinds";
 import { isTauri } from "@/lib/tauri";
+import { useAlerts } from "@/stores/alerts";
 import { usePreferences } from "@/stores/preferences";
 import { useVoice } from "@/stores/voice";
 
@@ -81,9 +81,10 @@ export function KeybindManager() {
       if (disposed) return;
       failedGlobalActionsRef.current = new Set(failed);
       if (failed.length > 0) {
-        toast.warning(
-          `Could not register the global ${failed.join("/")} shortcut - it's already used by another app. It'll still work while Nitro is focused.`
-        );
+        useAlerts.getState().show({
+          severity: "warning",
+          message: `Could not register the global ${failed.join("/")} shortcut - it's already used by another app. It'll still work while Nitro is focused.`,
+        });
       }
     }).catch((error) => {
       if (!disposed) {
@@ -91,7 +92,10 @@ export function KeybindManager() {
         // local handling for both rather than leaving neither working.
         failedGlobalActionsRef.current = new Set(["mute", "deafen"]);
         console.warn("Global shortcuts unavailable", error);
-        toast.error(typeof error === "string" ? error : "Could not register global voice shortcuts.");
+        useAlerts.getState().show({
+          severity: "danger",
+          message: typeof error === "string" ? error : "Could not register global voice shortcuts.",
+        });
       }
     });
 

@@ -9,11 +9,14 @@ import { hideVoiceHud, resizeVoiceHud, showVoiceHud, updateVoiceHud } from "@/li
 import { eventKeybind } from "@/lib/keybinds";
 import { prepareChatMedia } from "@/lib/media";
 import { toast } from "sonner";
+import { checkForUpdateManually } from "@/lib/updater";
+import { useAlerts } from "@/stores/alerts";
 import { useAuth } from "@/stores/auth";
 import { useChat } from "@/stores/chat";
 import { useProfiles } from "@/stores/profiles";
 import { usePresenceStatus } from "@/stores/presence";
 import { usePreferences } from "@/stores/preferences";
+import { useSoundboard } from "@/stores/soundboard";
 import { useVoice } from "@/stores/voice";
 import {
   CircleAlert,
@@ -42,6 +45,7 @@ import { TopAlert } from "./components/TopAlert";
 import { TypingIndicator } from "./components/TypingIndicator";
 import { VoiceCallButton } from "./components/VoiceCallButton";
 import { V3ChatSwitcher } from "./components/V3ChatSwitcher";
+import { V3Dashboard } from "./components/V3Dashboard";
 import { V3Lightbox } from "./components/V3Lightbox";
 import { useUiSounds } from "./hooks/useUiSounds";
 import "./styles.css";
@@ -49,11 +53,25 @@ import "./styles.css";
 const EMPTY_MESSAGES = [];
 const EMPTY_PARTICIPANTS = [];
 
+// Slash commands never get sent as chat messages - handleComposerSubmit
+// intercepts anything that resolves to one of these before it ever reaches
+// sendMessage, so nothing about them touches the message history.
+const SLASH_COMMANDS = [
+  { name: "shrug", description: "Append ¯\\_(ツ)_/¯ to your message" },
+  { name: "randomsound", description: "Play a random soundboard sound (while in a call)" },
+  { name: "update", description: "Check for app updates" },
+];
+
 const alertVariants = [
-  { type: "info", message: "Test alert", icon: CircleAlert },
-  { type: "success", message: "Changes saved", icon: CircleCheck },
-  { type: "warning", message: "Connection unstable", icon: TriangleAlert },
-  { type: "error", message: "Action needs attention", icon: CircleX },
+  { severity: "neutral", message: "Heads up — nothing urgent here.", icon: CircleAlert },
+  { severity: "neutral", message: "Settings saved.", icon: CircleCheck },
+  { severity: "warning", message: "Connection looks unstable.", icon: TriangleAlert },
+  {
+    severity: "danger",
+    message: "Delete this conversation? This can't be undone.",
+    icon: CircleX,
+    actions: [{ label: "Cancel" }, { label: "Delete", confirm: true }],
+  },
 ];
 
 function displayName(profile, fallback = "Unknown") {
@@ -131,8 +149,8 @@ function createMessageTimestamp() {
 
 export function V3Shell() {
   const [openDropdown, setOpenDropdown] = useState(null);
-  const [activeAlert, setActiveAlert] = useState(null);
-  const [alertVariantIndex, setAlertVariantIndex] = useState(0);
+  const activeAlert = useAlerts((state) => state.active);
+  const dismissAlert = useAlerts((state) => state.dismiss);
   const [composerValue, setComposerValue] = useState("");
   const [pendingMedia, setPendingMedia] = useState(null);
   const [pendingPreviewUrl, setPendingPreviewUrl] = useState(null);
@@ -142,6 +160,7 @@ export function V3Shell() {
   const userId = useAuth((state) => state.userId);
   const selfProfile = useAuth((state) => state.profile);
   const activeId = useChat((state) => state.activeId);
+  const chatView = useChat((state) => state.view);
   const conversations = useChat((state) => state.conversations);
   const loaded = useChat((state) => state.loaded);
   const hasMore = useChat((state) => activeId ? state.hasMore[activeId] ?? false : false);
@@ -281,11 +300,36 @@ export function V3Shell() {
     if (profileIds.length) void useProfiles.getState().ensure(profileIds);
   }, [partnerId, voiceParticipants]);
   const lastVoiceHealthRef = useRef(null);
+  const stuckReconnectTimerRef = useRef(null);
   useEffect(() => {
     if (voiceStatus === "reconnecting" || voiceStatus === "failed") {
       if (lastVoiceHealthRef.current !== voiceStatus) playAppSound("voice_reconnect", true);
       lastVoiceHealthRef.current = voiceStatus;
     } else lastVoiceHealthRef.current = null;
+
+    // A brief "reconnecting" blip usually clears itself within a couple of
+    // seconds - only surface a banner (with a manual escape hatch) once
+    // it's been stuck long enough that the automatic recovery is plausibly
+    // not working.
+    if (voiceStatus === "reconnecting") {
+      if (!stuckReconnectTimerRef.current) {
+        stuckReconnectTimerRef.current = window.setTimeout(() => {
+          stuckReconnectTimerRef.current = null;
+          if (useVoice.getState().status !== "reconnecting") return;
+          useAlerts.getState().show({
+            severity: "warning",
+            message: "Still trying to reconnect your call.",
+            actions: [
+              { label: "Dismiss" },
+              { label: "Reconnect", confirm: true, onClick: () => void useVoice.getState().forceReconnect() },
+            ],
+          });
+        }, 10_000);
+      }
+    } else if (stuckReconnectTimerRef.current) {
+      window.clearTimeout(stuckReconnectTimerRef.current);
+      stuckReconnectTimerRef.current = null;
+    }
   }, [voiceStatus]);
   useEffect(() => {
     if (replyTo) document.getElementById("message-composer")?.focus();
@@ -307,9 +351,6 @@ export function V3Shell() {
     if (!isTauri || !joinedVoice) return;
     void updateVoiceHud({ participants: voiceParticipantDetails, scale: voiceHudScale, showNames: voiceHudShowNames });
   }, [joinedVoice, voiceParticipantDetails, voiceHudScale, voiceHudShowNames]);
-  const dismissAlert = useCallback((id) => {
-    setActiveAlert((currentAlert) => (currentAlert?.id === id ? null : currentAlert));
-  }, []);
 
   async function prepareAttachment(file) {
     if (!file) return;
@@ -323,14 +364,107 @@ export function V3Shell() {
       setMediaStage("ready");
     } catch (error) {
       setMediaStage("idle");
-      toast.error(error instanceof Error ? error.message : "That attachment could not be prepared.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "That attachment could not be prepared." });
     }
+  }
+
+  // Once the leading token exactly matches a known command, it "locks in" as
+  // a chip (see InputBar's commandName prop) instead of staying plain text -
+  // the suggestion dropdown steps aside at that point since the chip itself
+  // now shows what's about to run.
+  const activeCommand = useMemo(() => {
+    if (!composerValue.startsWith("/")) return null;
+    const spaceIndex = composerValue.indexOf(" ");
+    const name = (spaceIndex === -1 ? composerValue.slice(1) : composerValue.slice(1, spaceIndex)).toLowerCase();
+    return SLASH_COMMANDS.find((command) => command.name === name) ?? null;
+  }, [composerValue]);
+
+  const matchedCommands = useMemo(() => {
+    // Once there's a space, or the name is already an exact match (-> chip),
+    // the user has moved past picking a command - stop suggesting.
+    if (!composerValue.startsWith("/") || composerValue.includes(" ") || activeCommand) return [];
+    const query = composerValue.slice(1).toLowerCase();
+    return SLASH_COMMANDS.filter((command) => command.name.startsWith(query));
+  }, [composerValue, activeCommand]);
+
+  // The text the visible <input> shows while a command chip is active - just
+  // the argument portion, with the "/name" prefix hidden behind the chip.
+  const commandArgText = useMemo(() => {
+    if (!activeCommand) return composerValue;
+    const afterName = composerValue.slice(activeCommand.name.length + 1);
+    return afterName.startsWith(" ") ? afterName.slice(1) : afterName;
+  }, [composerValue, activeCommand]);
+
+  function handleComposerArgChange(nextArg) {
+    if (!activeCommand) {
+      handleComposerChange(nextArg);
+      return;
+    }
+    handleComposerChange(nextArg ? `/${activeCommand.name} ${nextArg}` : `/${activeCommand.name}`);
+  }
+
+  function handleComposerKeyDown(event) {
+    // Backspacing on an empty argument with a chip showing would otherwise
+    // do nothing (there's no text left in the visible input to delete) -
+    // treat it as "never mind" and drop back to a blank composer instead of
+    // leaving the chip stuck with no way to remove it.
+    if (event.key === "Backspace" && activeCommand && !commandArgText) {
+      event.preventDefault();
+      setComposerValue("");
+    }
+  }
+
+  // Returns { text } when the command transforms into a normal message to
+  // send (e.g. /shrug), `true` when it's fully handled and nothing should be
+  // sent (e.g. /update), or `false` if `name` isn't a recognized command.
+  function runSlashCommand(name, rest = "") {
+    if (name === "shrug") {
+      return { text: rest ? `${rest} ¯\\_(ツ)_/¯` : "¯\\_(ツ)_/¯" };
+    }
+    if (name === "randomsound") {
+      const sounds = useSoundboard.getState().sounds;
+      if (!sounds.length) {
+        useAlerts.getState().show({ severity: "neutral", message: "No soundboard sounds available." });
+        return true;
+      }
+      void useSoundboard.getState().play(sounds[Math.floor(Math.random() * sounds.length)].id);
+      return true;
+    }
+    if (name === "update") {
+      void checkForUpdateManually();
+      return true;
+    }
+    return false;
+  }
+
+  function clearComposerAfterCommand() {
+    setComposerValue("");
+    setIsSelfTyping(false);
+    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+    document.getElementById("message-composer")?.focus();
   }
 
   async function handleComposerSubmit() {
     if (!activeId || (!composerValue.trim() && !pendingMedia)) return;
+    const trimmed = composerValue.trim();
+    let textToSend = composerValue;
+    if (trimmed.startsWith("/")) {
+      const spaceIndex = trimmed.indexOf(" ");
+      const typedName = (spaceIndex === -1 ? trimmed.slice(1) : trimmed.slice(1, spaceIndex)).toLowerCase();
+      const rest = spaceIndex === -1 ? "" : trimmed.slice(spaceIndex + 1).trim();
+      const exactMatch = SLASH_COMMANDS.find((command) => command.name === typedName);
+      const command = exactMatch ?? (spaceIndex === -1 && matchedCommands.length === 1 ? matchedCommands[0] : null);
+      if (command) {
+        const result = runSlashCommand(command.name, rest);
+        if (result === true) {
+          clearComposerAfterCommand();
+          return;
+        }
+        if (result && typeof result === "object") textToSend = result.text;
+      }
+    }
     if (pendingMedia) setMediaStage("uploading");
-    const sent = await useChat.getState().sendMessage(activeId, composerValue, pendingMedia, useChat.getState().replyTo?.id ?? null);
+    const sent = await useChat.getState().sendMessage(activeId, textToSend, pendingMedia, useChat.getState().replyTo?.id ?? null);
     if (sent) {
       setComposerValue("");
       setPendingMedia(null);
@@ -392,10 +526,13 @@ export function V3Shell() {
   }, [activeId, composerValue]);
 
   function showAlert() {
-    const variant = alertVariants[alertVariantIndex];
+    const variant = alertVariants[Math.floor(Math.random() * alertVariants.length)];
+    const actions = variant.actions?.map((action) => ({
+      ...action,
+      onClick: () => toast(action.confirm ? `${action.label} confirmed` : `${action.label} cancelled`),
+    }));
 
-    setActiveAlert({ id: `${Date.now()}-${Math.random()}`, ...variant });
-    setAlertVariantIndex((currentIndex) => (currentIndex + 1) % alertVariants.length);
+    useAlerts.getState().show({ ...variant, actions });
     uiSounds.alert();
   }
 
@@ -512,23 +649,32 @@ export function V3Shell() {
   if (isInitialLoad) return <V3LoadingShell />;
 
   return (
-    <main className={"stage" + (joinedVoice ? " is-in-call" : "")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/")); if (file) void prepareAttachment(file); }}>
+    <main className={"stage" + (joinedVoice ? " is-in-call" : "") + (activeAlert ? " has-alert-banner" : "")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/")); if (file) void prepareAttachment(file); }}>
       <div className={"v3-call-glow" + (joinedVoice ? " is-active" : "")} aria-hidden="true" />
       <div className="window-drag-region" data-tauri-drag-region aria-hidden="true" />
+      <div className="v3-header-fade" aria-hidden="true">
+        <span className="v3-header-fade__blur v3-header-fade__blur--1" />
+        <span className="v3-header-fade__blur v3-header-fade__blur--2" />
+        <span className="v3-header-fade__blur v3-header-fade__blur--3" />
+        <span className="v3-header-fade__blur v3-header-fade__blur--4" />
+        <span className="v3-header-fade__opacity" />
+      </div>
       {activeAlert && (
         <div className="top-alert-region" aria-live="polite" aria-atomic="true">
           <TopAlert
             id={activeAlert.id}
             message={activeAlert.message}
-            type={activeAlert.type}
+            severity={activeAlert.severity}
             icon={activeAlert.icon}
-            isPrimary
+            actions={activeAlert.actions}
             onDismiss={dismissAlert}
           />
         </div>
       )}
 
-      <section ref={messageHistoryRef} className="message-history" aria-label="Chat messages" onScroll={(event) => { const el = event.currentTarget; atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; if (el.scrollTop < 96) void loadOlderMessages(); }}>
+      {chatView === "friends" && <V3Dashboard />}
+
+      {chatView === "chat" && <section ref={messageHistoryRef} className="message-history" aria-label="Chat messages" onScroll={(event) => { const el = event.currentTarget; atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; if (el.scrollTop < 96) void loadOlderMessages(); }}>
         <div className="message-list" ref={messageListRef}>
           {hasMore && <div className="v3-load-older">{loadingOlder ? "Loading earlier messages…" : "Scroll up for earlier messages"}</div>}
           {liveMessages.map((message, index) => {
@@ -578,7 +724,7 @@ export function V3Shell() {
             );
           })}
         </div>
-      </section>
+      </section>}
 
       <nav className="top-audio-controls" aria-label="Audio controls">
         <V3ChatSwitcher partnerProfile={partnerProfile} partnerPresence={partnerPresence} />
@@ -599,7 +745,7 @@ export function V3Shell() {
         <ScreenSharePreview source="local" />
       </div>
 
-      <div className="bottom-composer">
+      {chatView === "chat" && <div className="bottom-composer">
         {(isSelfTyping || typingUserId) && <TypingIndicator name={typingUserId ? displayName(typingProfile, "Partner") : displayName(selfProfile, "You")} avatar={typingUserId ? avatarUrl(typingProfile) : avatarUrl(selfProfile)} />}
         {replyTo && <div className="v3-reply-banner">
           <span className="v3-reply-banner__icon" aria-hidden="true">↩</span>
@@ -611,11 +757,45 @@ export function V3Shell() {
           <span className="v3-pending-media__copy"><strong>{mediaStage === "uploading" ? "Uploading media…" : mediaStage === "preparing" ? "Preparing media…" : pendingMedia.kind === "video" ? "Video ready" : "Image ready"}</strong><span>{mediaStage === "uploading" ? "Sending securely to Cloudinary" : mediaStage === "preparing" ? "Compressing locally before upload" : pendingMedia.kind === "video" ? "Cloudinary · 720p / 30 fps" : "Cloudinary optimized"}</span></span>
           <span className={"v3-pending-media__progress is-" + mediaStage} aria-hidden="true" /><button type="button" aria-label="Remove attachment" title="Remove attachment" disabled={mediaStage === "uploading"} onClick={() => { if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl); setPendingPreviewUrl(null); setPendingMedia(null); setMediaStage("idle"); }}><X aria-hidden="true" /></button>
         </div>}
+        {matchedCommands.length > 0 && (
+          <div className="v3-command-menu" role="listbox" aria-label="Commands">
+            {matchedCommands.map((command) => (
+              <button
+                key={command.name}
+                type="button"
+                role="option"
+                onClick={() => {
+                  const result = runSlashCommand(command.name);
+                  if (result === true) {
+                    clearComposerAfterCommand();
+                    return;
+                  }
+                  // A transform-type command (e.g. /shrug) needs its argument
+                  // text - autocomplete the name and let Enter run it through
+                  // the normal submit path instead of duplicating send logic here.
+                  setComposerValue(`/${command.name} `);
+                  document.getElementById("message-composer")?.focus();
+                }}
+              >
+                <span className="v3-command-menu__name">/{command.name}</span>
+                <span className="v3-command-menu__description">{command.description}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="composer-row">
           <input ref={attachmentInputRef} className="v3-file-input" type="file" accept="image/*,video/*" onChange={(event) => { void prepareAttachment(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-          <InputBar value={composerValue} onChange={handleComposerChange} onSubmit={() => void handleComposerSubmit()} onPaste={handleComposerPaste} onAttach={() => attachmentInputRef.current?.click()} />
+          <InputBar
+            value={commandArgText}
+            onChange={handleComposerArgChange}
+            onSubmit={() => void handleComposerSubmit()}
+            onPaste={handleComposerPaste}
+            onKeyDown={handleComposerKeyDown}
+            onAttach={() => attachmentInputRef.current?.click()}
+            commandName={activeCommand?.name ?? null}
+          />
         </div>
-      </div>
+      </div>}
       <div className="temporarily-hidden" aria-hidden="true">
         <AvatarButton />
         <AvatarBadge />

@@ -1,6 +1,7 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { create } from "zustand";
+import { useAlerts } from "./alerts";
 import {
   captureScreen,
   configureRemoteAudio,
@@ -71,6 +72,10 @@ interface VoiceState {
   startScreenShare: () => Promise<void>;
   stopScreenShare: () => Promise<void>;
   retryConnection: () => void;
+  /** Hard fallback for when the automatic ICE-restart/signaling recovery
+   * gets stuck: fully leaves and rejoins the same room instead of trying
+   * to repair the existing connection. */
+  forceReconnect: () => Promise<void>;
 }
 
 const ICE_SERVERS: RTCIceServer[] = [
@@ -191,11 +196,10 @@ export const useVoice = create<VoiceState>()((set, get) => ({
 
     if (get().activeConversationId && get().activeConversationId !== conversationId) {
       if (!takeover) {
-        toast.info("You are already in another voice channel.", {
-          action: {
-            label: "Switch",
-            onClick: () => void get().join(conversationId, true),
-          },
+        useAlerts.getState().show({
+          severity: "neutral",
+          message: "You are already in another voice channel.",
+          actions: [{ label: "Switch", confirm: true, onClick: () => void get().join(conversationId, true) }],
         });
         return;
       }
@@ -224,11 +228,10 @@ export const useVoice = create<VoiceState>()((set, get) => ({
         await stopMicrophonePipeline(microphone);
         microphone = null;
         set({ status: "idle", error: null });
-        toast.info("Voice is active on another device.", {
-          action: {
-            label: "Take over",
-            onClick: () => void get().join(conversationId, true),
-          },
+        useAlerts.getState().show({
+          severity: "neutral",
+          message: "Voice is active on another device.",
+          actions: [{ label: "Take over", confirm: true, onClick: () => void get().join(conversationId, true) }],
         });
         return;
       }
@@ -286,7 +289,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
         microphone = null;
       }
       set({ status: "idle", error: message });
-      toast.error(message);
+      useAlerts.getState().show({ severity: "danger", message });
     }
   },
 
@@ -360,16 +363,17 @@ export const useVoice = create<VoiceState>()((set, get) => ({
       }
 
       if (!stream.getAudioTracks().length) {
-        toast.info("This source did not include audio. Enable Share system audio in the capture picker when available.");
+        useAlerts.getState().show({ severity: "warning", message: "This source did not include audio. Enable Share system audio in the capture picker when available." });
       }
       await updateRoomPresence();
       await sendHeartbeat();
     } catch (error) {
       await stopLocalScreen(false);
       if (error instanceof DOMException && error.name === "NotAllowedError") return;
-      toast.error(
-        error instanceof Error ? error.message : "Screen sharing could not start."
-      );
+      useAlerts.getState().show({
+        severity: "danger",
+        message: error instanceof Error ? error.message : "Screen sharing could not start.",
+      });
     }
   },
 
@@ -380,6 +384,13 @@ export const useVoice = create<VoiceState>()((set, get) => ({
     restartAttempted = false;
     useVoice.setState({ status: "reconnecting", error: null });
     void attemptIceRestart();
+  },
+
+  forceReconnect: async () => {
+    const conversationId = get().activeConversationId;
+    if (!conversationId) return;
+    await get().leave();
+    await get().join(conversationId, true);
   },
 }));
 
@@ -558,7 +569,7 @@ function removeRoom(partial: Partial<VoiceRoom>): void {
   });
   if (active) {
     void disconnectLocal(false);
-    toast.error("The voice channel expired after losing its connection.");
+    useAlerts.getState().show({ severity: "danger", message: "The voice channel expired after losing its connection." });
   }
 }
 
@@ -647,7 +658,7 @@ function removeParticipant(partial: Partial<VoiceParticipant>): void {
   if (useVoice.getState().activeConversationId !== conversationId) return;
   if (userId === currentUserId) {
     void disconnectLocal(false);
-    toast.error("Your voice session expired.");
+    useAlerts.getState().show({ severity: "danger", message: "Your voice session expired." });
   } else {
     closePeerConnection();
     playAppSound("voice_leave");
@@ -663,7 +674,7 @@ async function createPreferredMicrophone(): Promise<MicrophonePipeline> {
     preferences.noiseSuppression
   );
   if (pipeline.fellBackToDefault) {
-    toast.info("The selected microphone is unavailable; using the Windows default.");
+    useAlerts.getState().show({ severity: "warning", message: "The selected microphone is unavailable; using the Windows default." });
   }
   return pipeline;
 }
@@ -690,9 +701,10 @@ async function replaceMicrophone(): Promise<void> {
 
     await stopMicrophonePipeline(old);
   } catch (error) {
-    toast.error(
-      error instanceof Error ? error.message : "The microphone could not be changed."
-    );
+    useAlerts.getState().show({
+      severity: "danger",
+      message: error instanceof Error ? error.message : "The microphone could not be changed.",
+    });
   }
 }
 
@@ -1163,7 +1175,7 @@ async function verifyActiveLease(conversationId: string): Promise<void> {
       !disconnecting
     ) {
       await disconnectLocal(false);
-      toast.error("Your voice session expired.");
+      useAlerts.getState().show({ severity: "danger", message: "Your voice session expired." });
     }
   })().finally(() => {
     activeLeaseVerification = null;
@@ -1186,7 +1198,7 @@ async function sendHeartbeat(): Promise<void> {
   const response = data as RpcStatus;
   if (response.status === "not_found") {
     await disconnectLocal(false);
-    toast.error("Your voice session expired.");
+    useAlerts.getState().show({ severity: "danger", message: "Your voice session expired." });
   }
 }
 
@@ -1333,11 +1345,13 @@ function markConnectionFailed(): void {
   const message =
     "Direct connection failed. This network may require a TURN relay.";
   useVoice.setState({ status: "failed", error: message });
-  toast.error(message, {
-    action: {
-      label: "Retry",
-      onClick: () => useVoice.getState().retryConnection(),
-    },
+  useAlerts.getState().show({
+    severity: "danger",
+    message,
+    actions: [
+      { label: "Dismiss" },
+      { label: "Reconnect", confirm: true, onClick: () => void useVoice.getState().forceReconnect() },
+    ],
   });
 }
 

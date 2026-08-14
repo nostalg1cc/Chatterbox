@@ -1,50 +1,66 @@
 import { useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalTitlebar } from "@/components/titlebar";
 import { V3Shell } from "@/features/v3-shell/v3-shell";
 import { AuthScreen } from "@/features/auth/auth-screen";
 import { KeybindManager } from "@/features/settings/keybind-manager";
-import { isTauri } from "@/lib/tauri";
+import { TopAlert } from "@/features/v3-shell/components/TopAlert";
+import { checkForUpdateSilently, UPDATED_VERSION_KEY } from "@/lib/updater";
+import { useAlerts } from "@/stores/alerts";
 import { useAuth } from "@/stores/auth";
+import { useFriends } from "@/stores/friends";
 import { usePresence } from "@/stores/presence";
 import { useVoice } from "@/stores/voice";
 
 export default function App() {
   const userId = useAuth((state) => state.userId);
   const status = useAuth((state) => state.status);
+  const activeAlert = useAlerts((state) => state.active);
+  const dismissAlert = useAlerts((state) => state.dismiss);
 
   useEffect(() => { useAuth.getState().init(); }, []);
   useEffect(() => { if (!userId) return; return useVoice.getState().init(userId); }, [userId]);
   useEffect(() => { if (!userId) return; return usePresence.getState().join(userId); }, [userId]);
   useEffect(() => {
-    if (!isTauri) return;
-    let disposed = false;
-    void (async () => {
-      try {
-        const { check } = await import("@tauri-apps/plugin-updater");
-        const update = await check();
-        if (!update || disposed) return;
-        await update.downloadAndInstall();
-        if (disposed) return;
-        // The NSIS installer just replaced the exe on disk - give the
-        // filesystem/AV a moment to release it before relaunching, or the
-        // new process can read a still-locked/partially-flushed binary and
-        // crash immediately (observed as a 0xc0000409 fail-fast on launch).
-        await new Promise((resolve) => window.setTimeout(resolve, 1500));
-        if (!disposed) await invoke("restart_app");
-      } catch (error) {
-        console.warn("Automatic update failed", error);
-      }
-    })();
-    return () => { disposed = true; };
+    if (!userId) return;
+    void useFriends.getState().load();
+    return useFriends.getState().subscribe(userId);
+  }, [userId]);
+  useEffect(() => {
+    // The app process fully restarts after installing an update, so there's
+    // no in-memory way to know "we just updated" on the next launch - the
+    // version gets stashed in localStorage right before the restart below,
+    // and this picks it up the first time the fresh process starts up.
+    const updatedVersion = window.localStorage.getItem(UPDATED_VERSION_KEY);
+    if (updatedVersion) {
+      window.localStorage.removeItem(UPDATED_VERSION_KEY);
+      useAlerts.getState().show({ severity: "neutral", message: `App got updated to version ${updatedVersion}.` });
+    }
   }, []);
+  useEffect(() => { void checkForUpdateSilently(); }, []);
 
   return (
     <TooltipProvider delayDuration={300}>
       <GlobalTitlebar />
       <KeybindManager />
+      {/* V3Shell renders its own top-alert-region, inside .stage's isolated
+          stacking context, so the banner correctly sits behind the header
+          pills there (z-index 3 vs 5) instead of covering them. Outside
+          V3Shell (auth, initial load) there's no header to layer under, so
+          this simpler top-level instance covers that case instead. */}
+      {status !== "signedIn" && activeAlert && (
+        <div className="top-alert-region" aria-live="polite" aria-atomic="true">
+          <TopAlert
+            id={activeAlert.id}
+            message={activeAlert.message}
+            severity={activeAlert.severity}
+            icon={activeAlert.icon}
+            actions={activeAlert.actions}
+            onDismiss={dismissAlert}
+          />
+        </div>
+      )}
       {status === "signedIn" ? (
         <V3Shell />
       ) : status === "signedOut" ? (
@@ -52,7 +68,7 @@ export default function App() {
       ) : (
         <div className="flex h-screen items-center justify-center bg-background" />
       )}
-      <Toaster position="top-center" />
+      <Toaster position="bottom-right" />
     </TooltipProvider>
   );
 }

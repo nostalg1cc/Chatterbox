@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { isTauri } from "@/lib/tauri";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { supabase } from "@/lib/supabase";
+import { useAlerts } from "@/stores/alerts";
 import { useLightbox } from "@/stores/lightbox";
 
 const URL_PART = /(https?:\/\/[^\s<]+)/gi;
@@ -15,14 +16,28 @@ function splitTrailingPunctuation(value) {
   return match ? { url: match[1], suffix: match[2] } : { url: value, suffix: "" };
 }
 
-async function openLink(url) {
-  const safe = new URL(url);
-  if (!/^https?:$/.test(safe.protocol)) throw new Error("Only web links are supported.");
+async function reallyOpenLink(href) {
   if (isTauri) {
-    await openUrl(safe.href);
+    await openUrl(href);
     return;
   }
-  window.open(safe.href, "_blank", "noopener,noreferrer");
+  window.open(href, "_blank", "noopener,noreferrer");
+}
+
+// A whole tweet/link embed card is one big click target, so a stray click
+// anywhere on it would otherwise jump straight out to the browser - confirm
+// first instead, same for the smaller inline text links.
+function openLink(url) {
+  const safe = new URL(url);
+  if (!/^https?:$/.test(safe.protocol)) throw new Error("Only web links are supported.");
+  useAlerts.getState().show({
+    severity: "neutral",
+    message: `Open ${safe.hostname} in your browser?`,
+    actions: [
+      { label: "Dismiss" },
+      { label: "Yes", confirm: true, onClick: () => void reallyOpenLink(safe.href) },
+    ],
+  });
 }
 
 function LinkText({ content, hidden }) {

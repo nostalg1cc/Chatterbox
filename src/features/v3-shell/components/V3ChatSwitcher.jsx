@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LayoutDashboard } from "lucide-react";
 import { decorationUrl } from "@/lib/avatar-decorations";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/stores/auth";
@@ -69,6 +70,11 @@ export function V3ChatSwitcher({ partnerProfile, partnerPresence }) {
           })}
           {!items.length && <span className="v3-chat-switcher__empty">No conversations yet</span>}
         </div>
+        <div className="v3-chat-switcher__divider" role="separator" />
+        <button type="button" role="menuitem" className="v3-chat-switcher__dashboard-item" onClick={() => { useChat.getState().setView("friends"); setOpen(false); uiSounds.click(); }}>
+          <LayoutDashboard aria-hidden="true" />
+          <span>Dashboard</span>
+        </button>
       </div>}
     </div>
   );

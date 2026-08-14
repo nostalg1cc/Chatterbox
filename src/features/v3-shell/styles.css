@@ -614,6 +614,37 @@ body {
 .text-input-bar__attach:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
 .text-input-bar__attach svg { width: 16px; height: 16px; }
 
+/* Command mode: a recognized "/name" locks in as a chip instead of sitting
+   as plain text - reuses the same --material-stroke override trick as the
+   in-call header tint, so the whole pill's edge picks up a blue catch-light
+   instead of introducing a separate visual language. */
+.text-input-bar--command {
+  --material-stroke: linear-gradient(
+    180deg,
+    rgba(140, 190, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.04) 75%,
+    rgba(255, 255, 255, 0.14) 88%,
+    rgba(140, 190, 255, 0.55) 100%
+  );
+}
+.text-input-bar__command-chip {
+  position: relative;
+  z-index: 4;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 24px;
+  margin-right: 7px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #9cc9ff;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(156, 201, 255, 0.16);
+}
+
 .text-input-bar__label {
   position: absolute;
   width: 1px;
@@ -931,143 +962,108 @@ body {
   outline: 2px solid #ffffff;
   outline-offset: 2px;
 }
+/* Full-width banner anchored to the very top of the window, behind the
+   floating header pills (those sit at z-index:5, this at z-index:3) - it
+   slides down from translateY(-100%) to 0 and visually emerges from under
+   them, while .message-history's padding-top grows to match (see
+   .stage.has-alert-banner below) so the banner actually shoves the
+   conversation content down instead of floating over it. */
 .top-alert-region {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
-  left: auto;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Above .window-drag-region (z-index 3) - that drag strip otherwise
+     swallows every click meant for the banner's own action buttons,
+     since it spans the same top band and would normally win by sitting
+     higher in the stack. Still below the header pills (5) so the banner
+     reads as emerging from behind them. */
+  z-index: 4;
   pointer-events: none;
 }
 .top-alert {
+  --alert-tint: rgba(255, 255, 255, 0.05);
+  --alert-accent: #d9d9d9;
   position: relative;
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
+  display: flex;
   align-items: center;
-  overflow: hidden;
-  border-radius: 14px;
-  color: #d9d9d9;
-  opacity: 0;
-  transform: translateY(72px) scale(0.62);
-  transform-origin: 100% 100%;
-  interpolate-size: allow-keywords;
-  transition:
-    width 280ms cubic-bezier(0.22, 0.9, 0.25, 1),
-    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 180ms ease,
-    box-shadow 200ms ease-in-out;
-  will-change: width, transform, opacity;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  /* Reserve room on the right for the native window controls (Tauri only -
+     harmless unused space on PWA/web where they don't exist), so action
+     buttons never sit underneath minimize/maximize/close. */
+  padding: 12px 150px 12px 30px;
+  padding-top: calc(12px + env(safe-area-inset-top));
+  pointer-events: auto;
+  color: #f2f2f2;
+  background: linear-gradient(180deg, var(--alert-tint), var(--alert-tint)), #191919;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.85), 0 12px 24px rgba(0, 0, 0, 0.3);
+  transform: translateY(-100%);
+  transition: transform 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
 }
+.top-alert--visible { transform: translateY(0); }
 
+.top-alert--neutral { --alert-tint: rgba(255, 255, 255, 0.05); --alert-accent: #d9d9d9; }
+.top-alert--warning { --alert-tint: rgba(234, 179, 8, 0.16); --alert-accent: #f5c344; }
+.top-alert--danger { --alert-tint: rgba(255, 51, 51, 0.16); --alert-accent: #ff6b6b; }
 
-.top-alert--icon,
-.top-alert--expanded,
-.top-alert--collapsing {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-.top-alert--icon,
-.top-alert--expanded {
-  animation: top-alert-enter 480ms cubic-bezier(0.22, 0.72, 0.3, 1) both;
-}
-
-.top-alert--expanded {
-  width: auto;
-}
-
-.top-alert--leaving {
-  animation: top-alert-leave 300ms cubic-bezier(0.4, 0, 0.8, 0.35) both;
-}
-
-.top-alert--info .top-alert__icon {
-  color: #8fc2ff;
-}
-
-.top-alert--success .top-alert__icon {
-  color: #78e7a7;
-}
-
-.top-alert--warning .top-alert__icon {
-  color: #ffca70;
-}
-
-.top-alert--error .top-alert__icon {
-  color: #ff8585;
-}
 .top-alert__icon {
-  position: relative;
-  z-index: 2;
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   flex: none;
-  margin: 0 7px;
-  opacity: 0.8;
+  color: var(--alert-accent);
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
 }
 
 .top-alert__message {
-  position: relative;
-  z-index: 2;
-  overflow: visible;
-  margin-right: 9px;
-  font-size: 12px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13.5px;
   font-weight: 500;
-  line-height: 1;
-  opacity: 0;
-  clip-path: inset(0 100% 0 0);
-  text-shadow: 0 2px 2px rgba(0, 0, 0, 0.35);
-  transform: translateX(-7px);
-  transition:
-    clip-path 260ms cubic-bezier(0.22, 0.9, 0.25, 1),
-    opacity 180ms ease,
-    transform 240ms cubic-bezier(0.22, 0.9, 0.25, 1);
+  line-height: 1.3;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  text-shadow: 0 2px 2px rgba(0, 0, 0, 0.35);
 }
 
-.top-alert--expanded .top-alert__message {
-  opacity: 0.8;
-  clip-path: inset(0 0 0 0);
-  transform: translateX(0);
-  transition-delay: 15ms;
+.top-alert__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
 }
-@keyframes top-alert-enter {
-  0% {
-    opacity: 0;
-    transform: translateY(72px) scale(0.62);
-  }
-
-  64% {
-    opacity: 1;
-    transform: translateY(-14px) scale(1.018);
-  }
-
-  83% {
-    transform: translateY(2px) scale(0.996);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+.top-alert__action {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border: 1.25px solid transparent;
+  border-radius: 999px;
+  color: rgba(245, 245, 245, 0.92);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  --material-color: #2c2d2d;
+  background-image:
+    linear-gradient(var(--material-color), var(--material-color)),
+    var(--material-stroke),
+    linear-gradient(var(--material-color), var(--material-color));
+  background-blend-mode: normal, color-dodge, normal;
+  background-origin: border-box;
+  background-clip: padding-box, border-box, border-box;
+  outline: 1.25px solid rgba(0, 0, 0, 0.8);
+  outline-offset: 0;
+  transition: filter 120ms ease;
 }
-
-@keyframes top-alert-leave {
-  0% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-
-  100% {
-    opacity: 0;
-    transform: translateY(72px) scale(0.62);
-  }
+.top-alert__action:hover { filter: brightness(1.2); }
+.top-alert__action--confirm {
+  color: #111;
+  background: #fff;
 }
+.top-alert__action--confirm:hover { filter: brightness(0.94); }
 .message-template {
   display: grid;
   width: 480px;
@@ -1386,6 +1382,7 @@ body {
   display: flex;
   align-items: center;
   gap: 18px;
+  transition: top 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
 }
 
 .top-audio-controls {
@@ -1397,6 +1394,13 @@ body {
 .top-navigation-controls {
   top: 30px;
   right: 30px;
+}
+
+/* Slide the header down out of the alert banner's way instead of letting
+   it sit pinned in place overlapping the banner's lower half. */
+.stage.has-alert-banner .top-audio-controls,
+.stage.has-alert-banner .top-navigation-controls {
+  top: 90px;
 }
 
 /* Native window chrome (drag region, min/max/close) is Tauri-only; on web/PWA
@@ -1440,9 +1444,84 @@ body {
   z-index: 1;
   overflow-y: auto;
   padding: 120px 30px 130px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%);
+  transition: padding-top 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
+  /* Only the bottom edge (near the composer) fades via mask now - the top
+     is handled by .v3-header-fade's blur+opacity overlay instead, which can
+     sit visually behind the header pills in a way an inset mask on this
+     element's own content can't. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 30px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 30px), transparent 100%);
 }
+/* Adaptive header fade: content scrolling under the floating header pills
+   gets progressively blurrier and dimmer the closer it is to the top edge,
+   instead of the header just floating over sharp, fully-opaque text. Sits
+   above .message-history (z-index 1) but below the header pills themselves
+   (z-index 5) and the alert banner (z-index 4), so it reads as the pills
+   "catching" a blurred version of whatever scrolls underneath them.
+   Full strength right at the very top edge (0%), easing down to nothing by
+   the bottom of the zone - not the other way around. Same height as the
+   invisible drag region, since that's the zone actually behind the header.
+   Shifts down with the alert banner when one's showing (see
+   .stage.has-alert-banner below) so it stays aligned to the actual header
+   band instead of drifting out of sync with it. */
+.v3-header-fade {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 70px;
+  pointer-events: none;
+  overflow: hidden;
+  transition: top 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
+}
+.v3-header-fade__blur {
+  position: absolute;
+  inset: 0;
+}
+.v3-header-fade__blur--1 {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 60%, transparent 100%);
+}
+.v3-header-fade__blur--2 {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 85%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 85%);
+}
+.v3-header-fade__blur--3 {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 30%, transparent 65%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 30%, transparent 65%);
+}
+.v3-header-fade__blur--4 {
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 15%, transparent 40%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 15%, transparent 40%);
+}
+.v3-header-fade__opacity {
+  position: absolute;
+  inset: 0;
+  /* Capped at 50% even at the very top - darkens for legibility without
+     ever fully blacking the content out from underneath. */
+  background: linear-gradient(
+    to bottom,
+    rgba(30, 30, 30, 0.5) 0%,
+    rgba(30, 30, 30, 0.4) 20%,
+    rgba(30, 30, 30, 0.26) 45%,
+    rgba(30, 30, 30, 0.12) 70%,
+    transparent 100%
+  );
+}
+
+/* Room for the top alert banner (60px) - grows padding-top so it reads as
+   the banner shoving the conversation down, not floating over it. */
+.stage.has-alert-banner .message-history { padding-top: 180px; }
+.stage.has-alert-banner .v3-header-fade { top: 60px; }
 
 .message-history .message-list {
   width: 100%;
@@ -1511,7 +1590,7 @@ body {
   top: 0;
   right: 0;
   left: 0;
-  z-index: 4;
+  z-index: 3;
   height: 70px;
 }
 
@@ -1963,18 +2042,41 @@ img.v3-media { cursor:zoom-in; }
 .v3-pending-media {
   position: relative;
   display: flex;
-  width: calc(100% - 48px);
+  width: 100%;
   min-height: 60px;
-  align-self: flex-end;
   align-items: center;
   gap: 9px;
   overflow: hidden;
   padding: 7px 9px;
   border-radius: 16px;
   color: rgba(238,238,238,.86);
-  background: #252626;
-  box-shadow: 0 0 0 1.25px rgba(0,0,0,.82);
 }
+.v3-command-menu {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 16px;
+  color: rgba(238, 238, 238, 0.86);
+}
+.v3-command-menu > button {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+.v3-command-menu > button:hover { background: rgba(255, 255, 255, 0.1); }
+.v3-command-menu__name { flex: none; color: #9cc9ff; font-size: 13px; font-weight: 600; }
+.v3-command-menu__description { min-width: 0; overflow: hidden; color: rgba(217, 217, 217, 0.58); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+
 .v3-reply-banner__icon { position: relative; z-index: 1; color: rgba(235,235,235,.64); font-size: 18px; }
 .v3-reply-banner__copy,
 .v3-pending-media__copy { position: relative; z-index: 1; display: grid; min-width: 0; flex: 1; gap: 2px; }
@@ -2229,6 +2331,195 @@ img.v3-media { cursor:zoom-in; }
 .v3-chat-switcher__avatar > span { display: grid; place-items: center; font-size: 11px; font-weight: 600; }
 .v3-chat-switcher__decoration { position: absolute; z-index: 2; top: 50%; left: 50%; width: 136%; height: 136%; max-width: none; object-fit: contain; transform: translate(-50%, -50%); }
 .v3-chat-switcher__empty { padding: 8px; color: rgba(217,217,217,.5); font-size: 12px; }
+.v3-chat-switcher__divider { height: 1px; margin: 4px 2px; background: rgba(255,255,255,.08); }
+.v3-chat-switcher__dashboard-item { display: flex; align-items: center; gap: 9px; width: 100%; min-width: 0; padding: 7px; border: 0; border-radius: 10px; color: inherit; font: inherit; font-size: 13px; text-align: left; background: transparent; cursor: pointer; }
+.v3-chat-switcher__dashboard-item:hover { background: rgba(255,255,255,.10); }
+.v3-chat-switcher__dashboard-item svg { width: 16px; height: 16px; flex: none; color: rgba(217,217,217,.7); }
+
+/* Dashboard: full-screen replacement for the message list + composer while
+   useChat.view === "friends" - same fixed/inset/padding recipe as
+   .message-history so it lines up with the header exactly the same way. */
+.v3-dashboard {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow-y: auto;
+  padding: 120px 30px 40px;
+}
+.v3-dashboard__inner {
+  display: flex;
+  width: min(560px, 100%);
+  max-width: calc(100vw - 60px);
+  margin: 0 auto;
+  flex-direction: column;
+  gap: 26px;
+}
+.v3-dashboard__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.v3-dashboard__header h1 {
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+}
+.v3-dashboard__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  color: rgba(245,245,245,.92);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  --material-color: #2c2d2d;
+  background-image:
+    linear-gradient(var(--material-color), var(--material-color)),
+    var(--material-stroke),
+    linear-gradient(var(--material-color), var(--material-color));
+  background-blend-mode: normal, color-dodge, normal;
+  background-origin: border-box;
+  background-clip: padding-box, border-box, border-box;
+  border: 1.25px solid transparent;
+  outline: 1.25px solid rgba(0,0,0,.8);
+  outline-offset: 0;
+  transition: filter 120ms ease;
+}
+.v3-dashboard__back:hover { filter: brightness(1.2); }
+.v3-dashboard__back svg { width: 15px; height: 15px; }
+
+.v3-dashboard__section { display: flex; flex-direction: column; gap: 9px; }
+.v3-dashboard__section-title {
+  color: rgba(217,217,217,.5);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.v3-dashboard__add-friend { position: relative; display: flex; gap: 8px; }
+.v3-dashboard__add-friend-input {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  color: #d9d9d9;
+  --material-color: #1f1f1f;
+  background-image:
+    linear-gradient(var(--material-color), var(--material-color)),
+    var(--material-stroke),
+    linear-gradient(var(--material-color), var(--material-color));
+  background-blend-mode: normal, color-dodge, normal;
+  background-origin: border-box;
+  background-clip: padding-box, border-box, border-box;
+  border: 1.25px solid transparent;
+  outline: 1.25px solid rgba(0,0,0,.8);
+  outline-offset: 0;
+}
+.v3-dashboard__add-friend-input svg { width: 15px; height: 15px; flex: none; margin-right: 8px; color: rgba(217,217,217,.5); }
+.v3-dashboard__add-friend-input input { flex: 1; min-width: 0; border: 0; color: inherit; font: inherit; font-size: 13.5px; background: transparent; outline: none; }
+.v3-dashboard__add-friend > button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1.25px solid transparent;
+  border-radius: 12px;
+  color: #111;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #fff;
+  outline: 1.25px solid rgba(0,0,0,.8);
+  outline-offset: 0;
+  transition: filter 120ms ease;
+}
+.v3-dashboard__add-friend > button:hover { filter: brightness(.94); }
+.v3-dashboard__add-friend > button:disabled { cursor: default; filter: grayscale(.4) brightness(.7); }
+.v3-dashboard__add-friend > button svg { width: 15px; height: 15px; }
+.v3-dashboard__add-friend-error {
+  position: absolute;
+  top: 100%;
+  left: 2px;
+  margin-top: 6px;
+  color: #ff8585;
+  font-size: 12px;
+}
+
+.v3-dashboard__list { display: flex; flex-direction: column; gap: 4px; }
+.v3-dashboard__row {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 12px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+button.v3-dashboard__row:hover,
+.v3-dashboard__row.is-active { background: rgba(255,255,255,.07); }
+.v3-dashboard__row-name { min-width: 0; overflow: hidden; color: rgba(245,245,245,.92); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.v3-dashboard__row-copy { display: grid; min-width: 0; flex: 1; gap: 1px; }
+.v3-dashboard__row-copy strong { overflow: hidden; color: rgba(245,245,245,.92); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.v3-dashboard__row-copy span { overflow: hidden; color: rgba(217,217,217,.55); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.v3-dashboard__row-actions { display: flex; flex: none; gap: 6px; margin-left: auto; }
+.v3-dashboard__row-actions button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: rgba(230,230,230,.8);
+  cursor: pointer;
+  background: rgba(255,255,255,.06);
+}
+.v3-dashboard__row-actions button:hover { background: rgba(255,255,255,.14); color: #fff; }
+.v3-dashboard__row-actions button.v3-dashboard__accept { color: #6be08a; }
+.v3-dashboard__row-actions button.v3-dashboard__accept:hover { background: rgba(0,179,57,.24); color: #9dffb8; }
+.v3-dashboard__row-actions svg { width: 15px; height: 15px; }
+.v3-dashboard__unread {
+  display: grid;
+  min-width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: #00b339;
+}
+.v3-dashboard__empty { padding: 10px 12px; color: rgba(217,217,217,.45); font-size: 12.5px; }
+
+.v3-dashboard__avatar { position: relative; display: block; flex: none; width: 38px; height: 38px; overflow: visible; border-radius: 50%; }
+.v3-dashboard__avatar img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.v3-dashboard__avatar-fallback { display: grid; width: 100%; height: 100%; place-items: center; border-radius: 50%; color: rgba(230,230,230,.8); font-size: 14px; font-weight: 600; background: #2c2d2d; }
+.v3-dashboard__avatar-decoration { position: absolute; z-index: 2; top: 50%; left: 50%; width: 130%; height: 130%; max-width: none; object-fit: contain; transform: translate(-50%, -50%); }
+.v3-dashboard__presence { position: absolute; z-index: 3; right: -1px; bottom: -1px; width: 11px; height: 11px; border: 2px solid #1e1e1e; border-radius: 50%; background: #6b6b6b; }
+.v3-dashboard__presence.is-online { background: #00d084; }
+.v3-dashboard__presence.is-away { background: #f5c344; }
 
 /* V3 refinement: partner presence is easier to read; history frames need a little more room than header frames. */
 .partner-avatar-button__presence { right: -2px; bottom: -2px; width: 13px; height: 13px; border-width: 2px; }
@@ -2431,11 +2722,11 @@ img.v3-media { cursor:zoom-in; }
 .text-input-bar,
 .status-bar,
 .mini-badge,
-.top-alert,
 .v3-message-actions,
 .v3-reaction-picker,
 .v3-reply-banner,
 .v3-pending-media,
+.v3-command-menu,
 .v3-chat-switcher__menu,
 .v3-settings-dialog,
 .v3-inline-editor {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { useAlerts } from "@/stores/alerts";
 import {
   CameraIcon,
   HardDriveIcon,
@@ -161,7 +162,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
       if (updated) useProfiles.getState().put([updated]);
       toast.success("Profile updated.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't save.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "Couldn't save." });
     } finally {
       setSaving(false);
     }
@@ -197,7 +198,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
       if (updated) useProfiles.getState().put([updated]);
       toast.success(isGif ? "Animated avatar updated." : "Avatar updated.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't update your avatar.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "Couldn't update your avatar." });
     } finally {
       setAvatarBusy(false);
       if (avatarInput.current) avatarInput.current.value = "";
@@ -211,7 +212,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
       await useSoundboard.getState().upload(file, name);
       setSoundName("");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't add the sound.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "Couldn't add the sound." });
     } finally {
       if (soundInput.current) soundInput.current.value = "";
     }
@@ -222,7 +223,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
       await useSoundboard.getState().rename(soundId, renamingSoundName);
       setRenamingSoundId(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't rename the sound.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "Couldn't rename the sound." });
     }
   };
   const checkForUpdates = async () => {
@@ -286,7 +287,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
       await refreshCacheStats();
       toast.success("Local media cache cleared.");
     } catch {
-      toast.error("Couldn't clear the local media cache.");
+      useAlerts.getState().show({ severity: "danger", message: "Couldn't clear the local media cache." });
     } finally {
       setClearingCache(false);
     }
@@ -1041,7 +1042,10 @@ function KeybindRow({
       // shortcuts are turned on, since the expectation there is "works
       // anywhere".
       if (isGlobalCapable && globalVoiceShortcuts && !binding.includes("+")) {
-        toast.info("That shortcut will only work while Nitro is focused - bare keys can't be registered as a system-wide global shortcut.");
+        useAlerts.getState().show({
+          severity: "warning",
+          message: "That shortcut will only work while Nitro is focused - bare keys can't be registered as a system-wide global shortcut.",
+        });
       }
       onChange(binding);
       setRecording(false);
@@ -1195,7 +1199,7 @@ function MicrophoneTest({
         await disposeRemoteAudio(monitor.audio);
         await stopMicrophonePipeline(monitor.pipeline);
       }
-      toast.error(error instanceof Error ? error.message : "Couldn't start the microphone test.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "Couldn't start the microphone test." });
     }
   };
 

@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAlerts } from "@/stores/alerts";
 import { supabase } from "@/lib/supabase";
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
@@ -64,11 +65,10 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      toast.error(
-        error.message === "Invalid login credentials"
-          ? "Wrong email or password."
-          : error.message
-      );
+      useAlerts.getState().show({
+        severity: "danger",
+        message: error.message === "Invalid login credentials" ? "Wrong email or password." : error.message,
+      });
     }
   };
 
@@ -142,11 +142,11 @@ function SignupForm({
     e.preventDefault();
     const name = username.trim().toLowerCase();
     if (!USERNAME_RE.test(name)) {
-      toast.error("Usernames are 3–20 characters: a–z, 0–9, underscores.");
+      useAlerts.getState().show({ severity: "danger", message: "Usernames are 3–20 characters: a–z, 0–9, underscores." });
       return;
     }
     if (password.length < 8) {
-      toast.error("Password needs at least 8 characters.");
+      useAlerts.getState().show({ severity: "danger", message: "Password needs at least 8 characters." });
       return;
     }
     setLoading(true);
@@ -162,11 +162,10 @@ function SignupForm({
     });
     setLoading(false);
     if (error) {
-      toast.error(
-        error.message.includes("Database error")
-          ? "That username or email is already taken."
-          : error.message
-      );
+      useAlerts.getState().show({
+        severity: "danger",
+        message: error.message.includes("Database error") ? "That username or email is already taken." : error.message,
+      });
       return;
     }
     // No session means email confirmation is on — show the verify notice.
@@ -251,7 +250,7 @@ function VerifyNotice({ email, onBack }: { email: string; onBack: () => void }) 
     setResending(true);
     const { error } = await supabase.auth.resend({ type: "signup", email });
     setResending(false);
-    if (error) toast.error("Couldn't resend the email.");
+    if (error) useAlerts.getState().show({ severity: "danger", message: "Couldn't resend the email." });
     else toast.success("Verification email sent again.");
   };
 

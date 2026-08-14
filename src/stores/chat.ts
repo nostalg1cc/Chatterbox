@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { toast } from "sonner";
+import { useAlerts } from "./alerts";
 import { playAppSound } from "@/lib/app-sounds";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
@@ -150,7 +150,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       supabase.rpc("conversation_overview"),
     ]);
     if (convRes.error || overviewRes.error) {
-      toast.error("Couldn't load conversations.");
+      useAlerts.getState().show({ severity: "danger", message: "Couldn't load conversations." });
       set({ loaded: true });
       return;
     }
@@ -190,7 +190,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       .order("created_at", { ascending: false })
       .limit(PAGE_SIZE);
     if (error) {
-      toast.error("Couldn't load messages.");
+      useAlerts.getState().show({ severity: "danger", message: "Couldn't load messages." });
       return;
     }
     const page = (data ?? []) as Message[];
@@ -359,7 +359,7 @@ export const useChat = create<ChatState>()((set, get) => ({
           body: { mode: "discard", path: mediaPath },
         });
       }
-      toast.error(error instanceof Error ? error.message : "Message didn't send.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "Message didn't send." });
       return false;
     }
   },
@@ -376,7 +376,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       .select()
       .single();
     if (error) {
-      toast.error("Couldn't edit the message.");
+      useAlerts.getState().show({ severity: "danger", message: "Couldn't edit the message." });
       return;
     }
     applyMessage(data as Message, set);
@@ -390,7 +390,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       .select()
       .single();
     if (error) {
-      toast.error("Couldn't delete the message.");
+      useAlerts.getState().show({ severity: "danger", message: "Couldn't delete the message." });
       return;
     }
     applyMessage(data as Message, set);
@@ -413,7 +413,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       const { error } = await supabase.from("reactions").delete().eq("id", existing.id);
       if (error) {
         applyReaction(existing, set);
-        toast.error("Couldn't remove the reaction.");
+        useAlerts.getState().show({ severity: "danger", message: "Couldn't remove the reaction." });
       }
       return;
     }
@@ -435,7 +435,7 @@ export const useChat = create<ChatState>()((set, get) => ({
     });
     if (error && error.code !== "23505") {
       removeReaction(optimistic.id, message.id, set);
-      toast.error("Couldn't add the reaction.");
+      useAlerts.getState().show({ severity: "danger", message: "Couldn't add the reaction." });
     }
   },
 

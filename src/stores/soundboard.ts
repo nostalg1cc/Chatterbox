@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { create } from "zustand";
+import { useAlerts } from "./alerts";
 import { prepareSoundboardAudio, playSoundboardUrl, preloadSoundboardClips, type SoundboardPlayback } from "@/lib/soundboard-audio";
 import { supabase } from "@/lib/supabase";
 import { usePreferences } from "./preferences";
@@ -65,7 +66,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
       const data = await invoke<{ sounds: SoundboardSound[] }>({ mode: "list" });
       set({ sounds: data.sounds });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Soundboard could not load.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "Soundboard could not load." });
     } finally {
       set({ loading: false });
     }
@@ -92,7 +93,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
         preloadSoundboardClips(prioritizedClips);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Shared soundboard could not load.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "Shared soundboard could not load." });
     } finally {
       set({ loading: false });
     }
@@ -149,7 +150,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
       const data = await invoke<{ signedUrl: string }>({ mode: "preview", soundId });
       await playSoundboardUrl(soundId, data.signedUrl, Date.now() + 20, usePreferences.getState().soundboardVolume, usePreferences.getState().outputDeviceId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Sound preview could not play.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "Sound preview could not play." });
     }
   },
 
@@ -166,7 +167,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
 
     const voice = useVoice.getState();
     if (!voice.activeConversationId) {
-      toast.info("Join voice to use the soundboard.");
+      useAlerts.getState().show({ severity: "neutral", message: "Join voice to use the soundboard." });
       return;
     }
     if (Date.now() < get().cooldownUntil) return;
@@ -240,7 +241,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
         activeLocalPlayback = null;
         set({ playingSoundId: null, playbackProgress: 0 });
       }
-      toast.error(error instanceof Error ? error.message : "Sound could not play.");
+      useAlerts.getState().show({ severity: "danger", message: error instanceof Error ? error.message : "Sound could not play." });
     }
   },
 }));

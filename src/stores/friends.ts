@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { toast } from "sonner";
+import { useAlerts } from "./alerts";
 import { supabase } from "@/lib/supabase";
 import type { Friendship } from "@/lib/types";
 import { useProfiles } from "./profiles";
@@ -35,7 +36,7 @@ export const useFriends = create<FriendsState>()((set, get) => ({
       .select("*")
       .order("created_at", { ascending: false });
     if (error) {
-      toast.error("Couldn't load your friends.");
+      useAlerts.getState().show({ severity: "danger", message: "Couldn't load your friends." });
       return;
     }
     const friendships = (data ?? []) as Friendship[];
@@ -100,7 +101,7 @@ export const useFriends = create<FriendsState>()((set, get) => ({
       .select()
       .single();
     if (error) {
-      toast.error("Couldn't accept the request.");
+      useAlerts.getState().show({ severity: "danger", message: "Couldn't accept the request." });
       return;
     }
     set((s) => ({ friendships: upsertLocal(s.friendships, data as Friendship) }));
@@ -111,7 +112,7 @@ export const useFriends = create<FriendsState>()((set, get) => ({
   removeFriendship: async (id) => {
     const { error } = await supabase.from("friendships").delete().eq("id", id);
     if (error) {
-      toast.error("Couldn't remove this request.");
+      useAlerts.getState().show({ severity: "danger", message: "Couldn't remove this request." });
       return;
     }
     set((s) => ({ friendships: s.friendships.filter((f) => f.id !== id) }));
