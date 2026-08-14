@@ -101,6 +101,16 @@ function startsNewMessageGroup(message, previous) {
   return message.sender_id !== previous.sender_id || new Date(message.created_at).getTime() - new Date(previous.created_at).getTime() >= 60_000;
 }
 
+// Same "same sender, nothing else in between" check as startsNewMessageGroup,
+// minus the 60-second cutoff - three "(deleted)" rows from the same person
+// twenty minutes apart still have nothing to visually separate them (no
+// call marker, no message from the other side), so they read better merged
+// into one "(3 deleted)" line than as three near-identical empty headers.
+function breaksDeletedRun(message, previous) {
+  if (!previous || message.message_kind !== "chat" || previous.message_kind !== "chat") return true;
+  return message.sender_id !== previous.sender_id;
+}
+
 function formatCallDuration(value) {
   const seconds = Math.max(0, value ?? 0);
   const hours = Math.floor(seconds / 3600);
@@ -267,7 +277,7 @@ export function V3Shell() {
     };
     liveMessages.forEach((message, index) => {
       const isDeletedChat = message.message_kind === "chat" && Boolean(message.deleted_at);
-      if (!isDeletedChat || startsNewMessageGroup(message, liveMessages[index - 1])) flush(index);
+      if (!isDeletedChat || breaksDeletedRun(message, liveMessages[index - 1])) flush(index);
       if (isDeletedChat && runStart === -1) runStart = index;
     });
     flush(liveMessages.length);

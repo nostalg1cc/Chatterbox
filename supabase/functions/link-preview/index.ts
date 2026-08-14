@@ -34,7 +34,16 @@ type TweetPreview = {
   media: TweetMedia[];
 };
 
-type LinkPreview = SitePreview | TweetPreview;
+type YouTubePreview = {
+  kind: "youtube";
+  url: string;
+  videoId: string;
+  title: string;
+  authorName?: string;
+  thumbnail: string;
+};
+
+type LinkPreview = SitePreview | TweetPreview | YouTubePreview;
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: corsHeaders });
@@ -147,6 +156,58 @@ function isTweetUrl(url: URL) {
   return /^\/[^/]+\/status\/\d+/.test(url.pathname) || /^\/i\/status\/\d+/.test(url.pathname);
 }
 
+const YOUTUBE_ID = /^[a-zA-Z0-9_-]{11}$/;
+
+// Covers youtube.com/watch?v=, youtu.be/, /shorts/, and /embed/ - anything
+// else (playlists, channel pages, music.youtube.com) falls through to the
+// generic OG scrape below instead of being treated as a single video.
+function extractYouTubeVideoId(url: URL): string | null {
+  const hostname = url.hostname.toLowerCase().replace(/^(www|m|music)\./, "");
+  if (hostname === "youtu.be") {
+    const id = url.pathname.slice(1).split("/")[0];
+    return id && YOUTUBE_ID.test(id) ? id : null;
+  }
+  if (hostname !== "youtube.com") return null;
+  if (url.pathname === "/watch") {
+    const id = url.searchParams.get("v");
+    return id && YOUTUBE_ID.test(id) ? id : null;
+  }
+  const shortsMatch = url.pathname.match(/^\/shorts\/([a-zA-Z0-9_-]{11})/);
+  if (shortsMatch) return shortsMatch[1];
+  const embedMatch = url.pathname.match(/^\/embed\/([a-zA-Z0-9_-]{11})/);
+  if (embedMatch) return embedMatch[1];
+  return null;
+}
+
+// YouTube's oEmbed endpoint is public, unauthenticated, and CORS-friendly -
+// no API key needed, just title/author for a preview card. The actual
+// player is a plain <iframe src=".../embed/ID">, which YouTube officially
+// supports for cross-site embedding (unlike Twitter's video CDN, no
+// Referer fight, no proxy needed).
+async function fetchYouTubePreview(url: URL, videoId: string): Promise<YouTubePreview | null> {
+  try {
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url.href)}&format=json`;
+    const response = await fetch(oembedUrl, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: { "user-agent": "Nitro Link Preview/1.0", accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (typeof data?.title !== "string") return null;
+    return {
+      kind: "youtube",
+      url: url.href,
+      videoId,
+      title: text(data.title, 200),
+      authorName: typeof data.author_name === "string" ? text(data.author_name, 80) : undefined,
+      thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    };
+  } catch (error) {
+    console.warn("YouTube preview unavailable", error instanceof Error ? error.message : "unknown");
+    return null;
+  }
+}
+
 // twitter.com/x.com serve almost no usable markup to a logged-out fetch, so a
 // generic OG scrape can't recover tweet text, the author, or media. fxtwitter
 // (the open-source "FixTweet" project) exposes exactly that as JSON, keyed
@@ -212,6 +273,13 @@ const handler = withSupabase({ auth: "user" }, async (req) => {
   if (isTweetUrl(requestedUrl)) {
     const tweetPreview = await fetchTweetPreview(requestedUrl);
     if (tweetPreview) return json({ preview: tweetPreview });
+    // Fall through to the generic scrape below as a fallback.
+  }
+
+  const youtubeVideoId = extractYouTubeVideoId(requestedUrl);
+  if (youtubeVideoId) {
+    const youtubePreview = await fetchYouTubePreview(requestedUrl, youtubeVideoId);
+    if (youtubePreview) return json({ preview: youtubePreview });
     // Fall through to the generic scrape below as a fallback.
   }
 

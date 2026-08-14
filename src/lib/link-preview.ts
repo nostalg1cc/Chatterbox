@@ -9,6 +9,7 @@ export type LinkPreview =
       author: { name: string; handle: string; avatarUrl?: string };
       media: TweetMediaItem[];
     }
+  | { kind: "youtube"; url: string; videoId: string; title: string; authorName?: string; thumbnail: string }
   | { kind: "site"; url: string; title: string; description?: string; siteName?: string; image?: string };
 
 const URL_PART = /(https?:\/\/[^\s<]+)/gi;
@@ -36,4 +37,13 @@ export async function resolveLinkPreview(url: string): Promise<LinkPreview | nul
   const preview = !error && data?.preview ? data.preview : null;
   cache.set(url, preview);
   return preview;
+}
+
+// video.twimg.com 403s a plain browser fetch/<video src> - it checks for a
+// Referer that the Fetch spec forbids scripts from ever setting, so there's
+// no client-side fix. tweet-video-proxy (a Supabase Edge Function) fetches
+// it server-side with that header instead, where the restriction doesn't
+// apply, and forwards Range requests so native scrubbing still works.
+export function tweetVideoProxyUrl(url: string): string {
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tweet-video-proxy?url=${encodeURIComponent(url)}`;
 }

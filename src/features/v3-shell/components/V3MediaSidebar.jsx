@@ -61,12 +61,21 @@ export function V3MediaSidebar() {
   }, [activeId]);
 
   const candidateMessages = useMemo(() => {
-    const live = (liveMessages ?? []).filter(
-      (message) => !message.deleted_at && (message.media_kind || TWEET_STATUS_URL.test(message.content ?? "")),
-    );
+    // fetched is a one-time snapshot that only ever excluded already-deleted
+    // messages at fetch time - it never learns about a LATER delete on its
+    // own. useChat's global realtime subscription does patch that message's
+    // deleted_at into liveMessages though (it inserts/updates any message
+    // in an open conversation regardless of whether it was in the original
+    // page), so merging by id lets the live (possibly-now-deleted) copy
+    // overwrite the stale fetched one - as long as deleted_at isn't
+    // filtered out before that overwrite happens, which is why this only
+    // filters AFTER merging, not on the live list going in.
     const byId = new Map();
-    for (const message of [...fetched, ...live]) byId.set(message.id, message);
-    return [...byId.values()];
+    for (const message of fetched) byId.set(message.id, message);
+    for (const message of liveMessages ?? []) {
+      if (message.media_kind || TWEET_STATUS_URL.test(message.content ?? "")) byId.set(message.id, message);
+    }
+    return [...byId.values()].filter((message) => !message.deleted_at);
   }, [fetched, liveMessages]);
 
   useEffect(() => {
@@ -109,7 +118,13 @@ export function V3MediaSidebar() {
       if (preview?.kind !== "tweet" || preview.media.length === 0) continue;
       const video = preview.media.find((item) => item.type === "video" || item.type === "gif");
       if (video) {
-        items.push({ id: message.id + ":video", messageId: message.id, createdAt: message.created_at, kind: "video", images: [], videoUrl: video.url });
+        // A static thumbnail, not the video itself - twimg's video CDN
+        // doesn't play nicely as a source here (see TweetVideo in
+        // V3RichMessage.jsx for the full story), and this is just a
+        // preview tile anyway (clicking it jumps to the real embed in
+        // chat rather than trying to play inline), so there's no reason
+        // to fight that CDN for a sidebar thumbnail at all.
+        items.push({ id: message.id + ":video", messageId: message.id, createdAt: message.created_at, kind: "video", images: video.thumbnailUrl ? [video.thumbnailUrl] : [], videoUrl: video.thumbnailUrl ? null : video.url });
       } else {
         const photos = preview.media.filter((item) => item.type === "photo").map((item) => item.url);
         if (photos.length === 0) continue;
@@ -134,7 +149,11 @@ export function V3MediaSidebar() {
               >
                 {item.kind === "video" && (
                   <span className="v3-media-sidebar__thumb">
-                    <video src={item.videoUrl} muted preload="metadata" />
+                    {item.videoUrl ? (
+                      <video src={item.videoUrl} muted preload="metadata" />
+                    ) : (
+                      <img src={item.images[0]} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                    )}
                     <span className="v3-media-sidebar__badge" aria-hidden="true"><Play /></span>
                   </span>
                 )}
