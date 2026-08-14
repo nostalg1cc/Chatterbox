@@ -45,6 +45,10 @@ interface ChatState {
   view: "chat" | "friends";
   channel: ConversationChannel;
   activeId: string | null;
+  /** Shared with the global titlebar (a separate portaled React tree, see
+   *  components/titlebar.tsx), which is why this lives in the store rather
+   *  than as V3Shell-local state. */
+  mediaSidebarOpen: boolean;
   conversations: Conversation[];
   overviews: Record<string, OverviewEntry>;
   unread: Record<string, number>;
@@ -63,6 +67,7 @@ interface ChatState {
   loaded: boolean;
 
   setView: (view: "chat" | "friends") => void;
+  toggleMediaSidebar: () => void;
   openConversation: (id: string) => void;
   openConversationChannel: (id: string, channel: ConversationChannel) => void;
   loadConversations: () => Promise<void>;
@@ -116,6 +121,7 @@ export const useChat = create<ChatState>()((set, get) => ({
   view: "chat",
   channel: "chat",
   activeId: null,
+  mediaSidebarOpen: true,
   conversations: [],
   overviews: {},
   unread: {},
@@ -129,6 +135,7 @@ export const useChat = create<ChatState>()((set, get) => ({
   loaded: false,
 
   setView: (view) => set({ view }),
+  toggleMediaSidebar: () => set((state) => ({ mediaSidebarOpen: !state.mediaSidebarOpen })),
 
   openConversation: (id) => {
     set({ activeId: id, view: "chat", channel: "chat", replyTo: null });
@@ -600,6 +607,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       view: "chat",
       channel: "chat",
       activeId: null,
+      mediaSidebarOpen: true,
       conversations: [],
       overviews: {},
       unread: {},

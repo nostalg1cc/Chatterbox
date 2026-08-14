@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { CopyRegular, DismissRegular, SquareRegular, SubtractRegular } from "@fluentui/react-icons";
+import { CopyRegular, DismissRegular, PanelRightRegular, SettingsRegular, SquareRegular, SubtractRegular } from "@fluentui/react-icons";
 import { Button } from "@/components/ui/button";
+import { SettingsDialog } from "@/features/settings/settings-dialog";
 import { appWindow, isTauri } from "@/lib/tauri";
+import { useAuth } from "@/stores/auth";
+import { useChat } from "@/stores/chat";
 
 export function WindowControls() {
   const [maximized, setMaximized] = useState(false);
+  const signedIn = useAuth((state) => state.status === "signedIn");
+  const chatView = useChat((state) => state.view);
+  const mediaSidebarOpen = useChat((state) => state.mediaSidebarOpen);
+  const toggleMediaSidebar = useChat((state) => state.toggleMediaSidebar);
 
   useEffect(() => {
     if (!isTauri) return;
@@ -22,6 +29,19 @@ export function WindowControls() {
 
   return (
     <div className="window-controls flex h-full items-center gap-0" aria-label="Window controls">
+      {signedIn && chatView === "chat" && (
+        <Button
+          variant="ghost"
+          aria-label={mediaSidebarOpen ? "Hide media sidebar" : "Show media sidebar"}
+          className={"window-control" + (mediaSidebarOpen ? " window-control-active" : "")}
+          onClick={toggleMediaSidebar}
+        >
+          <PanelRightRegular />
+        </Button>
+      )}
+      {signedIn && (
+        <SettingsDialog trigger={<Button variant="ghost" aria-label="Settings" className="window-control"><SettingsRegular /></Button>} />
+      )}
       <Button variant="ghost" aria-label="Minimize" className="window-control" onClick={() => void appWindow().minimize()}>
         <SubtractRegular />
       </Button>

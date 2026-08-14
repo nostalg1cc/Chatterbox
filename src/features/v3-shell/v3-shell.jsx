@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ScreenSharePreview } from "@/features/chat/screen-share-preview";
-import { SettingsDialog } from "@/features/settings/settings-dialog";
 import { playAppSound } from "@/lib/app-sounds";
 import { decorationUrl } from "@/lib/avatar-decorations";
 import { supabase } from "@/lib/supabase";
@@ -47,6 +46,7 @@ import { VoiceCallButton } from "./components/VoiceCallButton";
 import { V3ChatSwitcher } from "./components/V3ChatSwitcher";
 import { V3Dashboard } from "./components/V3Dashboard";
 import { V3Lightbox } from "./components/V3Lightbox";
+import { V3MediaSidebar } from "./components/V3MediaSidebar";
 import { useUiSounds } from "./hooks/useUiSounds";
 import "./styles.css";
 
@@ -60,6 +60,7 @@ const SLASH_COMMANDS = [
   { name: "shrug", description: "Append ¯\\_(ツ)_/¯ to your message" },
   { name: "randomsound", description: "Play a random soundboard sound (while in a call)" },
   { name: "update", description: "Check for app updates" },
+  { name: "testalert", description: "Show a random alert to test the banner" },
 ];
 
 const alertVariants = [
@@ -151,12 +152,24 @@ export function V3Shell() {
   const [openDropdown, setOpenDropdown] = useState(null);
   const activeAlert = useAlerts((state) => state.active);
   const dismissAlert = useAlerts((state) => state.dismiss);
+  // Mirrors TopAlert's own internal slide visibility, not activeAlert
+  // directly - activeAlert only clears ~340ms AFTER the banner starts
+  // sliding away (TopAlert waits out its own exit transition before
+  // calling dismiss), so driving has-alert-banner off activeAlert made the
+  // content-push reverse a third of a second after the banner had already
+  // finished disappearing. This flips the instant the slide starts/ends,
+  // so the banner and the layout shift move together.
+  const [bannerVisible, setBannerVisible] = useState(false);
   const [composerValue, setComposerValue] = useState("");
   const [pendingMedia, setPendingMedia] = useState(null);
   const [pendingPreviewUrl, setPendingPreviewUrl] = useState(null);
   const [mediaStage, setMediaStage] = useState("idle");
   const [hoveredDecorationHeaderId, setHoveredDecorationHeaderId] = useState(null);
   const [isSelfTyping, setIsSelfTyping] = useState(false);
+  // Lives in useChat, not local state - the toggle button moved into the
+  // global titlebar (a separate portaled React tree, see
+  // components/titlebar.tsx), which needs to read/flip the same value.
+  const mediaSidebarOpen = useChat((state) => state.mediaSidebarOpen);
   const userId = useAuth((state) => state.userId);
   const selfProfile = useAuth((state) => state.profile);
   const activeId = useChat((state) => state.activeId);
@@ -272,6 +285,17 @@ export function V3Shell() {
   // drifts further off with every stage. Tracking intent instead means it
   // stays correct no matter how many stages there are.
   const atBottomRef = useRef(true);
+  // Set right before we programmatically pin scrollTop to the bottom (see
+  // pinToBottom below), cleared by the very next scroll event. Assigning
+  // scrollTop fires a real 'scroll' event, which the handler below also
+  // uses to detect the user manually scrolling away - without this flag,
+  // if content grows (an image/embed finishing its load) between our own
+  // assignment and that resulting event actually firing, the handler would
+  // recompute a stale gap-to-bottom from a scrollHeight that's already out
+  // of date and wrongly conclude the user scrolled up, permanently
+  // stopping the auto-follow the atBottomRef comment above describes -
+  // this is the fix for exactly that race.
+  const programmaticScrollRef = useRef(false);
   const loadingOlderRef = useRef(false);
   const prependRestoreRef = useRef(null);
   const initialConversationRef = useRef(null);
@@ -434,6 +458,10 @@ export function V3Shell() {
       void checkForUpdateManually();
       return true;
     }
+    if (name === "testalert") {
+      showAlert();
+      return true;
+    }
     return false;
   }
 
@@ -564,6 +592,13 @@ export function V3Shell() {
   }
 
 
+  const pinToBottom = useCallback(() => {
+    const history = messageHistoryRef.current;
+    if (!history) return;
+    programmaticScrollRef.current = true;
+    history.scrollTop = history.scrollHeight;
+  }, []);
+
   const loadOlderMessages = useCallback(async () => {
     const history = messageHistoryRef.current;
     if (!history || !activeId || !hasMore || loadingOlderRef.current) return;
@@ -594,7 +629,7 @@ export function V3Shell() {
     if (initialConversationRef.current !== activeId) {
       initialConversationRef.current = activeId;
       atBottomRef.current = true;
-      requestAnimationFrame(() => { history.scrollTop = history.scrollHeight; });
+      requestAnimationFrame(pinToBottom);
       return;
     }
     if (prependRestoreRef.current) {
@@ -605,7 +640,7 @@ export function V3Shell() {
     const last = liveMessages[count - 1];
     if (atBottomRef.current || last?.sender_id === userId) {
       atBottomRef.current = true;
-      requestAnimationFrame(() => { history.scrollTop = history.scrollHeight; });
+      requestAnimationFrame(pinToBottom);
     }
     // isInitialLoad is the real gate here: the .message-history section
     // doesn't exist in the DOM at all until it flips false (a loading
@@ -629,7 +664,7 @@ export function V3Shell() {
     if (!history || !list) return;
     const observer = new ResizeObserver(() => {
       if (prependRestoreRef.current || !atBottomRef.current) return;
-      history.scrollTop = history.scrollHeight;
+      pinToBottom();
     });
     observer.observe(list);
     return () => observer.disconnect();
@@ -649,15 +684,14 @@ export function V3Shell() {
   if (isInitialLoad) return <V3LoadingShell />;
 
   return (
-    <main className={"stage" + (joinedVoice ? " is-in-call" : "") + (activeAlert ? " has-alert-banner" : "")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/")); if (file) void prepareAttachment(file); }}>
+    <main className={"stage" + (joinedVoice ? " is-in-call" : "") + (bannerVisible ? " has-alert-banner" : "") + (mediaSidebarOpen ? " has-media-sidebar" : "")} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("image/") || entry.type.startsWith("video/")); if (file) void prepareAttachment(file); }}>
       <div className={"v3-call-glow" + (joinedVoice ? " is-active" : "")} aria-hidden="true" />
       <div className="window-drag-region" data-tauri-drag-region aria-hidden="true" />
       <div className="v3-header-fade" aria-hidden="true">
-        <span className="v3-header-fade__blur v3-header-fade__blur--1" />
-        <span className="v3-header-fade__blur v3-header-fade__blur--2" />
-        <span className="v3-header-fade__blur v3-header-fade__blur--3" />
-        <span className="v3-header-fade__blur v3-header-fade__blur--4" />
         <span className="v3-header-fade__opacity" />
+      </div>
+      <div className="v3-footer-fade" aria-hidden="true">
+        <span className="v3-footer-fade__opacity" />
       </div>
       {activeAlert && (
         <div className="top-alert-region" aria-live="polite" aria-atomic="true">
@@ -668,13 +702,14 @@ export function V3Shell() {
             icon={activeAlert.icon}
             actions={activeAlert.actions}
             onDismiss={dismissAlert}
+            onVisibleChange={setBannerVisible}
           />
         </div>
       )}
 
       {chatView === "friends" && <V3Dashboard />}
 
-      {chatView === "chat" && <section ref={messageHistoryRef} className="message-history" aria-label="Chat messages" onScroll={(event) => { const el = event.currentTarget; atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; if (el.scrollTop < 96) void loadOlderMessages(); }}>
+      {chatView === "chat" && <section ref={messageHistoryRef} className="message-history" aria-label="Chat messages" onScroll={(event) => { const el = event.currentTarget; if (programmaticScrollRef.current) { programmaticScrollRef.current = false; } else { atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; } if (el.scrollTop < 96) void loadOlderMessages(); }}>
         <div className="message-list" ref={messageListRef}>
           {hasMore && <div className="v3-load-older">{loadingOlder ? "Loading earlier messages…" : "Scroll up for earlier messages"}</div>}
           {liveMessages.map((message, index) => {
@@ -737,13 +772,11 @@ export function V3Shell() {
         </>}
       </nav>
 
-      <nav className="top-navigation-controls" aria-label="Navigation controls">
-        <SettingsDialog trigger={<ActionButton label="Settings" icon={Settings} />} />
-      </nav>
       <div className="v3-screen-previews">
         <ScreenSharePreview source="remote" />
         <ScreenSharePreview source="local" />
       </div>
+      {chatView === "chat" && <V3MediaSidebar />}
 
       {chatView === "chat" && <div className="bottom-composer">
         {(isSelfTyping || typingUserId) && <TypingIndicator name={typingUserId ? displayName(typingProfile, "Partner") : displayName(selfProfile, "You")} avatar={typingUserId ? avatarUrl(typingProfile) : avatarUrl(selfProfile)} />}

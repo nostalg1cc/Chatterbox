@@ -154,8 +154,7 @@ body {
    glow above - the rest of the gradient (50% down onward) reverts to the
    normal white so only the top edge reads as lit, not the whole ring.
    Scoped to the top nav bars specifically, not the whole app. */
-.stage.is-in-call .top-audio-controls,
-.stage.is-in-call .top-navigation-controls {
+.stage.is-in-call .top-audio-controls {
   --material-stroke: linear-gradient(
     180deg,
     rgba(180, 255, 205, 0.26) 0%,
@@ -992,8 +991,12 @@ body {
   min-height: 60px;
   /* Reserve room on the right for the native window controls (Tauri only -
      harmless unused space on PWA/web where they don't exist), so action
-     buttons never sit underneath minimize/maximize/close. */
-  padding: 12px 150px 12px 30px;
+     buttons never sit underneath minimize/maximize/close - and now also
+     Settings and the media-sidebar toggle, which live in that same strip
+     too. Sized for the widest case (5 buttons x 46px = 230px) even though
+     the sidebar toggle only shows in chat view, so this doesn't need to
+     react to which of those buttons happen to be present right now. */
+  padding: 12px 240px 12px 30px;
   padding-top: calc(12px + env(safe-area-inset-top));
   pointer-events: auto;
   color: #f2f2f2;
@@ -1375,31 +1378,21 @@ body {
     transform: translateY(-2px);
   }
 }
-.top-audio-controls,
-.top-navigation-controls {
+.top-audio-controls {
   position: fixed;
   z-index: 5;
   display: flex;
   align-items: center;
   gap: 18px;
-  transition: top 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
-}
-
-.top-audio-controls {
+  transition: top 320ms cubic-bezier(0.22, 0.9, 0.25, 1), left 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
   top: 30px;
   left: 50%;
   transform: translateX(-50%);
 }
 
-.top-navigation-controls {
-  top: 30px;
-  right: 30px;
-}
-
 /* Slide the header down out of the alert banner's way instead of letting
    it sit pinned in place overlapping the banner's lower half. */
-.stage.has-alert-banner .top-audio-controls,
-.stage.has-alert-banner .top-navigation-controls {
+.stage.has-alert-banner .top-audio-controls {
   top: 90px;
 }
 
@@ -1409,7 +1402,6 @@ body {
    (mid-call, with soundboard/screenshare/mic/deafen visible) can't push past
    a narrow viewport and read as shifted off to one side. */
 @media (max-width: 640px) {
-  .top-navigation-controls { display: none; }
   .top-audio-controls {
     /* env(safe-area-inset-top) reports the notch/status-bar height on iOS
        (0 elsewhere), so this pushes the header below it without affecting
@@ -1433,6 +1425,7 @@ body {
   align-items: center;
   gap: 10px;
   transform: translateX(-50%);
+  transition: left 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
 }
 
 .temporarily-hidden {
@@ -1444,92 +1437,95 @@ body {
   z-index: 1;
   overflow-y: auto;
   padding: 120px 30px 130px;
-  transition: padding-top 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
-  /* Only the bottom edge (near the composer) fades via mask now - the top
-     is handled by .v3-header-fade's blur+opacity overlay instead, which can
-     sit visually behind the header pills in a way an inset mask on this
-     element's own content can't. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 30px), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 30px), transparent 100%);
+  transition: padding-top 320ms cubic-bezier(0.22, 0.9, 0.25, 1), right 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
+  /* No mask of its own anymore, top or bottom - .v3-header-fade and
+     .v3-footer-fade (both dimming overlays, not masks) handle both edges,
+     shared with .v3-media-sidebar the same way. */
 }
-/* Adaptive header fade: content scrolling under the floating header pills
-   gets progressively blurrier and dimmer the closer it is to the top edge,
-   instead of the header just floating over sharp, fully-opaque text. Sits
-   above .message-history (z-index 1) but below the header pills themselves
-   (z-index 5) and the alert banner (z-index 4), so it reads as the pills
-   "catching" a blurred version of whatever scrolls underneath them.
-   backdrop-filter was previously unreliable here because the main window
-   ran with transparent:true, and WebView2 has a known, unfixed bug where
-   backdrop-filter doesn't composite correctly on a transparent host window
-   (renders fine sometimes, not others, depending on timing/GPU state -
-   exactly the "works in dev, not installed" symptom this hit). The main
-   window is opaque now (transparent:false in tauri.conf.json - the
-   rounded corners come from the native DWM corner API instead, which
-   doesn't need window alpha, and Mica/Acrylic were already unused), so
-   backdrop-filter should render consistently again.
-   Full strength right at the very top edge (0%), easing down to nothing by
-   the bottom of the zone. Same height as the invisible drag region, since
-   that's the zone actually behind the header. Shifts down with the alert
-   banner when one's showing (see .stage.has-alert-banner below) so it
-   stays aligned to the actual header band instead of drifting out of sync
-   with it. */
+/* Header fade: content scrolling under the floating header pills dims out
+   near the top edge instead of the header just floating over sharp,
+   fully-opaque text. Plain opacity gradient only, deliberately not
+   backdrop-filter - WebView2 doesn't reliably composite backdrop-filter at
+   all (confirmed by a Tauri maintainer: it's a platform limitation, not a
+   config issue - neither disabling window transparency nor forcing
+   WebView2's GPU flags fixed it here), and a from-scratch DOM-clone blur
+   workaround turned out to be more complexity than this cosmetic effect is
+   worth. Left full-width (not shrunk when the media sidebar is open), so
+   this single overlay dims the sidebar's own scrolled thumbnails too - the
+   sidebar no longer has its own separate mask for this, one shared system
+   instead of two. Sits above .message-history AND .v3-media-sidebar
+   (both z-index 1) but below the header pills themselves (z-index 5) and
+   the alert banner (z-index 4). Full strength right at the very top edge
+   (0%), easing down to nothing by the bottom of the zone. Shifts down
+   with the alert banner when one's showing (see .stage.has-alert-banner
+   below) so it stays aligned to the actual header band instead of
+   drifting out of sync with it.
+   Height has to stay under whichever column's content starts closest to
+   the top, or that column's first row sits permanently dimmed at rest -
+   the media sidebar (no floating buttons of its own anymore, see
+   .v3-media-sidebar__inner below) is now the tighter constraint at ~42px
+   from the window-control strip, not .message-history's own 120px. */
 .v3-header-fade {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 2;
-  height: 70px;
+  height: 38px;
   pointer-events: none;
   overflow: hidden;
   transition: top 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
 }
-.v3-header-fade__blur {
-  position: absolute;
-  inset: 0;
-}
-.v3-header-fade__blur--1 {
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 60%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 60%, transparent 100%);
-}
-.v3-header-fade__blur--2 {
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 85%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 85%);
-}
-.v3-header-fade__blur--3 {
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 30%, transparent 65%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 30%, transparent 65%);
-}
-.v3-header-fade__blur--4 {
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 15%, transparent 40%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 15%, transparent 40%);
-}
 .v3-header-fade__opacity {
   position: absolute;
   inset: 0;
-  /* Capped at 50% even at the very top - darkens for legibility without
+  /* Capped at 80% even at the very top - darkens for legibility without
      ever fully blacking the content out from underneath. */
   background: linear-gradient(
     to bottom,
-    rgba(30, 30, 30, 0.5) 0%,
-    rgba(30, 30, 30, 0.4) 20%,
-    rgba(30, 30, 30, 0.26) 45%,
-    rgba(30, 30, 30, 0.12) 70%,
+    rgba(30, 30, 30, 0.8) 0%,
+    rgba(30, 30, 30, 0.64) 20%,
+    rgba(30, 30, 30, 0.416) 45%,
+    rgba(30, 30, 30, 0.192) 70%,
     transparent 100%
   );
 }
 
-/* Room for the top alert banner (60px) - grows padding-top so it reads as
-   the banner shoving the conversation down, not floating over it. */
-.stage.has-alert-banner .message-history { padding-top: 180px; }
+/* Same idea as .v3-header-fade, mirrored to the bottom edge, where the
+   composer floats over the conversation - content scrolling down toward
+   it dims out instead of running underneath at full opacity. Same height
+   and same 80%-cap curve, just flipped (to top instead of to bottom, full
+   strength at the very bottom edge). Shared across .message-history and
+   .v3-media-sidebar the same way .v3-header-fade is. */
+.v3-footer-fade {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 38px;
+  pointer-events: none;
+  overflow: hidden;
+}
+.v3-footer-fade__opacity {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(30, 30, 30, 0.8) 0%,
+    rgba(30, 30, 30, 0.64) 20%,
+    rgba(30, 30, 30, 0.416) 45%,
+    rgba(30, 30, 30, 0.192) 70%,
+    transparent 100%
+  );
+}
+
+/* The banner floats over the conversation rather than shoving it down -
+   .message-history keeps its normal padding-top. The header buttons and
+   fade mask still shift down below (so they don't sit on top of the
+   banner itself), and the fade mask's own dimming is enough to keep
+   whatever content ends up underneath the banner legible without also
+   needing to physically make room for it. */
 .stage.has-alert-banner .v3-header-fade { top: 60px; }
 
 .message-history .message-list {
@@ -1654,6 +1650,13 @@ body {
   background: #e81123;
 }
 
+/* Media sidebar toggle's open state - just the icon going full white,
+   no persistent background tint (that read as too heavy for something
+   sitting in the window-control strip at all times). */
+.global-window-controls .window-control-active {
+  color: #fff;
+}
+
 .message-history {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -1711,8 +1714,63 @@ body {
 }
 .v3-media-loading, .v3-media-unavailable { display: inline-flex; margin-top: 8px; color: rgba(217,217,217,.56); font-size: 12px; }
 .history-marker { display: flex; align-items: center; gap: 10px; width: 100%; margin: 18px 0 8px; color: rgba(217,217,217,.5); font-size: 11px; line-height: 1; text-align: center; }
-.history-marker::before, .history-marker::after { flex: 1; height: 1px; content: ""; background: rgba(255,255,255,.08); }
+/* Each line fades out toward its own outer edge instead of sitting at a
+   flat constant opacity all the way - strongest right next to the text,
+   fading to nothing by the time it reaches the left/right edge. */
+.history-marker::before { flex: 1; height: 1px; content: ""; background: linear-gradient(to left, rgba(255,255,255,.08), transparent); }
+.history-marker::after { flex: 1; height: 1px; content: ""; background: linear-gradient(to right, rgba(255,255,255,.08), transparent); }
 .history-marker span { white-space: nowrap; }
+
+/* Round 2 at half the original scale - the first pass (50px caps / 30px
+   center) read as too thick. Caps are 25x15 now, center is 15 tall, so
+   the caps sit -5px top/bottom instead of -10px: margin has to be
+   (capHeight - centerHeight) / 2 for the 15px flat band in the middle of
+   each cap's own curve to line up with the center strip's edges
+   ((25 - 15) / 2 = 5), not a fixed number - it'll need recalculating
+   again if the scale changes further. Everything else is the same 3-slice
+   idea: fixed-size end caps (see history-marker/left.svg, right.svg) that
+   flare out to the full cap height right at the window edge and taper
+   inward via their own concave curve to meet a flex:1 center band (plain
+   #141414 fill - center.svg is just a solid rectangle, so a CSS
+   background reproduces it losslessly without an extra image element).
+   Full-bleed via negative margin canceling .message-history's own 30px
+   side padding - "reaching the corners of the app" means the true
+   window/column edge, not just the width other message content sits
+   inside. */
+.history-marker--system {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: auto;
+  margin: 18px -30px 8px;
+}
+.history-marker--system::before,
+.history-marker--system::after {
+  content: none;
+}
+.history-marker--system .history-marker__cap {
+  display: block;
+  flex: none;
+  width: 15px;
+  height: 25px;
+  margin: -5px 0;
+}
+.history-marker--system .history-marker__center {
+  display: flex;
+  flex: 1 1 0%;
+  align-items: center;
+  justify-content: center;
+  height: 15px;
+  min-width: 0;
+  background: #141414;
+}
+.history-marker--system .history-marker__center span {
+  padding: 0 12px;
+  color: rgba(245,245,245,.92);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
 
 .soundboard-empty { grid-column: 1 / -1; padding: 12px; color: rgba(217,217,217,.56); font-size: 12px; text-align: center; }
 .v3-screen-previews .screen-share-preview--remote { top: 84px !important; left: 30px !important; right: auto !important; }
@@ -2780,6 +2838,165 @@ button.v3-dashboard__row:hover,
 .microphone-button.is-muted,
 .sound-toggle-button.is-muted {
   --material-color: #ff3333;
+}
+
+/* Media sidebar: right-anchored panel showing every image/video shared in
+   the active conversation. Toggled via a button in the global titlebar
+   (see components/titlebar.tsx and .global-window-controls .window-control
+   further up) rather than anything inside .stage - mediaSidebarOpen lives
+   in useChat for exactly that reason, so both trees can read/flip it. When
+   open, the chat column (message history, composer, audio controls)
+   shrinks to make room instead of the sidebar floating over it - hence the
+   .stage.has-media-sidebar rules below shifting each of those rather than
+   just adding the panel.
+   Transparent - deliberately left off the shared glass-material selector
+   list too (no border/outline/stroke ring, no rounded corners), so it
+   reads as an extension of the chat surface rather than a boxed panel.
+   .v3-media-sidebar__scroll is just the overflow:auto viewport (with its
+   own scrollbar hidden) - no mask of its own anymore. .v3-header-fade is
+   full-width now and dims scrolled-up content near the header for this
+   panel the same way it already does for .message-history, so there's
+   one shared fade system instead of two separate ones. Desktop only - see
+   the max-width:640px block further down, which disables the whole
+   feature on mobile/PWA widths. */
+.v3-media-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 320px;
+  background: transparent;
+  transform: translateX(100%);
+  transition: transform 320ms cubic-bezier(0.22, 0.9, 0.25, 1);
+}
+/* Kept mounted (not conditionally rendered) even while closed, purely so
+   it has something to slide out of the way instead of just popping in/out
+   - same 320ms timing as .message-history's own width transition below,
+   so the chat column resizing and the panel sliding read as one motion
+   instead of the panel snapping in ahead of (or behind) the column still
+   catching up. */
+.stage.has-media-sidebar .v3-media-sidebar {
+  transform: translateX(0);
+}
+/* No mask of its own anymore - .v3-header-fade (full-width now) handles
+   dimming scrolled-up content near the header for both the chat and this
+   panel, one shared system instead of two separate ones. */
+.v3-media-sidebar__scroll {
+  height: 100%;
+  overflow-y: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.v3-media-sidebar__scroll::-webkit-scrollbar {
+  display: none;
+}
+.v3-media-sidebar__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* No more floating buttons over this column (Settings/toggle both live
+     in the window-control strip now), so this only needs to clear that
+     32px-tall strip itself plus a little breathing room - not the ~90px a
+     floating button row used to need. */
+  padding: 42px 20px 40px;
+}
+.v3-media-sidebar__empty {
+  color: rgba(217,217,217,.5);
+  font-size: 12.5px;
+}
+.v3-media-sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* Just images - full width, a real gallery-sized frame, nothing else on
+   top of them. */
+.v3-media-sidebar__item {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  background: transparent;
+}
+.v3-media-sidebar__item:hover .v3-media-sidebar__thumb,
+.v3-media-sidebar__item:hover .v3-media-sidebar__gallery {
+  filter: brightness(1.08);
+}
+.v3-media-sidebar__thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  flex: none;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(255,255,255,.05);
+  transition: filter 140ms ease;
+}
+.v3-media-sidebar__thumb img,
+.v3-media-sidebar__thumb video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+/* Mirrors V3RichMessage's own .v3-tweet-embed__photos layout, so a
+   grouped tweet gallery here looks like the same grid it does in chat. */
+.v3-media-sidebar__gallery {
+  display: grid;
+  gap: 3px;
+  overflow: hidden;
+  border-radius: 12px;
+  transition: filter 140ms ease;
+}
+.v3-media-sidebar__gallery img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.v3-media-sidebar__gallery--2 { grid-template-columns: 1fr 1fr; aspect-ratio: 16 / 9; }
+.v3-media-sidebar__gallery--3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; aspect-ratio: 1 / 1; }
+.v3-media-sidebar__gallery--3 img:first-child { grid-row: 1 / span 2; }
+.v3-media-sidebar__gallery--4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; aspect-ratio: 1 / 1; }
+.v3-media-sidebar__badge {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(0,0,0,.28);
+}
+.v3-media-sidebar__badge svg {
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
+}
+.stage.has-media-sidebar .message-history { right: 320px; }
+.stage.has-media-sidebar .top-audio-controls,
+.stage.has-media-sidebar .bottom-composer {
+  left: calc((100% - 320px) / 2);
+}
+
+/* Mobile/PWA: the sidebar's own fixed 320px width doesn't fit a
+   phone-width viewport, so disable the feature outright here rather than
+   trying to make a squeezed version of it fit. The toggle button itself
+   lives in the titlebar now (Tauri-only, always visible regardless of
+   width there), so this can't rely on it disappearing at this breakpoint
+   the way it used to - it just becomes a harmless no-op button on a
+   narrow Tauri window, since the panel it would open is display:none. */
+@media (max-width: 640px) {
+  .v3-media-sidebar { display: none; }
+  .stage.has-media-sidebar .message-history { right: 0; }
+  .stage.has-media-sidebar .top-audio-controls,
+  .stage.has-media-sidebar .bottom-composer {
+    left: 50%;
+  }
 }
 
 /* PWA/web only (html.is-web, set once in src/lib/tauri.ts based on

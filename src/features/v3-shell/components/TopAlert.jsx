@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-export function TopAlert({ id, message, severity, icon: Icon, actions, onDismiss }) {
+export function TopAlert({ id, message, severity, icon: Icon, actions, onDismiss, onVisibleChange }) {
   const [visible, setVisible] = useState(false);
   const shownRef = useRef(false);
 
@@ -14,6 +14,14 @@ export function TopAlert({ id, message, severity, icon: Icon, actions, onDismiss
       if (autoDismiss) window.clearTimeout(autoDismiss);
     };
   }, [id, actions]);
+
+  // Reported up so the parent can push/restore the surrounding layout in
+  // lockstep with this banner's own slide, instead of waiting for the
+  // delayed onDismiss below (which only fires once the exit transition has
+  // finished, well after the banner is already gone).
+  useEffect(() => {
+    onVisibleChange?.(visible);
+  }, [visible, onVisibleChange]);
 
   useEffect(() => {
     if (visible) {

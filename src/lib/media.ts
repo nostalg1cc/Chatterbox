@@ -10,6 +10,17 @@ export const CHAT_VIDEO_MAX_SECONDS = 120;
 
 export type ChatMediaProvider = "storage" | "cloudinary";
 
+const CLOUDINARY_BASE = "https://res.cloudinary.com/lnkoms9m";
+
+export function remoteMediaUrl(path: string | null | undefined): string | null {
+  const match = /^cloudinary:(image|video):([0-9a-f-]{36}_[0-9a-f-]{36})$/i.exec(path ?? "");
+  if (!match) return null;
+  const [, kind, id] = match;
+  return kind === "image"
+    ? `${CLOUDINARY_BASE}/image/upload/c_limit,w_1920/f_webp/q_auto:good/dislight/chat-media/${id}.webp`
+    : `${CLOUDINARY_BASE}/video/upload/c_limit,h_720,w_1280/f_mp4,vc_h264,ac_aac,br_av:video_(value_2500k;mode_cbr);audio_(value_128k),fps_30,q_auto:good/dislight/chat-media/${id}.mp4`;
+}
+
 export interface PreparedMedia {
   kind: MediaKind;
   blob: Blob;

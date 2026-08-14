@@ -14,5 +14,6 @@ declare module "@/features/v3-shell/components/TopAlert" {
     icon: LucideIcon;
     actions?: TopAlertAction[];
     onDismiss: (id: string) => void;
+    onVisibleChange?: (visible: boolean) => void;
   }): import("react").JSX.Element;
 }

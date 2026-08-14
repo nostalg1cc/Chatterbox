@@ -2,13 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { isTauri } from "@/lib/tauri";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { supabase } from "@/lib/supabase";
+import { extractFirstUrl, cachedLinkPreview, resolveLinkPreview } from "@/lib/link-preview";
 import { useAlerts } from "@/stores/alerts";
 import { useLightbox } from "@/stores/lightbox";
 
 const URL_PART = /(https?:\/\/[^\s<]+)/gi;
 const URL_ONLY = /^https?:\/\/[^\s<]+$/i;
-const cache = new Map();
 const videoBlobCache = new Map();
 
 function splitTrailingPunctuation(value) {
@@ -206,31 +205,21 @@ function SiteEmbed({ preview }) {
 }
 
 export function V3RichMessage({ content }) {
-  const url = useMemo(() => {
-    const first = content.match(URL_PART)?.[0];
-    return first ? splitTrailingPunctuation(first).url : null;
-  }, [content]);
+  const url = useMemo(() => extractFirstUrl(content), [content]);
 
   const [preview, setPreview] = useState(undefined);
 
   useEffect(() => {
     if (!url) return;
     let disposed = false;
-    if (cache.has(url)) {
-      setPreview(cache.get(url));
+    const cached = cachedLinkPreview(url);
+    if (cached !== undefined) {
+      setPreview(cached);
       return;
     }
-    void supabase.functions
-      .invoke("link-preview", { body: { url } })
-      .then(({ data, error }) => {
-        const next = !error && data?.preview ? data.preview : null;
-        cache.set(url, next);
-        if (!disposed) setPreview(next);
-      })
-      .catch(() => {
-        cache.set(url, null);
-        if (!disposed) setPreview(null);
-      });
+    void resolveLinkPreview(url).then((next) => {
+      if (!disposed) setPreview(next);
+    });
     return () => {
       disposed = true;
     };
