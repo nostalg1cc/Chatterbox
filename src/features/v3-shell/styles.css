@@ -2782,3 +2782,28 @@ button.v3-dashboard__row:hover,
   --material-color: #ff3333;
 }
 
+/* PWA/web only (html.is-web, set once in src/lib/tauri.ts based on
+   isTauri) - the desktop app's compact control scale reads as too small on
+   a browser tab or touch display. The Tauri desktop app never gets this
+   class, so it's untouched. Scoped to the simple circular buttons and the
+   composer specifically, not the compound dropdown triggers (mic/deafen,
+   voice call button) - those have absolutely-positioned internal labels
+   sized against their current dimensions, so resizing them needs its own
+   pass rather than a blanket bump here. */
+html.is-web .icon-button {
+  width: 46px;
+  height: 46px;
+  padding: 12px;
+}
+html.is-web .icon-button > svg {
+  width: 22px;
+  height: 22px;
+}
+html.is-web .text-input-bar {
+  height: 46px;
+  padding: 9px 16px;
+}
+html.is-web .text-input-bar input {
+  font-size: 15px;
+}
+

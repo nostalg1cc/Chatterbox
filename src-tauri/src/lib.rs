@@ -138,6 +138,22 @@ fn restart_app(app: tauri::AppHandle) {
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WebView2 shares Chromium's GPU hardware blocklist, and some
+    // GPU/driver combinations get silently forced into software rendering
+    // as a result - which breaks CSS backdrop-filter (it needs GPU
+    // compositing) with no visible error or crash, and can differ between
+    // a `cargo run` dev process and a freshly-installed exe hitting the
+    // blocklist differently on the same machine. This is Microsoft's own
+    // documented workaround for it (WebView2Feedback#1469). Must be set
+    // before the webview environment is created, so this runs first thing.
+    #[cfg(target_os = "windows")]
+    unsafe {
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--ignore-gpu-blocklist --ignore-gpu-blacklist",
+        );
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
