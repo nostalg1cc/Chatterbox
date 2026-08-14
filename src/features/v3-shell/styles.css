@@ -1708,7 +1708,7 @@ body {
   display: block;
   max-width: 100%;
   max-height: 420px;
-  border-radius: 10px;
+  border-radius: 5px;
   object-fit: contain;
   background: #0b0b0b;
 }
@@ -1808,13 +1808,13 @@ body {
 .partner-avatar-button__presence.is-online { background:#00d084; }
 .partner-avatar-button__presence.is-away { background:#f0a238; }
 .v3-pending-media { max-width:100%; overflow:hidden; }
-.v3-pending-media img,.v3-pending-media video { display:block; width:auto; max-width:190px; height:66px; border-radius:10px; object-fit:cover; background:#0b0b0b; }
+.v3-pending-media img,.v3-pending-media video { display:block; width:auto; max-width:190px; height:66px; border-radius:5px; object-fit:cover; background:#0b0b0b; }
 .v3-rich-link {
   display: block;
   max-width: 100%;
   margin-top: 9px;
   overflow: hidden;
-  border-radius: 15px;
+  border-radius: 5px;
   color: inherit;
   text-align: left;
   text-decoration: none;
@@ -1844,7 +1844,7 @@ body {
   margin-top: 9px;
   padding: 0;
   overflow: hidden;
-  border-radius: 15px;
+  border-radius: 5px;
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -1893,16 +1893,16 @@ body {
 .v3-tweet-embed__author-text span { color:rgba(235,235,235,.5); font-size:12px; }
 .v3-tweet-embed__text { color:rgba(235,235,235,.92); font-size:13.5px; line-height:1.42; text-align:left; white-space:pre-wrap; overflow-wrap:anywhere; }
 .v3-tweet-embed__media-frame { display:block; }
-.v3-tweet-embed__video { display:block; width:100%; max-width:100%; max-height:420px; border-radius:10px; background:#000; cursor:auto; }
-.v3-tweet-embed__media-frame--unavailable { display:flex; align-items:center; justify-content:center; height:180px; border-radius:10px; color:rgba(217,217,217,.56); font-size:12px; background:#0b0b0b; }
-.v3-tweet-embed__photos { display:grid; gap:3px; max-width:100%; border-radius:12px; overflow:hidden; }
+.v3-tweet-embed__video { display:block; width:100%; max-width:100%; max-height:420px; border-radius:5px; background:#000; cursor:auto; }
+.v3-tweet-embed__media-frame--unavailable { display:flex; align-items:center; justify-content:center; height:180px; border-radius:5px; color:rgba(217,217,217,.56); font-size:12px; background:#0b0b0b; }
+.v3-tweet-embed__photos { display:grid; gap:3px; max-width:100%; border-radius:5px; overflow:hidden; }
 /* Round the photos themselves, not just the grid container that clips them -
    a parent overflow:hidden/clip-path with a rounded corner can still let a
    grid child bleed a pixel past the curve in Chromium/WebView2, so this is
    the belt-and-suspenders fix that doesn't depend on that clip working. */
-.v3-tweet-embed__photos img { display:block; width:100%; height:100%; border-radius:4px; object-fit:cover; cursor:zoom-in; }
+.v3-tweet-embed__photos img { display:block; width:100%; height:100%; border-radius:5px; object-fit:cover; cursor:zoom-in; }
 .v3-tweet-embed__photos--1 { grid-template-columns:1fr; }
-.v3-tweet-embed__photos--1 img { max-height:420px; border-radius:10px; }
+.v3-tweet-embed__photos--1 img { max-height:420px; border-radius:5px; }
 .v3-tweet-embed__photos--2 { grid-template-columns:1fr 1fr; aspect-ratio:16/9; }
 .v3-tweet-embed__photos--3 { grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; aspect-ratio:1/1; }
 .v3-tweet-embed__photos--3 img:first-child { grid-row:1 / span 2; }
@@ -2216,7 +2216,7 @@ img.v3-media { cursor:zoom-in; }
 }
 .v3-reply-banner > button:hover,
 .v3-pending-media > button:hover { color:#fff; background:rgba(255,255,255,.1); }
-.v3-pending-media__preview { position: relative; z-index: 1; display: block; width: 72px; height: 50px; flex:none; overflow:hidden; border-radius:10px; background:#0b0b0b; box-shadow:0 0 0 1px rgba(255,255,255,.12); }
+.v3-pending-media__preview { position: relative; z-index: 1; display: block; width: 72px; height: 50px; flex:none; overflow:hidden; border-radius:5px; background:#0b0b0b; box-shadow:0 0 0 1px rgba(255,255,255,.12); }
 .v3-pending-media img,
 .v3-pending-media video { display:block; width:100%; height:100%; max-width:none; border-radius:0; object-fit:cover; }
 .bottom-composer .typing-indicator { margin-bottom: 0; }
@@ -2415,7 +2415,7 @@ img.v3-media { cursor:zoom-in; }
      wider than it. */
   max-width: min(480px, 100%);
   margin-top: 8px;
-  border-radius: 15px;
+  border-radius: 5px;
   overflow: hidden;
 }
 .v3-media-wrap .v3-media { margin-top: 0; }
@@ -2962,7 +2962,7 @@ button.v3-dashboard__row:hover,
   width: 100%;
   padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: 5px;
   cursor: pointer;
   background: transparent;
 }
@@ -2977,7 +2977,7 @@ button.v3-dashboard__row:hover,
   aspect-ratio: 4 / 3;
   flex: none;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 5px;
   background: rgba(255,255,255,.05);
   transition: filter 140ms ease;
 }
@@ -2995,7 +2995,7 @@ button.v3-dashboard__row:hover,
   display: grid;
   gap: 3px;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 5px;
   transition: filter 140ms ease;
 }
 .v3-media-sidebar__gallery img {
