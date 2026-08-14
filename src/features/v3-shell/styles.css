@@ -1458,12 +1458,21 @@ body {
    above .message-history (z-index 1) but below the header pills themselves
    (z-index 5) and the alert banner (z-index 4), so it reads as the pills
    "catching" a blurred version of whatever scrolls underneath them.
+   backdrop-filter was previously unreliable here because the main window
+   ran with transparent:true, and WebView2 has a known, unfixed bug where
+   backdrop-filter doesn't composite correctly on a transparent host window
+   (renders fine sometimes, not others, depending on timing/GPU state -
+   exactly the "works in dev, not installed" symptom this hit). The main
+   window is opaque now (transparent:false in tauri.conf.json - the
+   rounded corners come from the native DWM corner API instead, which
+   doesn't need window alpha, and Mica/Acrylic were already unused), so
+   backdrop-filter should render consistently again.
    Full strength right at the very top edge (0%), easing down to nothing by
-   the bottom of the zone - not the other way around. Same height as the
-   invisible drag region, since that's the zone actually behind the header.
-   Shifts down with the alert banner when one's showing (see
-   .stage.has-alert-banner below) so it stays aligned to the actual header
-   band instead of drifting out of sync with it. */
+   the bottom of the zone. Same height as the invisible drag region, since
+   that's the zone actually behind the header. Shifts down with the alert
+   banner when one's showing (see .stage.has-alert-banner below) so it
+   stays aligned to the actual header band instead of drifting out of sync
+   with it. */
 .v3-header-fade {
   position: fixed;
   top: 0;
