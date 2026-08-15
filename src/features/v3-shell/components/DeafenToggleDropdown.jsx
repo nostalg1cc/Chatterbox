@@ -1,7 +1,6 @@
 import { ChevronDown, HeadphoneOff, Headphones, Volume2 } from "lucide-react";
 import { usePreferences } from "@/stores/preferences";
 import { AudioDeviceMenu } from "./AudioDeviceMenu";
-import { useUiSounds } from "../hooks/useUiSounds";
 
 const MENU_ACTION_WIDTH = 22;
 
@@ -11,7 +10,6 @@ export function DeafenToggleDropdown({
   isMenuOpen,
   onMenuOpenChange,
 }) {
-  const sounds = useUiSounds();
   const partnerVoiceBoost = usePreferences((state) => state.partnerVoiceBoost);
   const setPreference = usePreferences((state) => state.setPreference);
   const Icon = isDeafened ? HeadphoneOff : Headphones;
@@ -33,7 +31,6 @@ export function DeafenToggleDropdown({
             onMenuOpenChange(false);
           }
         }}
-        onPointerEnter={(event) => event.pointerType === "mouse" && sounds.hover()}
       >
         <Icon />
         <ChevronDown className={isMenuOpen ? "microphone-button__arrow is-open" : "microphone-button__arrow"} />

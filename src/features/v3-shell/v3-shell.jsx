@@ -843,7 +843,7 @@ export function V3Shell() {
         <AvatarButton />
         <AvatarBadge />
         <AlertBar message="test alert" />
-        <MiniBadge icon={CircleAlert} label="Show alert" onClick={showAlert} playClickSound={false} />
+        <MiniBadge icon={CircleAlert} label="Show alert" onClick={showAlert} />
         {controls.slice(2).map(({ label, icon, image, text, className }) => (
           <ActionButton
             key={label}

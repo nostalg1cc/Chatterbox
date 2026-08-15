@@ -1,5 +1,3 @@
-import { useUiSounds } from "../hooks/useUiSounds";
-
 export function ActionButton({
   icon: Icon,
   image,
@@ -12,7 +10,6 @@ export function ActionButton({
   onPointerEnter,
   ...props
 }) {
-  const uiSounds = useUiSounds();
   const className = [
     "icon-button",
     image && "icon-button--image",
@@ -22,26 +19,13 @@ export function ActionButton({
     .filter(Boolean)
     .join(" ");
 
-  function handleClick(event) {
-    uiSounds.click();
-    onClick?.(event);
-  }
-
-  function handlePointerEnter(event) {
-    if (event.pointerType === "mouse") {
-      uiSounds.hover();
-    }
-
-    onPointerEnter?.(event);
-  }
-
   return (
     <button
       type={type}
       aria-label={label}
       className={className}
-      onClick={handleClick}
-      onPointerEnter={handlePointerEnter}
+      onClick={onClick}
+      onPointerEnter={onPointerEnter}
       {...props}
     >
       {children ?? (

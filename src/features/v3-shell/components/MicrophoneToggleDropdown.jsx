@@ -1,12 +1,10 @@
 import { ChevronDown, Mic, MicOff } from "lucide-react";
 import { usePreferences } from "@/stores/preferences";
 import { AudioDeviceMenu } from "./AudioDeviceMenu";
-import { useUiSounds } from "../hooks/useUiSounds";
 
 const MENU_ACTION_WIDTH = 22;
 
 export function MicrophoneToggleDropdown({ isMuted, onToggle, isMenuOpen, onMenuOpenChange }) {
-  const sounds = useUiSounds();
   const inputVolume = usePreferences((state) => state.inputVolume);
   const setPreference = usePreferences((state) => state.setPreference);
   const Icon = isMuted ? MicOff : Mic;
@@ -28,7 +26,6 @@ export function MicrophoneToggleDropdown({ isMuted, onToggle, isMenuOpen, onMenu
             onMenuOpenChange(false);
           }
         }}
-        onPointerEnter={(event) => event.pointerType === "mouse" && sounds.hover()}
       >
         <Icon />
         <ChevronDown className={isMenuOpen ? "microphone-button__arrow is-open" : "microphone-button__arrow"} />

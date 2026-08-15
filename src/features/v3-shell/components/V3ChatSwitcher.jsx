@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/stores/auth";
 import { useChat } from "@/stores/chat";
 import { useProfiles } from "@/stores/profiles";
-import { useUiSounds } from "../hooks/useUiSounds";
 
 function nameFor(profile) {
   return profile?.display_name?.trim() || profile?.username?.trim() || "Unknown";
@@ -25,7 +24,6 @@ export function V3ChatSwitcher({ partnerProfile, partnerPresence }) {
   const profiles = useProfiles((state) => state.byId);
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
-  const uiSounds = useUiSounds();
   const items = useMemo(() => conversations.map((conversation) => ({
     conversation,
     partnerId: conversation.user1_id === userId ? conversation.user2_id : conversation.user1_id,
@@ -48,7 +46,7 @@ export function V3ChatSwitcher({ partnerProfile, partnerPresence }) {
   const currentDecoration = decorationUrl(partnerProfile?.avatar_decoration, false);
   return (
     <div className="v3-chat-switcher" ref={rootRef}>
-      <button type="button" className="icon-button partner-avatar-button v3-chat-switcher__trigger" aria-label="Switch conversation" aria-expanded={open} onPointerEnter={() => uiSounds.hover()} onClick={() => { setOpen((value) => !value); uiSounds.click(); }}>
+      <button type="button" className="icon-button partner-avatar-button v3-chat-switcher__trigger" aria-label="Switch conversation" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         {currentAvatar ? <img className="partner-avatar-button__image" src={currentAvatar} alt="" /> : <span className="partner-avatar-button__fallback">{nameFor(partnerProfile).slice(0, 1).toUpperCase()}</span>}
         {currentDecoration && <img className="partner-avatar-button__decoration" src={currentDecoration} alt="" />}
         <span className={`partner-avatar-button__presence is-${partnerPresence}`} aria-label={partnerPresence} />
@@ -60,7 +58,7 @@ export function V3ChatSwitcher({ partnerProfile, partnerPresence }) {
             const profile = profiles[itemPartnerId];
             const avatar = avatarFor(profile);
             const decoration = decorationUrl(profile?.avatar_decoration, false);
-            return <button key={conversation.id} type="button" role="menuitem" className={conversation.id === activeId ? "is-active" : ""} onClick={() => { useChat.getState().openConversation(conversation.id); setOpen(false); uiSounds.click(); }}>
+            return <button key={conversation.id} type="button" role="menuitem" className={conversation.id === activeId ? "is-active" : ""} onClick={() => { useChat.getState().openConversation(conversation.id); setOpen(false); }}>
               <span className="v3-chat-switcher__avatar">
                 {avatar ? <img src={avatar} alt="" /> : <span>{nameFor(profile).slice(0, 1).toUpperCase()}</span>}
                 {decoration && <img className="v3-chat-switcher__decoration" src={decoration} alt="" />}
@@ -71,7 +69,7 @@ export function V3ChatSwitcher({ partnerProfile, partnerPresence }) {
           {!items.length && <span className="v3-chat-switcher__empty">No conversations yet</span>}
         </div>
         <div className="v3-chat-switcher__divider" role="separator" />
-        <button type="button" role="menuitem" className="v3-chat-switcher__dashboard-item" onClick={() => { useChat.getState().setView("friends"); setOpen(false); uiSounds.click(); }}>
+        <button type="button" role="menuitem" className="v3-chat-switcher__dashboard-item" onClick={() => { useChat.getState().setView("friends"); setOpen(false); }}>
           <LayoutDashboard aria-hidden="true" />
           <span>Dashboard</span>
         </button>

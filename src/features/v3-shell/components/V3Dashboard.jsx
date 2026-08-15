@@ -7,7 +7,6 @@ import { useChat } from "@/stores/chat";
 import { useFriends } from "@/stores/friends";
 import { usePresenceStatus } from "@/stores/presence";
 import { useProfiles } from "@/stores/profiles";
-import { useUiSounds } from "../hooks/useUiSounds";
 
 function nameFor(profile) {
   return profile?.display_name?.trim() || profile?.username?.trim() || "Unknown";
@@ -44,7 +43,6 @@ function AddFriend() {
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
-  const uiSounds = useUiSounds();
 
   async function submit(event) {
     event.preventDefault();
@@ -54,7 +52,6 @@ function AddFriend() {
     try {
       await useFriends.getState().sendRequest(value, userId, username);
       setValue("");
-      uiSounds.click();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't send the request.");
     } finally {
@@ -85,7 +82,6 @@ export function V3Dashboard() {
   const unread = useChat((state) => state.unread);
   const profiles = useProfiles((state) => state.byId);
   const activeId = useChat((state) => state.activeId);
-  const uiSounds = useUiSounds();
 
   const incoming = useMemo(() => friendships.filter((f) => f.status === "pending" && f.addressee_id === userId), [friendships, userId]);
   const outgoing = useMemo(() => friendships.filter((f) => f.status === "pending" && f.requester_id === userId), [friendships, userId]);
@@ -113,7 +109,6 @@ export function V3Dashboard() {
     const item = conversationItems.find((entry) => entry.partnerId === friendId);
     if (!item) return;
     useChat.getState().openConversation(item.conversation.id);
-    uiSounds.click();
   }
 
   return (
@@ -122,7 +117,7 @@ export function V3Dashboard() {
         <header className="v3-dashboard__header">
           <h1>Dashboard</h1>
           {activeId && (
-            <button type="button" className="v3-dashboard__back" onClick={() => { useChat.getState().setView("chat"); uiSounds.click(); }}>
+            <button type="button" className="v3-dashboard__back" onClick={() => useChat.getState().setView("chat")}>
               <MessageCircle aria-hidden="true" />
               Back to chat
             </button>
@@ -200,7 +195,7 @@ export function V3Dashboard() {
                   key={conversation.id}
                   type="button"
                   className={"v3-dashboard__row v3-dashboard__row--chat" + (conversation.id === activeId ? " is-active" : "")}
-                  onClick={() => { useChat.getState().openConversation(conversation.id); uiSounds.click(); }}
+                  onClick={() => useChat.getState().openConversation(conversation.id)}
                 >
                   <Avatar profile={profile} />
                   <span className="v3-dashboard__row-copy">

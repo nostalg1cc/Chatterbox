@@ -1,5 +1,4 @@
 import { ChevronDown } from "lucide-react";
-import { useUiSounds } from "../hooks/useUiSounds";
 
 export function DropdownButton({
   icon: Icon,
@@ -9,16 +8,8 @@ export function DropdownButton({
   children,
   className = "",
 }) {
-  const uiSounds = useUiSounds();
-
   function handleClick() {
     onMenuOpenChange(!isMenuOpen);
-  }
-
-  function handlePointerEnter(event) {
-    if (event.pointerType === "mouse") {
-      uiSounds.hover();
-    }
   }
 
   return (
@@ -30,7 +21,6 @@ export function DropdownButton({
         aria-expanded={isMenuOpen}
         className="icon-button dropdown-button"
         onClick={handleClick}
-        onPointerEnter={handlePointerEnter}
       >
         <Icon aria-hidden="true" strokeWidth={2} />
         <ChevronDown
