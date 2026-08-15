@@ -4,6 +4,12 @@ import { createClient } from "npm:@supabase/supabase-js@2.110.2";
 
 const CHAT_BUCKET = "chat-media";
 const CHAT_MEDIA_BUDGET_BYTES = 512 * 1024 * 1024;
+// Cloudinary chat media isn't bound by the tiny legacy Supabase Storage
+// bucket - it gets its own, much larger budget (the account's free-tier
+// storage headroom is currently in the hundreds of MB used out of ~25GB
+// available). This is just a runaway-cost safety net, not the thing that
+// keeps media around day to day - see media_expires_at handling below.
+const CLOUDINARY_CHAT_MEDIA_BUDGET_BYTES = 4 * 1024 * 1024 * 1024;
 const LEGACY_MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const CLOUDINARY_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const CLOUDINARY_VIDEO_MAX_BYTES = 100 * 1024 * 1024;
@@ -132,8 +138,8 @@ async function cleanupCloudinaryChatMedia(supabaseAdmin: any, reserveBytes: numb
   if (error) throw new Error(`Unable to inspect Cloudinary media: ${error.message}`);
   const records = (data ?? []) as CloudMessage[]; const remove = new Set<string>(); let remainingBytes = 0; const now = Date.now();
   for (const record of records) { if (!record.media_expires_at || Date.parse(record.media_expires_at) <= now) remove.add(record.id); else remainingBytes += Number(record.media_size_bytes) || 0; }
-  if (remainingBytes + reserveBytes > CHAT_MEDIA_BUDGET_BYTES) {
-    let bytesToFree = remainingBytes + reserveBytes - CHAT_MEDIA_BUDGET_BYTES;
+  if (remainingBytes + reserveBytes > CLOUDINARY_CHAT_MEDIA_BUDGET_BYTES) {
+    let bytesToFree = remainingBytes + reserveBytes - CLOUDINARY_CHAT_MEDIA_BUDGET_BYTES;
     for (const record of records) { if (bytesToFree <= 0) break; if (remove.has(record.id)) continue; remove.add(record.id); bytesToFree -= Number(record.media_size_bytes) || 0; remainingBytes -= Number(record.media_size_bytes) || 0; }
   }
   const deletedAt = new Date().toISOString(); let deletedObjects = 0;
@@ -145,7 +151,7 @@ async function cleanupCloudinaryChatMedia(supabaseAdmin: any, reserveBytes: numb
       await releaseCloudReservations(supabaseAdmin, [record.media_path]); deletedObjects += 1;
     }
   }
-  return { deletedObjects, remainingBytes: Math.max(0, remainingBytes), budgetBytes: CHAT_MEDIA_BUDGET_BYTES };
+  return { deletedObjects, remainingBytes: Math.max(0, remainingBytes), budgetBytes: CLOUDINARY_CHAT_MEDIA_BUDGET_BYTES };
 }
 
 async function userCanAccessConversation(supabase: any, conversationId: string) { const { data, error } = await supabase.from("conversations").select("id").eq("id", conversationId).maybeSingle(); return !error && Boolean(data); }
@@ -175,7 +181,7 @@ const authenticatedHandler = withSupabase({ auth: "user" }, async (req, ctx) => 
       if (!reserved) return json({ error: "Chat media storage is full. The oldest attachments are being cleared; try again shortly." }, 409);
       const timestamp = Math.floor(Date.now() / 1000); const publicId = cloudinaryPublicId(body.conversationId!, body.messageId!);
       const signature = await cloudinarySignature({ public_id: publicId, timestamp });
-      return json({ provider: "cloudinary", path, publicId, uploadUrl: `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${body.kind}/upload`, fields: { api_key: Deno.env.get("CLOUDINARY_API_KEY")!, public_id: publicId, timestamp: String(timestamp), signature }, maxFileBytes: maxBytes, expiresAfterHours: 72 });
+      return json({ provider: "cloudinary", path, publicId, uploadUrl: `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${body.kind}/upload`, fields: { api_key: Deno.env.get("CLOUDINARY_API_KEY")!, public_id: publicId, timestamp: String(timestamp), signature }, maxFileBytes: maxBytes });
     }
 
     if (!((body.kind === "image" && body.mimeType === "image/webp") || (body.kind === "video" && body.mimeType === "video/webm")) || Number(body.sizeBytes) > LEGACY_MAX_UPLOAD_BYTES) return json({ error: "Invalid legacy media upload" }, 400);
@@ -216,7 +222,7 @@ export default {
     if (body?.mode === "scheduled") {
       const admin = createAdminClient();
       const storage = await cleanupStorageChatMedia(admin, 0);
-      const cloudinary = cloudinaryReady() ? await cleanupCloudinaryChatMedia(admin, 0) : { deletedObjects: 0, remainingBytes: 0, budgetBytes: CHAT_MEDIA_BUDGET_BYTES };
+      const cloudinary = cloudinaryReady() ? await cleanupCloudinaryChatMedia(admin, 0) : { deletedObjects: 0, remainingBytes: 0, budgetBytes: CLOUDINARY_CHAT_MEDIA_BUDGET_BYTES };
       return json({ storage, cloudinary });
     }
     return authenticatedHandler(req);
