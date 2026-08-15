@@ -312,6 +312,22 @@ export function V3Shell() {
   const lastMessageCountRef = useRef(0);
   const attachmentInputRef = useRef(null);
   const typingTimerRef = useRef(null);
+  // Composer history (Up/Down) - every successfully sent message/command,
+  // most recent last. historyIndexRef of -1 means "not currently browsing
+  // history, showing the live draft"; historyDraftRef stashes that draft
+  // the moment Up is first pressed, so Down can walk back past the most
+  // recent history entry and land on what was actually being typed rather
+  // than losing it.
+  const composerHistoryRef = useRef([]);
+  const historyIndexRef = useRef(-1);
+  const historyDraftRef = useRef("");
+  // Tab-to-cycle through slash-command matches. Rebuilt from whatever's
+  // typed the moment Tab is first pressed on a fresh prefix, then reused
+  // (just advancing .index) on every immediately-following Tab press -
+  // matchedCommands can't be reused directly for this because it goes
+  // empty the instant the text exactly matches a command name, which is
+  // exactly what happens after the first Tab-fill.
+  const tabCycleRef = useRef(null);
   const decorationGroups = useMemo(() => { const headers = new Map(); const latest = new Map(); let headerId = null; liveMessages.forEach((message, index) => { if (startsNewMessageGroup(message, liveMessages[index - 1])) headerId = message.id; headers.set(message.id, headerId); if (message.message_kind === "chat") latest.set(message.sender_id, headerId); }); return { headers, autoplay: new Set(latest.values()) }; }, [liveMessages]);
 
   useEffect(() => {
@@ -445,6 +461,53 @@ export function V3Shell() {
     if (event.key === "Backspace" && activeCommand && !commandArgText) {
       event.preventDefault();
       setComposerValue("");
+      return;
+    }
+
+    if (event.key === "Tab") {
+      let cycle = tabCycleRef.current;
+      // Reuse the running cycle only if the composer still shows exactly
+      // one of its own matches (i.e. this Tab immediately follows one that
+      // just filled it in) - anything else means the prefix changed since,
+      // so start a fresh cycle from what's typed right now instead.
+      const continuingCycle = cycle && cycle.matches.some((command) => composerValue === `/${command.name}`);
+      if (!continuingCycle) {
+        if (!composerValue.startsWith("/") || composerValue.includes(" ")) return;
+        const query = composerValue.slice(1).toLowerCase();
+        const matches = SLASH_COMMANDS.filter((command) => command.name.startsWith(query));
+        if (!matches.length) return;
+        cycle = { matches, index: -1 };
+      }
+      event.preventDefault();
+      cycle.index = (cycle.index + 1) % cycle.matches.length;
+      tabCycleRef.current = cycle;
+      historyIndexRef.current = -1;
+      setComposerValue(`/${cycle.matches[cycle.index].name}`);
+      return;
+    }
+
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      const history = composerHistoryRef.current;
+      if (event.key === "ArrowUp") {
+        if (!history.length) return;
+        event.preventDefault();
+        tabCycleRef.current = null;
+        if (historyIndexRef.current === -1) historyDraftRef.current = composerValue;
+        historyIndexRef.current = historyIndexRef.current === -1 ? history.length - 1 : Math.max(0, historyIndexRef.current - 1);
+        setComposerValue(history[historyIndexRef.current]);
+        return;
+      }
+      if (historyIndexRef.current === -1) return;
+      event.preventDefault();
+      tabCycleRef.current = null;
+      const nextIndex = historyIndexRef.current + 1;
+      if (nextIndex >= history.length) {
+        historyIndexRef.current = -1;
+        setComposerValue(historyDraftRef.current);
+      } else {
+        historyIndexRef.current = nextIndex;
+        setComposerValue(history[nextIndex]);
+      }
     }
   }
 
@@ -485,6 +548,18 @@ export function V3Shell() {
   async function handleComposerSubmit() {
     if (!activeId || (!composerValue.trim() && !pendingMedia)) return;
     const trimmed = composerValue.trim();
+    if (trimmed) {
+      // The raw typed value, not the transformed text a command sends -
+      // recalling "/shrug hey" from history should show the chip again,
+      // not the already-appended "hey ¯\_(ツ)_/¯".
+      const history = composerHistoryRef.current;
+      if (history[history.length - 1] !== composerValue) {
+        history.push(composerValue);
+        if (history.length > 50) history.shift();
+      }
+      historyIndexRef.current = -1;
+      historyDraftRef.current = "";
+    }
     let textToSend = composerValue;
     if (trimmed.startsWith("/")) {
       const spaceIndex = trimmed.indexOf(" ");
@@ -520,6 +595,11 @@ export function V3Shell() {
   }
 
   function handleComposerChange(value) {
+    // Any real user-driven edit invalidates an in-progress Tab-cycle and
+    // history browse - both only make sense as an unbroken chain of
+    // Tab/Up/Down presses immediately after each other.
+    tabCycleRef.current = null;
+    historyIndexRef.current = -1;
     setComposerValue(value);
     if (!activeId) return;
     useChat.getState().notifyTyping(activeId);
