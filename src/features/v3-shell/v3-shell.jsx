@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ScreenSharePreview } from "@/features/chat/screen-share-preview";
 import { playAppSound } from "@/lib/app-sounds";
 import { decorationUrl } from "@/lib/avatar-decorations";
+import { formatCallDuration } from "@/lib/format-duration";
 import { supabase } from "@/lib/supabase";
 import { isTauri } from "@/lib/tauri";
 import { hideVoiceHud, resizeVoiceHud, showVoiceHud, updateVoiceHud } from "@/lib/voice-hud";
@@ -111,19 +112,9 @@ function breaksDeletedRun(message, previous) {
   return message.sender_id !== previous.sender_id;
 }
 
-function formatCallDuration(value) {
-  const seconds = Math.max(0, value ?? 0);
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainder = seconds % 60;
-  return hours > 0
-    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`
-    : `${minutes}:${String(remainder).padStart(2, "0")}`;
-}
-
 function systemLabel(message) {
   if (message.message_kind === "voice_started") return "Voicechat started";
-  if (message.message_kind === "voice_ended") return `Call lasted ${formatCallDuration(message.voice_duration_seconds)}`;
+  if (message.message_kind === "voice_ended") return `Call lasted ${formatCallDuration(message.voice_duration_seconds ?? 0)}`;
   return null;
 }
 function messageTimestamp(value) {
@@ -207,6 +198,8 @@ export function V3Shell() {
   const deafened = useVoice((state) => state.deafened);
   const voiceSpeaking = useVoice((state) => state.speaking);
   const voiceLevel = useVoice((state) => state.level);
+  const remoteMuted = useVoice((state) => state.remoteMuted);
+  const remoteDeafened = useVoice((state) => state.remoteDeafened);
   const sharingScreen = useVoice((state) => state.sharingScreen);
   const voiceHudScale = usePreferences((state) => state.voiceHudScale);
   const voiceHudShowNames = usePreferences((state) => state.voiceHudShowNames);
@@ -229,12 +222,11 @@ export function V3Shell() {
       nameWeight: profile?.name_weight ?? null,
       speaking: Boolean(voiceSpeaking[participant.user_id]),
       level: voiceLevel[participant.user_id] ?? 0,
-      // Only the local user's mute state is known here - the partner's
-      // isn't currently broadcast/tracked, so it's left false for them
-      // rather than guessed.
-      muted: isSelf && (muted || deafened),
+      muted: isSelf
+        ? muted || deafened
+        : Boolean(remoteMuted[participant.user_id] || remoteDeafened[participant.user_id]),
     };
-  }), [voiceParticipants, userId, selfProfile, partnerProfile, voiceSpeaking, voiceLevel, muted, deafened]);
+  }), [voiceParticipants, userId, selfProfile, partnerProfile, voiceSpeaking, voiceLevel, muted, deafened, remoteMuted, remoteDeafened]);
   // Collapse a run of consecutive voice_started/voice_ended markers (no real
   // chat message between them) down to just the last one, as long as every
   // call in that run was under 15 minutes - short join/leave/reconnect

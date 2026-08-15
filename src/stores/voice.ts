@@ -55,6 +55,11 @@ interface VoiceState {
   /** Per-user_id voice activity, for the in-call talking indicator/HUD. */
   speaking: Record<string, boolean>;
   level: Record<string, number>;
+  /** Per-user_id mute/deafen state read from the partner's presence
+   * broadcast (see syncRoomPresence) - the local user's own mute/deafened
+   * fields below are the source of truth for themselves. */
+  remoteMuted: Record<string, boolean>;
+  remoteDeafened: Record<string, boolean>;
   status: VoiceConnectionStatus;
   activeConversationId: string | null;
   sessionId: string | null;
@@ -182,6 +187,8 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   participants: {},
   speaking: {},
   level: {},
+  remoteMuted: {},
+  remoteDeafened: {},
   status: "idle",
   activeConversationId: null,
   sessionId: null,
@@ -495,7 +502,10 @@ function initializeVoice(userId: string): () => void {
 async function loadVoiceDiscovery(): Promise<void> {
   const [roomsResult, participantsResult] = await Promise.all([
     supabase.from("voice_rooms").select("*"),
-    supabase.from("voice_participants").select("*"),
+    // Ordered so both callers' clients agree on participant order from the
+    // start (unordered selects have no guaranteed row order) - applyParticipant
+    // then preserves that order across updates instead of reshuffling it.
+    supabase.from("voice_participants").select("*").order("joined_at", { ascending: true }),
   ]);
   if (roomsResult.error || participantsResult.error) {
     console.error("Voice discovery failed", roomsResult.error, participantsResult.error);
@@ -597,17 +607,24 @@ function applyParticipant(
     (entry) => entry.user_id === participant.user_id
   );
 
-  useVoice.setState((state) => ({
-    participants: {
-      ...state.participants,
-      [participant.conversation_id]: [
-        ...(state.participants[participant.conversation_id] ?? []).filter(
-          (entry) => entry.user_id !== participant.user_id
-        ),
-        participant,
-      ],
-    },
-  }));
+  useVoice.setState((state) => {
+    const existingList = state.participants[participant.conversation_id] ?? [];
+    const index = existingList.findIndex((entry) => entry.user_id === participant.user_id);
+    // Update in place rather than filter-then-push - the periodic
+    // heartbeat (last_seen_at) fires this same UPDATE path for whichever
+    // side happens to tick most recently, and re-appending on every update
+    // used to shuffle that participant to the end of the list each time,
+    // making the HUD/call-bar order flip unpredictably between callers.
+    const nextList = index === -1
+      ? [...existingList, participant]
+      : existingList.map((entry, i) => (i === index ? participant : entry));
+    return {
+      participants: {
+        ...state.participants,
+        [participant.conversation_id]: nextList,
+      },
+    };
+  });
 
   // Removing a sender track does not reliably fire `ended` on the remote
   // WebRTC track. The room heartbeat is the authoritative share-state signal,
@@ -846,6 +863,11 @@ function syncRoomPresence(): void {
     }
     return;
   }
+
+  useVoice.setState((state) => ({
+    remoteMuted: { ...state.remoteMuted, [remote.userId!]: Boolean(remote.muted) },
+    remoteDeafened: { ...state.remoteDeafened, [remote.userId!]: Boolean(remote.deafened) },
+  }));
 
   const changedSession = remoteSessionId !== remote.sessionId;
   if (changedSession && peerConnection) closePeerConnection(false);

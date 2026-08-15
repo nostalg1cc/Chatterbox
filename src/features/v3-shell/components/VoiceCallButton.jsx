@@ -1,11 +1,11 @@
 import { Phone } from "lucide-react";
 import { useEffect, useState } from "react";
+import { formatCallDuration } from "@/lib/format-duration";
 import { ActionButton } from "./ActionButton";
 
 function elapsedTime(startedAt, now) {
   if (!startedAt) return "0:00";
-  const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1_000));
-  return String(Math.floor(seconds / 60)) + ":" + String(seconds % 60).padStart(2, "0");
+  return formatCallDuration((now - new Date(startedAt).getTime()) / 1_000);
 }
 
 export function VoiceCallButton({ active, roomStartedAt, participants = [], participantCount = 0, hasParticipants = false, onJoin, onLeave }) {
