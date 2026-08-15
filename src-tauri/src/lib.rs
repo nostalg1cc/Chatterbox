@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
@@ -132,9 +133,25 @@ fn configure_global_voice_shortcuts(
     Ok(failed)
 }
 
+// Guards the restart carried out from RunEvent::Exit below - see restart_app.
+struct RestartRequested(AtomicBool);
+
 #[tauri::command]
 fn restart_app(app: tauri::AppHandle) {
-    app.restart();
+    // NOT app.restart() - that's a known race (tauri-apps/tauri#11392):
+    // it fires RunEvent::ExitRequested and spawns the replacement process
+    // on a separate path from the one tearing the event loop down, and on
+    // some machines the teardown wins, killing the process before the new
+    // one finishes spawning. From the outside that's indistinguishable
+    // from the app just closing and never coming back - exactly the "have
+    // to relaunch it myself two or three times" symptom this was hit for.
+    // Flagging intent and doing the actual restart from RunEvent::Exit
+    // instead (after the event loop has fully wound down, so there's
+    // nothing left to race against) is the fix multiple people confirmed
+    // in that same thread.
+    let state = app.state::<RestartRequested>();
+    state.0.store(true, Ordering::SeqCst);
+    app.exit(0);
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -154,12 +171,13 @@ pub fn run() {
         );
     }
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             app.manage(GlobalVoiceShortcuts(Mutex::new(Vec::new())));
+            app.manage(RestartRequested(AtomicBool::new(false)));
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -175,6 +193,16 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![set_window_material, configure_global_voice_shortcuts, restart_app])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            let state = app_handle.state::<RestartRequested>();
+            if state.0.load(Ordering::SeqCst) {
+                app_handle.cleanup_before_exit();
+                tauri::process::restart(&app_handle.env());
+            }
+        }
+    });
 }
