@@ -64,8 +64,11 @@ function ParticipantRow({
   return (
     <div className="voice-hud__participant">
       <span
-        className={"voice-hud__avatar" + (participant.speaking ? " is-speaking" : "")}
-        style={{ "--intensity": participant.speaking ? participant.level : 0 } as CSSProperties}
+        className={
+          "voice-hud__avatar" +
+          (participant.muted ? " is-muted" : participant.speaking ? " is-speaking" : "")
+        }
+        style={{ "--intensity": participant.speaking && !participant.muted ? participant.level : 0 } as CSSProperties}
       >
         <span className="voice-hud__avatar-photo">
           {participant.avatar ? (

@@ -75,6 +75,12 @@ body,
     0 2px 8px rgba(0, 0, 0, 0.5);
   transform: scale(calc(1 + var(--intensity) * 0.08));
 }
+.voice-hud__avatar.is-muted {
+  box-shadow:
+    0 0 0 4px #ff3b3b,
+    0 2px 8px rgba(0, 0, 0, 0.5);
+  transform: scale(1);
+}
 .voice-hud__avatar::before {
   position: absolute;
   inset: 0;

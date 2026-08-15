@@ -229,8 +229,12 @@ export function V3Shell() {
       nameWeight: profile?.name_weight ?? null,
       speaking: Boolean(voiceSpeaking[participant.user_id]),
       level: voiceLevel[participant.user_id] ?? 0,
+      // Only the local user's mute state is known here - the partner's
+      // isn't currently broadcast/tracked, so it's left false for them
+      // rather than guessed.
+      muted: isSelf && (muted || deafened),
     };
-  }), [voiceParticipants, userId, selfProfile, partnerProfile, voiceSpeaking, voiceLevel]);
+  }), [voiceParticipants, userId, selfProfile, partnerProfile, voiceSpeaking, voiceLevel, muted, deafened]);
   // Collapse a run of consecutive voice_started/voice_ended markers (no real
   // chat message between them) down to just the last one, as long as every
   // call in that run was under 15 minutes - short join/leave/reconnect

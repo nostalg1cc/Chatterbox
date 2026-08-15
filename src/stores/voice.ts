@@ -139,6 +139,17 @@ function setLevel(userId: string, value: number): void {
   });
 }
 
+// The analyser taps the pipeline's gain node directly (see below), which
+// sits upstream of the mute gate (applyLocalMuteState only flips
+// track.enabled on the outbound MediaStreamTrack) - so it keeps reading live
+// mic input while muted. Force speaking/level to false/0 in that case rather
+// than trusting the analyser, so the HUD can't visibly react to your voice
+// while you're muted or deafened.
+function isLocalMicSilenced(): boolean {
+  const state = useVoice.getState();
+  return state.muted || state.deafened;
+}
+
 // Prefer tapping the pipeline's own gain node in its own already-running
 // AudioContext (the exact signal actually being sent) over asking a second,
 // independent AudioContext to consume the same MediaStreamTrack.
@@ -150,8 +161,8 @@ function startLocalVoiceActivity(pipeline: MicrophonePipeline): VoiceActivityMon
     : pipeline.outputStream;
   return monitorVoiceActivity(
     source,
-    (value) => setSpeaking(userId, value),
-    (value) => setLevel(userId, value)
+    (value) => setSpeaking(userId, value && !isLocalMicSilenced()),
+    (value) => setLevel(userId, isLocalMicSilenced() ? 0 : value)
   );
 }
 
@@ -310,6 +321,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
     applyLocalMuteState();
     applyRemoteAudioPreferences();
     void updateRoomPresence();
+    if (get().muted && currentUserId) { setSpeaking(currentUserId, false); setLevel(currentUserId, 0); }
     playAppSound(get().muted ? "mute_on" : "mute_off");
   },
 
@@ -322,6 +334,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
     applyLocalMuteState();
     applyRemoteAudioPreferences();
     void updateRoomPresence();
+    if (next && currentUserId) { setSpeaking(currentUserId, false); setLevel(currentUserId, 0); }
     playAppSound(next ? "deafen_on" : "deafen_off");
   },
 
