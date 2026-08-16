@@ -6,6 +6,7 @@ import { V3Shell } from "@/features/v3-shell/v3-shell";
 import { AuthScreen } from "@/features/auth/auth-screen";
 import { KeybindManager } from "@/features/settings/keybind-manager";
 import { TopAlert } from "@/features/v3-shell/components/TopAlert";
+import { subscribeToAppNotices } from "@/lib/app-notices";
 import { checkForUpdateAndNotify, UPDATED_VERSION_KEY } from "@/lib/updater";
 import { useAlerts } from "@/stores/alerts";
 import { useAuth } from "@/stores/auth";
@@ -22,6 +23,7 @@ export default function App() {
   useEffect(() => { useAuth.getState().init(); }, []);
   useEffect(() => { if (!userId) return; return useVoice.getState().init(userId); }, [userId]);
   useEffect(() => { if (!userId) return; return usePresence.getState().join(userId); }, [userId]);
+  useEffect(() => { if (!userId) return; return subscribeToAppNotices(); }, [userId]);
   useEffect(() => {
     if (!userId) return;
     void useFriends.getState().load();
