@@ -978,7 +978,7 @@ export function SettingsDialog({ buttonLabel, trigger }: { buttonLabel?: string;
                       <p className="mt-2 text-xs text-muted-foreground">Downloading signed update{updateProgress === null ? "…" : ` · ${updateProgress}%`}</p>
                     </div>
                   )}
-                  {updateStatus !== "downloading" && <p className="mt-4 text-xs text-muted-foreground">{updateStatus === "available" ? "Update " + availableVersion + " is ready to install in place." : updateStatus === "current" ? "You are up to date." : updateStatus === "error" ? "Could not check for updates: " + (updateError ?? "Unknown updater error.") : "Nitro checks automatically when it starts. You can also check manually here."}</p>}
+                  {updateStatus !== "downloading" && <p className="mt-4 text-xs text-muted-foreground">{updateStatus === "available" ? "Update " + availableVersion + " is ready to install in place." : updateStatus === "current" ? "You are up to date." : updateStatus === "error" ? "Could not check for updates: " + (updateError ?? "Unknown updater error.") : "Updates aren't automatic - check here, or with /update in a chat, whenever you want the latest version."}</p>}
                 </div>
               </section>
             </TabsContent>

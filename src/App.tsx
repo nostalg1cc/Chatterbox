@@ -6,7 +6,7 @@ import { V3Shell } from "@/features/v3-shell/v3-shell";
 import { AuthScreen } from "@/features/auth/auth-screen";
 import { KeybindManager } from "@/features/settings/keybind-manager";
 import { TopAlert } from "@/features/v3-shell/components/TopAlert";
-import { checkForUpdateSilently, UPDATED_VERSION_KEY } from "@/lib/updater";
+import { UPDATED_VERSION_KEY } from "@/lib/updater";
 import { useAlerts } from "@/stores/alerts";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
@@ -38,7 +38,6 @@ export default function App() {
       useAlerts.getState().show({ severity: "neutral", message: `App got updated to version ${updatedVersion}.` });
     }
   }, []);
-  useEffect(() => { void checkForUpdateSilently(); }, []);
 
   return (
     <TooltipProvider delayDuration={300}>

@@ -20,19 +20,6 @@ async function installAndRestart(update: Update): Promise<void> {
   await invoke("restart_app");
 }
 
-/** Silent startup check - installs and restarts automatically if found, no UI. */
-export async function checkForUpdateSilently(): Promise<void> {
-  if (!isTauri) return;
-  try {
-    const { check } = await import("@tauri-apps/plugin-updater");
-    const update = await check();
-    if (!update) return;
-    await installAndRestart(update);
-  } catch (error) {
-    console.warn("Automatic update failed", error);
-  }
-}
-
 /** User-triggered check (e.g. the /update chat command) - always reports back via the alert banner. */
 export async function checkForUpdateManually(): Promise<void> {
   if (!isTauri) {
