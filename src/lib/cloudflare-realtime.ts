@@ -56,6 +56,24 @@ export async function createCloudflareScreenPublisher(conversationId: string, st
 
   const tracks = stream.getTracks();
   const transceivers = tracks.map((track) => connection.addTransceiver(track, { direction: "sendonly", streams: [stream] }));
+  // Without this, WebRTC's default degradationPreference ("balanced")
+  // sacrifices framerate to hold resolution under any bandwidth/CPU
+  // pressure the congestion controller perceives - exactly what a mostly
+  // still screen-share signal (occasional big deltas, otherwise near-idle)
+  // tends to trigger, producing the "near-frozen" choppiness. The direct
+  // P2P fallback (addScreenTracks in voice.ts) already sets this; the
+  // Cloudflare relay path - the one actually used whenever it connects -
+  // never did.
+  for (const transceiver of transceivers) {
+    if (transceiver.sender.track?.kind !== "video") continue;
+    const parameters = transceiver.sender.getParameters();
+    if (parameters.encodings.length > 0) {
+      parameters.degradationPreference = "maintain-framerate";
+      parameters.encodings[0].maxBitrate = 5_000_000;
+      parameters.encodings[0].maxFramerate = 30;
+      await transceiver.sender.setParameters(parameters).catch(() => undefined);
+    }
+  }
   await connection.setLocalDescription(await connection.createOffer());
   await waitForIceComplete(connection);
   const trackRefs = transceivers.map((transceiver, index) => {

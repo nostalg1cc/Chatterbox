@@ -3,6 +3,8 @@ import { Maximize2Icon, MonitorUpIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useVoice } from "@/stores/voice";
+import { usePreferences } from "@/stores/preferences";
+import { configureMediaOutput } from "@/lib/voice-media";
 
 type ScreenShareSource = "local" | "remote";
 
@@ -14,16 +16,40 @@ export function ScreenSharePreview({ source = "remote" }: { source?: ScreenShare
   const [expanded, setExpanded] = useState(false);
   const isLocal = source === "local";
   const label = isLocal ? "Your screen" : "Partner screen";
+  const outputDeviceId = usePreferences((state) => state.outputDeviceId);
+  const mediaVolume = usePreferences((state) => state.mediaVolume);
+  const outputVolume = usePreferences((state) => state.outputVolume);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     video.srcObject = stream;
+    // muted must be settled before play() is ever called, not after - an
+    // unmuted autoplay() request is what browsers actually gate behind a
+    // user gesture, so setting it in a later effect (after play() already
+    // ran unmuted-by-default) can get the very first play silently blocked.
+    // isLocal stays muted regardless - playing your own captured system
+    // audio back through your own speakers is an instant feedback loop,
+    // since the OS is already outputting it.
+    video.muted = isLocal;
     if (stream) void video.play().catch(() => undefined);
     return () => {
       video.srcObject = null;
     };
-  }, [stream]);
+  }, [isLocal, stream]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !stream) return;
+    // Same output routing as everything else in the app (voice, soundboard,
+    // chat media) - the remote side is the one that actually needs to be
+    // heard, so it follows the user's chosen output device/volume.
+    void configureMediaOutput(video, {
+      volume: isLocal ? 0 : (mediaVolume * outputVolume) / 100,
+      outputDeviceId,
+      muted: isLocal,
+    });
+  }, [isLocal, mediaVolume, outputDeviceId, outputVolume, stream]);
 
   useEffect(() => {
     if (!stream) setExpanded(false);
@@ -61,7 +87,6 @@ export function ScreenSharePreview({ source = "remote" }: { source?: ScreenShare
         ref={videoRef}
         autoPlay
         playsInline
-        muted
         aria-label={label}
         className="pointer-events-none size-full object-contain"
       />

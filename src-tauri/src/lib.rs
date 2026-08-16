@@ -133,6 +133,35 @@ fn configure_global_voice_shortcuts(
     Ok(failed)
 }
 
+// The NSIS silent installer replaces the exe on disk while this process is
+// still running (Windows allows renaming/replacing an open exe's file, just
+// not reading/executing the new one until the write is fully flushed). The
+// updater's JS side already sleeps briefly before requesting a restart, but
+// that's a fixed guess - on a loaded machine or with AV real-time scanning
+// in the way, it isn't always enough, and launching a still-settling exe is
+// exactly what produces the 0xc0000409 fail-fast crash on the new process's
+// very first launch (indistinguishable from "the app doesn't come back").
+// Poll until the file size is stable across two checks and openable, right
+// before the actual spawn, instead of trusting a single fixed delay.
+fn wait_for_exe_ready() {
+    let Ok(exe) = std::env::current_exe() else { return };
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let mut last_len: Option<u64> = None;
+    loop {
+        if let Ok(metadata) = std::fs::metadata(&exe) {
+            let len = metadata.len();
+            if len > 0 && Some(len) == last_len && std::fs::File::open(&exe).is_ok() {
+                return;
+            }
+            last_len = Some(len);
+        }
+        if std::time::Instant::now() >= deadline {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(150));
+    }
+}
+
 // Guards the restart carried out from RunEvent::Exit below - see restart_app.
 struct RestartRequested(AtomicBool);
 
@@ -201,6 +230,7 @@ pub fn run() {
             let state = app_handle.state::<RestartRequested>();
             if state.0.load(Ordering::SeqCst) {
                 app_handle.cleanup_before_exit();
+                wait_for_exe_ready();
                 tauri::process::restart(&app_handle.env());
             }
         }
