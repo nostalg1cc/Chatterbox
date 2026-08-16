@@ -1014,7 +1014,19 @@ body {
 .top-alert--warning { --alert-tint: rgba(234, 179, 8, 0.16); --alert-accent: #f5c344; }
 .top-alert--danger { --alert-tint: rgba(255, 51, 51, 0.16); --alert-accent: #ff6b6b; }
 
+.top-alert__progress-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--alert-accent);
+  opacity: 0.22;
+  transition: width 200ms ease-out;
+  pointer-events: none;
+}
+
 .top-alert__icon {
+  position: relative;
+  z-index: 1;
   width: 20px;
   height: 20px;
   flex: none;
@@ -1023,6 +1035,8 @@ body {
 }
 
 .top-alert__message {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1035,6 +1049,8 @@ body {
 }
 
 .top-alert__actions {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex: none;
   align-items: center;

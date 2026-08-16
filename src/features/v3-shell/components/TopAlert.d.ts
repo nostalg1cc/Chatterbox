@@ -5,6 +5,7 @@ declare module "@/features/v3-shell/components/TopAlert" {
     label: string;
     onClick?: () => void;
     confirm?: boolean;
+    keepOpen?: boolean;
   };
 
   export function TopAlert(props: {
@@ -13,6 +14,7 @@ declare module "@/features/v3-shell/components/TopAlert" {
     severity: "neutral" | "warning" | "danger";
     icon: LucideIcon;
     actions?: TopAlertAction[];
+    progress?: number | null;
     onDismiss: (id: string) => void;
     onVisibleChange?: (visible: boolean) => void;
   }): import("react").JSX.Element;

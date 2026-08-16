@@ -808,6 +808,7 @@ export function V3Shell() {
             severity={activeAlert.severity}
             icon={activeAlert.icon}
             actions={activeAlert.actions}
+            progress={activeAlert.progress}
             onDismiss={dismissAlert}
             onVisibleChange={setBannerVisible}
           />

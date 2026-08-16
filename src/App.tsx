@@ -62,6 +62,7 @@ export default function App() {
             severity={activeAlert.severity}
             icon={activeAlert.icon}
             actions={activeAlert.actions}
+            progress={activeAlert.progress}
             onDismiss={dismissAlert}
           />
         </div>

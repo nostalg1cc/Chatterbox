@@ -9,8 +9,30 @@ import { useAlerts } from "@/stores/alerts";
 // first time the fresh process starts back up.
 export const UPDATED_VERSION_KEY = "dislight-updated-version";
 
-async function installAndRestart(update: Update): Promise<void> {
-  await update.downloadAndInstall();
+// Turns the given banner into a live progress bar instead of dismissing it -
+// the banner id stays the same throughout (patch, never show), so this is
+// one continuous banner from "Update available" through to the restart,
+// not a replaced one.
+async function installAndRestart(update: Update, alertId: string): Promise<void> {
+  let receivedBytes = 0;
+  let totalBytes = 0;
+  useAlerts.getState().patch(alertId, {
+    message: `Downloading update ${update.version}…`,
+    actions: [],
+    progress: 0,
+  });
+  await update.downloadAndInstall((event) => {
+    if (event.event === "Started") {
+      totalBytes = event.data.contentLength ?? 0;
+    } else if (event.event === "Progress") {
+      receivedBytes += event.data.chunkLength;
+      if (totalBytes > 0) {
+        useAlerts.getState().patch(alertId, { progress: Math.min(100, Math.round((receivedBytes / totalBytes) * 100)) });
+      }
+    } else if (event.event === "Finished") {
+      useAlerts.getState().patch(alertId, { message: "Installing…", progress: 100 });
+    }
+  });
   window.localStorage.setItem(UPDATED_VERSION_KEY, update.version);
   // The NSIS installer just replaced the exe on disk - give the
   // filesystem/AV a moment to release it before relaunching, or the new
@@ -30,12 +52,13 @@ export async function checkForUpdateAndNotify(): Promise<void> {
     const { check } = await import("@tauri-apps/plugin-updater");
     const update = await check();
     if (!update) return;
-    useAlerts.getState().show({
+    let alertId = "";
+    alertId = useAlerts.getState().show({
       severity: "neutral",
       message: `Update ${update.version} is available.`,
       actions: [
         { label: "Dismiss" },
-        { label: "Update now", confirm: true, onClick: () => void installAndRestart(update) },
+        { label: "Update now", confirm: true, keepOpen: true, onClick: () => void installAndRestart(update, alertId) },
       ],
     });
   } catch (error) {
@@ -57,12 +80,13 @@ export async function checkForUpdateManually(): Promise<void> {
       useAlerts.getState().show({ severity: "neutral", message: "You're already on the latest version." });
       return;
     }
-    useAlerts.getState().show({
+    let alertId = "";
+    alertId = useAlerts.getState().show({
       severity: "neutral",
       message: `Update ${update.version} is available.`,
       actions: [
         { label: "Later" },
-        { label: "Install", confirm: true, onClick: () => void installAndRestart(update) },
+        { label: "Install", confirm: true, keepOpen: true, onClick: () => void installAndRestart(update, alertId) },
       ],
     });
   } catch (error) {

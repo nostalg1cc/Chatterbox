@@ -1,18 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 
-export function TopAlert({ id, message, severity, icon: Icon, actions, onDismiss, onVisibleChange }) {
+export function TopAlert({ id, message, severity, icon: Icon, actions, progress, onDismiss, onVisibleChange }) {
   const [visible, setVisible] = useState(false);
   const shownRef = useRef(false);
 
   useEffect(() => {
     const enterFrame = window.requestAnimationFrame(() => setVisible(true));
-    // Purely informational banners (no actions to wait on) dismiss
-    // themselves; ones with actions stay up until the user picks one.
-    const autoDismiss = actions?.length ? null : window.setTimeout(() => setVisible(false), 5000);
+    // Purely informational banners (no actions and no progress bar to wait
+    // on) dismiss themselves; ones with actions, or a progress bar in
+    // flight, stay up until the user picks an action or the progress
+    // reaches its own conclusion.
+    const autoDismiss = actions?.length || typeof progress === "number"
+      ? null
+      : window.setTimeout(() => setVisible(false), 5000);
     return () => {
       window.cancelAnimationFrame(enterFrame);
       if (autoDismiss) window.clearTimeout(autoDismiss);
     };
+    // progress deliberately excluded - it can tick many times a second
+    // during a download, and actions already changes (to []) at the exact
+    // moment progress mode begins, which is the only transition that
+    // matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, actions]);
 
   // Reported up so the parent can push/restore the surrounding layout in
@@ -39,6 +48,9 @@ export function TopAlert({ id, message, severity, icon: Icon, actions, onDismiss
 
   return (
     <div className={className} role="status">
+      {typeof progress === "number" && (
+        <div className="top-alert__progress-fill" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
+      )}
       <Icon className="top-alert__icon" aria-hidden="true" strokeWidth={2} />
       <span className="top-alert__message">{message}</span>
       {actions?.length > 0 && (
@@ -50,7 +62,7 @@ export function TopAlert({ id, message, severity, icon: Icon, actions, onDismiss
               className={"top-alert__action" + (action.confirm ? " top-alert__action--confirm" : "")}
               onClick={() => {
                 action.onClick?.();
-                setVisible(false);
+                if (!action.keepOpen) setVisible(false);
               }}
             >
               {action.label}

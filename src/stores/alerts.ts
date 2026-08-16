@@ -8,6 +8,11 @@ export type AlertAction = {
   onClick?: () => void;
   /** Renders as the solid white/black "confirm" button instead of the normal one. */
   confirm?: boolean;
+  /** Skip the normal auto-dismiss-on-click - the action itself is
+   * responsible for eventually closing or replacing the banner (e.g. an
+   * update install that switches the banner into a progress bar instead
+   * of just disappearing). */
+  keepOpen?: boolean;
 };
 
 export type AlertInput = {
@@ -15,6 +20,9 @@ export type AlertInput = {
   severity?: AlertSeverity;
   icon?: LucideIcon;
   actions?: AlertAction[];
+  /** 0-100 to show a progress fill behind the banner, or null/undefined
+   * for none. */
+  progress?: number | null;
 };
 
 export type ActiveAlert = AlertInput & {
@@ -31,8 +39,15 @@ const DEFAULT_ICON: Record<AlertSeverity, LucideIcon> = {
 
 interface AlertsState {
   active: ActiveAlert | null;
-  show: (input: AlertInput) => void;
+  /** Returns the new alert's id, so a caller that needs to patch() it
+   * later (e.g. to report install progress) doesn't have to generate and
+   * pass its own. */
+  show: (input: AlertInput) => string;
   dismiss: (id: string) => void;
+  /** Patches the currently active alert in place (no-op if a different
+   * alert has since replaced it) - for live message/progress updates
+   * without resetting the banner's enter animation or auto-dismiss timer. */
+  patch: (id: string, patch: Partial<AlertInput>) => void;
 }
 
 // A single global banner slot, shared app-wide (voice/connection issues,
@@ -45,16 +60,21 @@ export const useAlerts = create<AlertsState>((set) => ({
   active: null,
   show: (input) => {
     const severity = input.severity ?? "neutral";
+    const id = `${Date.now()}-${Math.random()}`;
     set({
       active: {
-        id: `${Date.now()}-${Math.random()}`,
         icon: DEFAULT_ICON[severity],
         ...input,
+        id,
         severity,
       },
     });
+    return id;
   },
   dismiss: (id) => {
     set((state) => (state.active?.id === id ? { active: null } : state));
+  },
+  patch: (id, patch) => {
+    set((state) => (state.active?.id === id ? { active: { ...state.active, ...patch } } : state));
   },
 }));
