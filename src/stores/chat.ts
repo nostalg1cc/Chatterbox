@@ -80,6 +80,10 @@ interface ChatState {
     replyToMessageId?: string | null
   ) => Promise<boolean>;
   setReplyTo: (message: Message | null) => void;
+  /** Appends a client-only "(BOT)" system line (e.g. /ping's result) to the
+   * given conversation. Never touches the database, so it's invisible to
+   * the other participant and to any other device of your own. */
+  addLocalSystemMessage: (convId: string, content: string) => void;
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   toggleReaction: (message: Message, emoji: string) => Promise<void>;
@@ -373,6 +377,40 @@ export const useChat = create<ChatState>()((set, get) => ({
 
   setReplyTo: (message) => set({ replyTo: message }),
 
+  addLocalSystemMessage: (convId, content) => {
+    const myId = useAuth.getState().userId;
+    if (!myId) return;
+    const message: Message = {
+      id: "local:" + crypto.randomUUID(),
+      conversation_id: convId,
+      sender_id: myId,
+      content,
+      created_at: new Date().toISOString(),
+      edited_at: null,
+      deleted_at: null,
+      media_kind: null,
+      media_path: null,
+      media_mime_type: null,
+      media_size_bytes: null,
+      media_width: null,
+      media_height: null,
+      media_duration_seconds: null,
+      media_expires_at: null,
+      media_deleted_at: null,
+      reply_to_message_id: null,
+      message_kind: "local_bot",
+      voice_duration_seconds: null,
+    };
+    // Deliberately not routed through applyMessage: that also updates the
+    // conversation-list preview/sort order, and a transient local-only
+    // diagnostic line shouldn't masquerade as "the latest message".
+    set((s) =>
+      s.messages[convId]
+        ? { messages: { ...s.messages, [convId]: insertSorted(s.messages[convId], message) } }
+        : {}
+    );
+  },
+
   editMessage: async (messageId, content) => {
     const trimmed = content.trim();
     if (!trimmed || trimmed.length > 4000) return;
@@ -495,6 +533,14 @@ export const useChat = create<ChatState>()((set, get) => ({
         { event: "UPDATE", schema: "public", table: "messages" },
         (payload) => {
           applyMessage(payload.new as Message, set, { bump: false });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages" },
+        (payload) => {
+          const old = payload.old as Partial<Message>;
+          if (old.id) removeMessage(old.id, set);
         }
       )
       .on(
@@ -668,6 +714,27 @@ function applyMessage(msg: Message, set: SetChat, opts: { bump?: boolean } = {})
       patch.replyTargets = { ...s.replyTargets, [msg.id]: msg };
     }
     return patch;
+  });
+}
+
+// Only ever hit by the server purging a short-lived voice_started/voice_ended
+// pair (see cleanup_stale_voice_rooms) - normal message deletion is a soft
+// delete (deleted_at) delivered as an UPDATE, not a real row DELETE. The
+// primary key is all a DELETE realtime payload is guaranteed to carry, so
+// this has to search every loaded conversation rather than index straight in.
+function removeMessage(id: string, set: SetChat) {
+  set((s) => {
+    for (const convId of Object.keys(s.messages)) {
+      if (s.messages[convId].some((m) => m.id === id)) {
+        return {
+          messages: {
+            ...s.messages,
+            [convId]: s.messages[convId].filter((m) => m.id !== id),
+          },
+        };
+      }
+    }
+    return {};
   });
 }
 

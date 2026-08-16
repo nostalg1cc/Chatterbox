@@ -18,10 +18,30 @@ type RequestBody = {
   action?: unknown;
   sessionId?: unknown;
   remoteSessionId?: unknown;
-  trackName?: unknown;
-  mid?: unknown;
+  tracks?: unknown;
+  trackNames?: unknown;
   sessionDescription?: unknown;
 };
+
+const MAX_TRACKS = 4;
+
+function publishTracks(value: unknown): { mid: string; trackName: string }[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_TRACKS) return null;
+  const parsed: { mid: string; trackName: string }[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") return null;
+    const entryMid = (entry as Record<string, unknown>).mid;
+    const entryTrackName = (entry as Record<string, unknown>).trackName;
+    if (!mid(entryMid) || !opaqueId(entryTrackName)) return null;
+    parsed.push({ mid: entryMid, trackName: entryTrackName });
+  }
+  return parsed;
+}
+
+function trackNameList(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_TRACKS) return null;
+  return value.every(opaqueId) ? (value as string[]) : null;
+}
 
 function conciseCloudflareError(payload: unknown) {
   if (!payload || typeof payload !== "object") return undefined;
@@ -65,26 +85,34 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
   let method = "POST";
   let payload: Record<string, unknown> = {};
   let createdSession = false;
-  let updateTrack = false;
+  let publishedTrackNames: string[] | null = null;
 
   if (body.action === "create" && sdp(body.sessionDescription)) {
     path = "/sessions/new";
     payload = { sessionDescription: body.sessionDescription };
     createdSession = true;
-  } else if (body.action === "publish" && opaqueId(body.sessionId) && mid(body.mid) && opaqueId(body.trackName) && sdp(body.sessionDescription)) {
+  } else if (body.action === "publish" && opaqueId(body.sessionId) && sdp(body.sessionDescription) && publishTracks(body.tracks)) {
+    const tracks = publishTracks(body.tracks)!;
     const { data: session } = await sessions.select("session_id").eq("session_id", body.sessionId).eq("conversation_id", body.conversationId).eq("owner_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle();
     if (!session) return json({ error: "That screen-share session is no longer active." }, 403);
     path = `/sessions/${body.sessionId}/tracks/new`;
-    payload = { sessionDescription: body.sessionDescription, tracks: [{ location: "local", mid: body.mid, trackName: body.trackName }] };
-    updateTrack = true;
-  } else if (body.action === "subscribe" && opaqueId(body.sessionId) && opaqueId(body.remoteSessionId) && opaqueId(body.trackName)) {
+    payload = { sessionDescription: body.sessionDescription, tracks: tracks.map((track) => ({ location: "local", mid: track.mid, trackName: track.trackName })) };
+    // A screen share can publish more than one track (video, and audio when
+    // available) - they're stored comma-joined in the same text column
+    // subscribe validates against below, rather than adding a new column.
+    publishedTrackNames = tracks.map((track) => track.trackName);
+  } else if (body.action === "subscribe" && opaqueId(body.sessionId) && opaqueId(body.remoteSessionId) && trackNameList(body.trackNames)) {
+    const names = trackNameList(body.trackNames)!;
     const [{ data: viewer }, { data: remote }] = await Promise.all([
       sessions.select("session_id").eq("session_id", body.sessionId).eq("conversation_id", body.conversationId).eq("owner_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle(),
-      sessions.select("session_id").eq("session_id", body.remoteSessionId).eq("conversation_id", body.conversationId).neq("owner_id", userId).eq("track_name", body.trackName).gt("expires_at", new Date().toISOString()).maybeSingle(),
+      sessions.select("track_name").eq("session_id", body.remoteSessionId).eq("conversation_id", body.conversationId).neq("owner_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle(),
     ]);
-    if (!viewer || !remote) return json({ error: "The shared screen is no longer available." }, 404);
+    const availableNames = new Set(String(remote?.track_name ?? "").split(","));
+    if (!viewer || !remote || !names.every((name) => availableNames.has(name))) {
+      return json({ error: "The shared screen is no longer available." }, 404);
+    }
     path = `/sessions/${body.sessionId}/tracks/new`;
-    payload = { tracks: [{ location: "remote", sessionId: body.remoteSessionId, trackName: body.trackName }] };
+    payload = { tracks: names.map((trackName) => ({ location: "remote", sessionId: body.remoteSessionId, trackName })) };
   } else if (body.action === "renegotiate" && opaqueId(body.sessionId) && sdp(body.sessionDescription)) {
     const { data: session } = await sessions.select("session_id").eq("session_id", body.sessionId).eq("conversation_id", body.conversationId).eq("owner_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle();
     if (!session) return json({ error: "That viewing session is no longer active." }, 403);
@@ -128,9 +156,9 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
     }
   }
 
-  if (updateTrack) {
+  if (publishedTrackNames) {
     await sessions.update({
-      track_name: body.trackName,
+      track_name: publishedTrackNames.join(","),
       updated_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
     }).eq("session_id", body.sessionId);

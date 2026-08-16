@@ -17,7 +17,7 @@ import { useProfiles } from "@/stores/profiles";
 import { usePresenceStatus } from "@/stores/presence";
 import { usePreferences } from "@/stores/preferences";
 import { useSoundboard } from "@/stores/soundboard";
-import { useVoice } from "@/stores/voice";
+import { useVoice, getVoiceCallStats } from "@/stores/voice";
 import {
   CircleAlert,
   CircleCheck,
@@ -62,6 +62,7 @@ const SLASH_COMMANDS = [
   { name: "randomsound", description: "Play a random soundboard sound (while in a call)" },
   { name: "update", description: "Check for app updates" },
   { name: "testalert", description: "Show a random alert to test the banner" },
+  { name: "ping", description: "Check the voice call's round-trip latency" },
 ];
 
 const alertVariants = [
@@ -115,6 +116,7 @@ function breaksDeletedRun(message, previous) {
 function systemLabel(message) {
   if (message.message_kind === "voice_started") return "Voicechat started";
   if (message.message_kind === "voice_ended") return `Call lasted ${formatCallDuration(message.voice_duration_seconds ?? 0)}`;
+  if (message.message_kind === "local_bot") return `(BOT) ${message.content}`;
   return null;
 }
 function messageTimestamp(value) {
@@ -531,7 +533,26 @@ export function V3Shell() {
       showAlert();
       return true;
     }
+    if (name === "ping") {
+      void runPingCommand();
+      return true;
+    }
     return false;
+  }
+
+  async function runPingCommand() {
+    if (!activeId) return;
+    if (!joinedVoice || voiceStatus !== "connected") {
+      useChat.getState().addLocalSystemMessage(activeId, "Not in an active voice call.");
+      return;
+    }
+    const stats = await getVoiceCallStats();
+    if (!stats || stats.rttMs === null) {
+      useChat.getState().addLocalSystemMessage(activeId, "No connection stats available yet - try again in a moment.");
+      return;
+    }
+    const path = stats.relayed ? "relayed" : "direct";
+    useChat.getState().addLocalSystemMessage(activeId, `Round-trip to your partner: ${stats.rttMs}ms (${path})`);
   }
 
   function clearComposerAfterCommand() {

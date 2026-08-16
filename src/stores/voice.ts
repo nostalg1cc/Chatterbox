@@ -373,9 +373,9 @@ export const useVoice = create<VoiceState>()((set, get) => ({
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           if (attempt) await new Promise((resolve) => window.setTimeout(resolve, 550));
-          const cloudflare = await createCloudflareScreenPublisher(get().activeConversationId!, stream, track);
+          const cloudflare = await createCloudflareScreenPublisher(get().activeConversationId!, stream);
           cloudflareScreenConnection = cloudflare.connection;
-          sendScreenPublished(cloudflare.sessionId, cloudflare.trackName);
+          sendScreenPublished(cloudflare.sessionId, cloudflare.trackNames);
           break;
         } catch {
           // The established call peer remains the compatible fallback.
@@ -979,7 +979,7 @@ async function handleSignal(raw: unknown): Promise<void> {
   if (signal.type === "screen-published") {
     try {
       cloudflareScreenConnection?.close();
-      cloudflareScreenConnection = await createCloudflareScreenSubscriber(conversationId, signal.cloudflareSessionId, signal.trackName, (stream) => useVoice.setState({ remoteScreenStream: stream }));
+      cloudflareScreenConnection = await createCloudflareScreenSubscriber(conversationId, signal.cloudflareSessionId, signal.trackNames, (stream) => useVoice.setState({ remoteScreenStream: stream }));
     } catch {
       // The matching P2P screen track remains available as a compatibility fallback.
     }
@@ -1092,8 +1092,8 @@ function handleRemoteTrack(event: RTCTrackEvent): void {
   }
 }
 
-function sendScreenPublished(cloudflareSessionId: string, trackName: string): void {
-  const signal = buildSignal({ type: "screen-published", cloudflareSessionId, trackName });
+function sendScreenPublished(cloudflareSessionId: string, trackNames: string[]): void {
+  const signal = buildSignal({ type: "screen-published", cloudflareSessionId, trackNames });
   if (signal) sendSignal(signal);
 }
 
@@ -1122,7 +1122,7 @@ function buildSignal(
     | { type: "ready" }
     | { type: "description"; description: RTCSessionDescriptionInit }
     | { type: "ice-candidate"; candidate: RTCIceCandidateInit }
-    | { type: "screen-published"; cloudflareSessionId: string; trackName: string }
+    | { type: "screen-published"; cloudflareSessionId: string; trackNames: string[] }
     | { type: "screen-stopped" }
 ): VoiceSignal | null {
   const state = useVoice.getState();
@@ -1670,26 +1670,41 @@ export function broadcastVoiceSoundboardStop(payload: VoiceSoundboardStopPayload
   if (!roomChannel || !roomSubscribed || !useVoice.getState().activeConversationId) return;
   void roomChannel.send({ type: "broadcast", event: "soundboard-stop", payload });
 }
-export function formatVoiceElapsed(
-  startedAt: string | undefined,
-  now = Date.now()
-): string {
-  if (!startedAt) return "0:00";
-  const seconds = Math.max(
-    0,
-    Math.floor((now - new Date(startedAt).getTime()) / 1000)
-  );
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainder = seconds % 60;
-  if (hours > 0) {
-    return (
-      hours +
-      ":" +
-      String(minutes).padStart(2, "0") +
-      ":" +
-      String(remainder).padStart(2, "0")
-    );
+
+export interface VoiceCallStats {
+  /** Round-trip time of the direct peer connection, in whole milliseconds. */
+  rttMs: number | null;
+  /** True if audio is relayed through a TURN server rather than a direct
+   * path - relayed connections typically carry more latency. */
+  relayed: boolean;
+}
+
+// The call is a direct WebRTC peer connection (occasionally TURN-relayed),
+// not routed through a central voice server - so there's only one
+// meaningful round-trip number here, not a separate "your ping" vs "their
+// ping" to some middlebox.
+export async function getVoiceCallStats(): Promise<VoiceCallStats | null> {
+  if (!peerConnection) return null;
+  const report = await peerConnection.getStats();
+  let selectedPairId: string | null = null;
+  for (const entry of report.values()) {
+    if (entry.type === "transport" && entry.selectedCandidatePairId) {
+      selectedPairId = entry.selectedCandidatePairId;
+    }
   }
-  return minutes + ":" + String(remainder).padStart(2, "0");
+  let pair = selectedPairId ? report.get(selectedPairId) : null;
+  if (!pair) {
+    for (const entry of report.values()) {
+      if (entry.type === "candidate-pair" && entry.state === "succeeded" && entry.nominated) {
+        pair = entry;
+        break;
+      }
+    }
+  }
+  if (!pair) return null;
+  const rttMs = typeof pair.currentRoundTripTime === "number"
+    ? Math.round(pair.currentRoundTripTime * 1000)
+    : null;
+  const localCandidate = pair.localCandidateId ? report.get(pair.localCandidateId) : null;
+  return { rttMs, relayed: localCandidate?.candidateType === "relay" };
 }

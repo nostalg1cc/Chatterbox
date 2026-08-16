@@ -48,7 +48,10 @@ export interface Conversation {
 }
 
 export type MediaKind = "image" | "video";
-export type MessageKind = "chat" | "voice_started" | "voice_ended";
+// "local_bot" is client-only (e.g. /ping's result) - never written to the
+// database, so it's deliberately absent from the messages table's
+// message_kind check constraint.
+export type MessageKind = "chat" | "voice_started" | "voice_ended" | "local_bot";
 
 export interface Message {
   id: string;
@@ -150,5 +153,5 @@ export type VoiceSignal =
       toSessionId?: string;
       type: "ice-candidate";
       candidate: RTCIceCandidateInit;
-    }  | { version: 1; generation: string; fromSessionId: string; toSessionId?: string; type: "screen-published"; cloudflareSessionId: string; trackName: string; }
+    }  | { version: 1; generation: string; fromSessionId: string; toSessionId?: string; type: "screen-published"; cloudflareSessionId: string; trackNames: string[]; }
   | { version: 1; generation: string; fromSessionId: string; toSessionId?: string; type: "screen-stopped"; };

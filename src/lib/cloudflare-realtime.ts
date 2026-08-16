@@ -39,9 +39,13 @@ async function waitForConnection(connection: RTCPeerConnection): Promise<void> {
   });
 }
 
-export async function createCloudflareScreenPublisher(conversationId: string, stream: MediaStream, track: MediaStreamTrack) {
+// Publishes every track in the stream (video, and audio when the OS/browser
+// captured any) in a single negotiation round, not just the video track -
+// screen-share audio was previously captured fine but silently dropped
+// here, since only the video transceiver was ever added.
+export async function createCloudflareScreenPublisher(conversationId: string, stream: MediaStream) {
   const connection = new RTCPeerConnection({ iceServers: CLOUDFLARE_ICE_SERVERS });
-  // Cloudflare's documented lifecycle is create session -> publish a track ->
+  // Cloudflare's documented lifecycle is create session -> publish tracks ->
   // establish media. Waiting for connection before publication can deadlock a
   // session which has no media section yet.
   await connection.setLocalDescription(await connection.createOffer());
@@ -50,26 +54,41 @@ export async function createCloudflareScreenPublisher(conversationId: string, st
   if (!created.sessionId || !created.sessionDescription) throw new Error("Cloudflare did not create a screen session.");
   await connection.setRemoteDescription(created.sessionDescription);
 
-  const transceiver = connection.addTransceiver(track, { direction: "sendonly", streams: [stream] });
+  const tracks = stream.getTracks();
+  const transceivers = tracks.map((track) => connection.addTransceiver(track, { direction: "sendonly", streams: [stream] }));
   await connection.setLocalDescription(await connection.createOffer());
   await waitForIceComplete(connection);
-  if (!transceiver.mid) throw new Error("Cloudflare could not prepare the screen track.");
-  const published = await call(conversationId, { action: "publish", sessionId: created.sessionId, mid: transceiver.mid, trackName: track.id, sessionDescription: connection.localDescription?.toJSON() });
+  const trackRefs = transceivers.map((transceiver, index) => {
+    if (!transceiver.mid) throw new Error("Cloudflare could not prepare the screen track.");
+    return { mid: transceiver.mid, trackName: tracks[index].id };
+  });
+  const published = await call(conversationId, { action: "publish", sessionId: created.sessionId, tracks: trackRefs, sessionDescription: connection.localDescription?.toJSON() });
   if (published.sessionDescription) await connection.setRemoteDescription(published.sessionDescription);
   await waitForConnection(connection);
-  return { connection, sessionId: created.sessionId, trackName: track.id };
+  return { connection, sessionId: created.sessionId, trackNames: trackRefs.map((ref) => ref.trackName) };
 }
 
-export async function createCloudflareScreenSubscriber(conversationId: string, remoteSessionId: string, trackName: string, onTrack: (stream: MediaStream) => void) {
+export async function createCloudflareScreenSubscriber(conversationId: string, remoteSessionId: string, trackNames: string[], onTrack: (stream: MediaStream) => void) {
   const connection = new RTCPeerConnection({ iceServers: CLOUDFLARE_ICE_SERVERS });
-  connection.ontrack = (event) => onTrack(event.streams[0] ?? new MediaStream([event.track]));
+  // Every published track lands in its own ontrack firing - accumulate them
+  // into one live MediaStream and hand it off once, rather than resetting
+  // whatever <video>/<audio> element consumes it on each additional track.
+  const combined = new MediaStream();
+  let announced = false;
+  connection.ontrack = (event) => {
+    combined.addTrack(event.track);
+    if (!announced) {
+      announced = true;
+      onTrack(combined);
+    }
+  };
   await connection.setLocalDescription(await connection.createOffer());
   await waitForIceComplete(connection);
   const created = await call(conversationId, { action: "create", sessionDescription: connection.localDescription?.toJSON() });
   if (!created.sessionId || !created.sessionDescription) throw new Error("Cloudflare did not create a viewing session.");
   await connection.setRemoteDescription(created.sessionDescription);
 
-  const subscribed = await call(conversationId, { action: "subscribe", sessionId: created.sessionId, remoteSessionId, trackName });
+  const subscribed = await call(conversationId, { action: "subscribe", sessionId: created.sessionId, remoteSessionId, trackNames });
   if (subscribed.requiresImmediateRenegotiation && subscribed.sessionDescription) {
     await connection.setRemoteDescription(subscribed.sessionDescription);
     await connection.setLocalDescription(await connection.createAnswer());
