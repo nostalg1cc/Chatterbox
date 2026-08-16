@@ -20,6 +20,29 @@ async function installAndRestart(update: Update): Promise<void> {
   await invoke("restart_app");
 }
 
+/** Startup check - surfaces an "Update available" banner with its own
+ * Dismiss/Update now actions instead of installing anything silently. Errors
+ * are swallowed (unlike checkForUpdateManually): a background check failing
+ * shouldn't interrupt anyone, and About/`/update` are still there to retry. */
+export async function checkForUpdateAndNotify(): Promise<void> {
+  if (!isTauri) return;
+  try {
+    const { check } = await import("@tauri-apps/plugin-updater");
+    const update = await check();
+    if (!update) return;
+    useAlerts.getState().show({
+      severity: "neutral",
+      message: `Update ${update.version} is available.`,
+      actions: [
+        { label: "Dismiss" },
+        { label: "Update now", confirm: true, onClick: () => void installAndRestart(update) },
+      ],
+    });
+  } catch (error) {
+    console.warn("Update check failed", error);
+  }
+}
+
 /** User-triggered check (e.g. the /update chat command) - always reports back via the alert banner. */
 export async function checkForUpdateManually(): Promise<void> {
   if (!isTauri) {

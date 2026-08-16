@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { SCREEN_SHARE_MAX_BITRATE } from "@/lib/voice-media";
 
 type Sdp = { type: RTCSdpType; sdp: string };
 type CallsResponse = { sessionId?: string; sessionDescription?: Sdp; requiresImmediateRenegotiation?: boolean };
@@ -42,7 +43,13 @@ async function waitForConnection(connection: RTCPeerConnection): Promise<void> {
 // Publishes every track in the stream (video, and audio when the OS/browser
 // captured any) in a single negotiation round, not just the video track -
 // screen-share audio was previously captured fine but silently dropped
-// here, since only the video transceiver was ever added.
+// here, since only the video transceiver was ever added. This is also now
+// the *only* path screen share ever goes out on - it used to also ride
+// along on the main voice call's own peerConnection as a fallback, but that
+// meant screen video/audio competed for that connection's bandwidth with
+// live voice audio (and screen audio was indistinguishable from voice audio
+// on the receiving end). If this fails, screen sharing just isn't available
+// this session - see startScreenShare in stores/voice.ts.
 export async function createCloudflareScreenPublisher(conversationId: string, stream: MediaStream) {
   const connection = new RTCPeerConnection({ iceServers: CLOUDFLARE_ICE_SERVERS });
   // Cloudflare's documented lifecycle is create session -> publish tracks ->
@@ -60,16 +67,13 @@ export async function createCloudflareScreenPublisher(conversationId: string, st
   // sacrifices framerate to hold resolution under any bandwidth/CPU
   // pressure the congestion controller perceives - exactly what a mostly
   // still screen-share signal (occasional big deltas, otherwise near-idle)
-  // tends to trigger, producing the "near-frozen" choppiness. The direct
-  // P2P fallback (addScreenTracks in voice.ts) already sets this; the
-  // Cloudflare relay path - the one actually used whenever it connects -
-  // never did.
+  // tends to trigger, producing the "near-frozen" choppiness.
   for (const transceiver of transceivers) {
     if (transceiver.sender.track?.kind !== "video") continue;
     const parameters = transceiver.sender.getParameters();
     if (parameters.encodings.length > 0) {
       parameters.degradationPreference = "maintain-framerate";
-      parameters.encodings[0].maxBitrate = 5_000_000;
+      parameters.encodings[0].maxBitrate = SCREEN_SHARE_MAX_BITRATE;
       parameters.encodings[0].maxFramerate = 30;
       await transceiver.sender.setParameters(parameters).catch(() => undefined);
     }

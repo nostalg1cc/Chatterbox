@@ -6,7 +6,7 @@ import { V3Shell } from "@/features/v3-shell/v3-shell";
 import { AuthScreen } from "@/features/auth/auth-screen";
 import { KeybindManager } from "@/features/settings/keybind-manager";
 import { TopAlert } from "@/features/v3-shell/components/TopAlert";
-import { UPDATED_VERSION_KEY } from "@/lib/updater";
+import { checkForUpdateAndNotify, UPDATED_VERSION_KEY } from "@/lib/updater";
 import { useAlerts } from "@/stores/alerts";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
@@ -38,6 +38,10 @@ export default function App() {
       useAlerts.getState().show({ severity: "neutral", message: `App got updated to version ${updatedVersion}.` });
     }
   }, []);
+  // Checks on startup, but only ever notifies - nothing installs without
+  // an explicit "Update now" click. The About page and /update remain
+  // available any time for an on-demand check too.
+  useEffect(() => { void checkForUpdateAndNotify(); }, []);
 
   return (
     <TooltipProvider delayDuration={300}>

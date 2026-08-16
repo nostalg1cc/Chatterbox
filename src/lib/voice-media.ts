@@ -1,3 +1,13 @@
+// Shared by both screen-share send paths (direct P2P in stores/voice.ts and
+// the Cloudflare relay in lib/cloudflare-realtime.ts). The P2P path adds
+// screen video onto the same RTCPeerConnection that carries live voice
+// audio, so this ceiling isn't just about screen-share quality - too high
+// and it can saturate a typical home upload connection on its own once
+// maintain-framerate actually lets it use that much, starving voice audio
+// behind it (multi-second delay as the jitter buffer tries to smooth over
+// the resulting gaps).
+export const SCREEN_SHARE_MAX_BITRATE = 2_500_000;
+
 export interface MicrophonePipeline {
   rawStream: MediaStream;
   outputStream: MediaStream;
@@ -350,4 +360,52 @@ export async function captureScreen(): Promise<MediaStream> {
       autoGainControl: false,
     },
   });
+}
+
+export interface ScreenAudioBoost {
+  /** Same video track(s) as the input, plus a boosted copy of the audio
+   * track (if any) in place of the raw one - use this for anything sent
+   * out, not the original capture. */
+  stream: MediaStream;
+  /** Stops the boosted track and tears down the audio graph built on top
+   * of the original capture. Does not touch the original capture's own
+   * tracks - the caller still owns those. */
+  cleanup: () => void;
+}
+
+// Windows' window/loopback audio capture (what getDisplayMedia's audio
+// constraint pulls from) commonly comes in noticeably quieter than what's
+// actually audible on the source machine - a well-known WASAPI loopback
+// quirk. autoGainControl is deliberately off above (voice-oriented AGC
+// mangles game/movie audio dynamics the same way it would over-process
+// music), so nothing else compensates for that without this - boost it a
+// fixed amount rather than adaptively, to keep it predictable.
+const SCREEN_SHARE_AUDIO_GAIN = 2.5;
+
+export function boostScreenShareAudio(stream: MediaStream): ScreenAudioBoost {
+  const audioTrack = stream.getAudioTracks()[0];
+  if (!audioTrack) return { stream, cleanup: () => undefined };
+  try {
+    const context = new AudioContext();
+    const source = context.createMediaStreamSource(new MediaStream([audioTrack]));
+    const gain = context.createGain();
+    gain.gain.value = SCREEN_SHARE_AUDIO_GAIN;
+    const destination = context.createMediaStreamDestination();
+    source.connect(gain);
+    gain.connect(destination);
+    const boostedTrack = destination.stream.getAudioTracks()[0];
+    if (!boostedTrack) {
+      void context.close().catch(() => undefined);
+      return { stream, cleanup: () => undefined };
+    }
+    return {
+      stream: new MediaStream([...stream.getVideoTracks(), boostedTrack]),
+      cleanup: () => {
+        boostedTrack.stop();
+        void context.close().catch(() => undefined);
+      },
+    };
+  } catch {
+    return { stream, cleanup: () => undefined };
+  }
 }

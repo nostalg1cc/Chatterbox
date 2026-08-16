@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { create } from "zustand";
 import { useAlerts } from "./alerts";
 import {
+  boostScreenShareAudio,
   captureScreen,
   configureRemoteAudio,
   createMicrophonePipeline,
@@ -101,6 +102,10 @@ let remoteAudio: HTMLAudioElement | null = null;
 let remoteAudioStream: MediaStream | null = null;
 let localScreenStream: MediaStream | null = null;
 let localScreenTrack: MediaStreamTrack | null = null;
+// Stops the boosted audio track and its processing graph (see
+// boostScreenShareAudio) - separate from localScreenStream's own tracks,
+// which stay the raw capture used for the muted local preview.
+let screenAudioCleanup: (() => void) | null = null;
 let cloudflareScreenConnection: RTCPeerConnection | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -363,23 +368,35 @@ export const useVoice = create<VoiceState>()((set, get) => ({
       };
       set({ sharingScreen: true, localScreenStream: stream });
 
-      // Keep the established call peer as the reliable stream path. Cloudflare is
-      // an optional enhancement; a subscriber-side SFU failure must not black-hole a share.
-      if (peerConnection) await addScreenTracks(peerConnection, stream);
+      // What actually gets sent - same video, boosted audio (raw captured
+      // system/window audio is commonly much quieter than what's audible;
+      // see boostScreenShareAudio). localScreenStream/localScreenTrack above
+      // stay the raw capture, used for the muted local preview and cleanup.
+      const boosted = boostScreenShareAudio(stream);
+      screenAudioCleanup = boosted.cleanup;
 
-      // The room RPC has committed before this point, but the Edge Function can arrive a
-      // few milliseconds before its participant lookup is visible. Retry only the optional
-      // Cloudflare publishing path; direct peer sharing stays available throughout.
+      // Screen share goes out via Cloudflare's dedicated connection only -
+      // never the main call's peerConnection. That connection carries live
+      // voice audio and must never compete with (or, worse, have screen
+      // audio merged into) it; if Cloudflare can't be reached, screen
+      // sharing just isn't available this session rather than falling back
+      // onto a path that risks the actual call.
+      const conversationId = get().activeConversationId!;
+      let published = false;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           if (attempt) await new Promise((resolve) => window.setTimeout(resolve, 550));
-          const cloudflare = await createCloudflareScreenPublisher(get().activeConversationId!, stream);
+          const cloudflare = await createCloudflareScreenPublisher(conversationId, boosted.stream);
           cloudflareScreenConnection = cloudflare.connection;
           sendScreenPublished(cloudflare.sessionId, cloudflare.trackNames);
+          published = true;
           break;
         } catch {
-          // The established call peer remains the compatible fallback.
+          // Retried once above; falls through to the failure branch below.
         }
+      }
+      if (!published) {
+        throw new Error("Screen sharing isn't available right now. Try again shortly.");
       }
 
       if (!stream.getAudioTracks().length) {
@@ -894,10 +911,21 @@ function ensurePeerConnection(remoteUserId: string): void {
   peerConnection = connection;
 
   const audioTrack = microphone.outputStream.getAudioTracks()[0];
-  if (audioTrack) connection.addTrack(audioTrack, microphone.outputStream);
-  if (localScreenTrack && localScreenStream) {
-    void addScreenTracks(connection, localScreenStream);
+  if (audioTrack) {
+    const micSender = connection.addTrack(audioTrack, microphone.outputStream);
+    // Explicit high priority for the actual voice call, belt-and-suspenders
+    // alongside screen share never sharing this connection at all (see
+    // startScreenShare) - this connection should only ever carry voice.
+    const micParameters = micSender.getParameters();
+    if (micParameters.encodings.length > 0) {
+      micParameters.encodings[0].priority = "high";
+      micParameters.encodings[0].networkPriority = "high";
+      void micSender.setParameters(micParameters).catch(() => undefined);
+    }
   }
+  // Screen share (if active) is carried entirely by its own Cloudflare
+  // connection now - see startScreenShare - so nothing to re-add here on
+  // reconnect; this connection is voice-only.
 
   connection.ondatachannel = (event) => {
     if (event.channel.label === "dislight-soundboard") configureSoundboardDataChannel(event.channel);
@@ -1052,8 +1080,10 @@ async function flushPendingCandidates(
   }
 }
 
+// Only ever fires for the mic's audio track now - screen share is carried
+// entirely by its own Cloudflare connection (see startScreenShare), never
+// this one, so there's no video branch here anymore.
 function handleRemoteTrack(event: RTCTrackEvent): void {
-  const stream = event.streams[0] ?? new MediaStream([event.track]);
   if (event.track.kind === "audio") {
     remoteAudio ??= createRemoteAudioElement();
     remoteAudioStream ??= new MediaStream();
@@ -1081,13 +1111,6 @@ function handleRemoteTrack(event: RTCTrackEvent): void {
     event.track.onended = () => {
       remoteAudioStream?.removeTrack(event.track);
       if (!remoteAudioStream?.getAudioTracks().length && remoteAudio) remoteAudio.srcObject = null;
-    };
-  } else if (event.track.kind === "video") {
-    useVoice.setState({ remoteScreenStream: stream });
-    event.track.onended = () => {
-      if (useVoice.getState().remoteScreenStream === stream) {
-        useVoice.setState({ remoteScreenStream: null });
-      }
     };
   }
 }
@@ -1283,31 +1306,12 @@ function applyRemoteAudioPreferences(): void {
   });
 }
 
-async function addScreenTracks(
-  connection: RTCPeerConnection,
-  stream: MediaStream
-): Promise<void> {
-  for (const track of stream.getTracks()) {
-    const sender = connection.addTrack(track, stream);
-    if (track.kind !== "video") continue;
-    const parameters = sender.getParameters();
-    if (parameters.encodings.length > 0) {
-      parameters.degradationPreference = "maintain-framerate";
-      parameters.encodings[0].maxBitrate = 5_000_000;
-      parameters.encodings[0].maxFramerate = 30;
-      await sender.setParameters(parameters).catch(() => undefined);
-    }
-  }
-}
-
 async function stopLocalScreen(updateServer: boolean): Promise<void> {
   const track = localScreenTrack;
   if (!track) return;
 
-  const screenTracks = new Set(localScreenStream?.getTracks() ?? []);
-  for (const sender of peerConnection?.getSenders() ?? []) {
-    if (sender.track && screenTracks.has(sender.track)) peerConnection?.removeTrack(sender);
-  }
+  screenAudioCleanup?.();
+  screenAudioCleanup = null;
 
   track.onended = null;
   for (const mediaTrack of localScreenStream?.getTracks() ?? []) {
