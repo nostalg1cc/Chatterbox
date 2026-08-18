@@ -26,6 +26,7 @@ export interface Profile {
   name_font: NameFont;
   name_weight: NameWeight;
   name_color: NameColor;
+  onboarding_completed_at: string | null;
 }
 
 export type FriendshipStatus = "pending" | "accepted" | "blocked";

@@ -46,6 +46,7 @@ import { TypingIndicator } from "./components/TypingIndicator";
 import { VoiceCallButton } from "./components/VoiceCallButton";
 import { V3ChatSwitcher } from "./components/V3ChatSwitcher";
 import { V3Dashboard } from "./components/V3Dashboard";
+import { SettingsView } from "@/features/settings/settings-view";
 import { V3Lightbox } from "./components/V3Lightbox";
 import { V3MediaSidebar } from "./components/V3MediaSidebar";
 import { useUiSounds } from "./hooks/useUiSounds";
@@ -817,6 +818,8 @@ export function V3Shell() {
 
       {chatView === "friends" && <V3Dashboard />}
 
+      {chatView === "settings" && <SettingsView />}
+
       {chatView === "chat" && <section ref={messageHistoryRef} className="message-history" aria-label="Chat messages" onScroll={(event) => { const el = event.currentTarget; if (programmaticScrollRef.current) { programmaticScrollRef.current = false; } else { atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; } if (el.scrollTop < 96) void loadOlderMessages(); }}>
         <div className="message-list" ref={messageListRef}>
           {hasMore && <div className="v3-load-older">{loadingOlder ? "Loading earlier messages…" : "Scroll up for earlier messages"}</div>}
@@ -869,7 +872,7 @@ export function V3Shell() {
         </div>
       </section>}
 
-      <nav className="top-audio-controls" aria-label="Audio controls">
+      {(chatView !== "settings" || joinedVoice) && <nav className="top-audio-controls" aria-label="Audio controls">
         <V3ChatSwitcher partnerProfile={partnerProfile} partnerPresence={partnerPresence} />
         <VoiceCallButton active={joinedVoice} roomStartedAt={voiceRoom?.started_at} participants={voiceParticipantDetails} participantCount={voiceParticipants.length} hasParticipants={voiceParticipants.length > 0} onJoin={() => activeId && useVoice.getState().join(activeId, true)} onLeave={() => useVoice.getState().leave()} />
         {joinedVoice && <>
@@ -878,7 +881,7 @@ export function V3Shell() {
           <MicrophoneToggleDropdown isMuted={muted} onToggle={() => useVoice.getState().toggleMute()} isMenuOpen={openDropdown === "microphone"} onMenuOpenChange={(isOpen) => handleDropdownChange("microphone", isOpen)} />
           <DeafenToggleDropdown isDeafened={deafened} onToggle={() => useVoice.getState().toggleDeafen()} isMenuOpen={openDropdown === "deafen"} onMenuOpenChange={(isOpen) => handleDropdownChange("deafen", isOpen)} />
         </>}
-      </nav>
+      </nav>}
 
       <div className="v3-screen-previews">
         <ScreenSharePreview source="remote" />

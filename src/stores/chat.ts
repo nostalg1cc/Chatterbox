@@ -42,7 +42,10 @@ interface OverviewEntry {
 export type ConversationChannel = "chat" | "media";
 
 interface ChatState {
-  view: "chat" | "friends";
+  view: "chat" | "friends" | "settings";
+  /** What to return to when Settings closes - captured once on openSettings()
+   * so it lands back wherever the user actually was, not always "chat". */
+  previousView: "chat" | "friends";
   channel: ConversationChannel;
   activeId: string | null;
   /** Shared with the global titlebar (a separate portaled React tree, see
@@ -67,6 +70,11 @@ interface ChatState {
   loaded: boolean;
 
   setView: (view: "chat" | "friends") => void;
+  /** Opens the full-screen Settings view (see features/settings/settings-view.tsx) -
+   * mounted as a plain .stage-internal sibling, same as the "friends" dashboard,
+   * never a portal/dialog, so it never fights the window drag region. */
+  openSettings: () => void;
+  closeSettings: () => void;
   toggleMediaSidebar: () => void;
   openConversation: (id: string) => void;
   openConversationChannel: (id: string, channel: ConversationChannel) => void;
@@ -123,6 +131,7 @@ const typingLastSent = new Map<string, number>();
 
 export const useChat = create<ChatState>()((set, get) => ({
   view: "chat",
+  previousView: "chat",
   channel: "chat",
   activeId: null,
   mediaSidebarOpen: true,
@@ -139,6 +148,11 @@ export const useChat = create<ChatState>()((set, get) => ({
   loaded: false,
 
   setView: (view) => set({ view }),
+  openSettings: () => {
+    const current = get().view;
+    set({ view: "settings", previousView: current === "settings" ? get().previousView : current });
+  },
+  closeSettings: () => set((state) => ({ view: state.previousView })),
   toggleMediaSidebar: () => set((state) => ({ mediaSidebarOpen: !state.mediaSidebarOpen })),
 
   openConversation: (id) => {
@@ -651,6 +665,7 @@ export const useChat = create<ChatState>()((set, get) => ({
     typingLastSent.clear();
     set({
       view: "chat",
+      previousView: "chat",
       channel: "chat",
       activeId: null,
       mediaSidebarOpen: true,

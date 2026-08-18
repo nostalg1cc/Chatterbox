@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 export type WindowMaterial = "mica" | "acrylic";
+export type AppTheme = "default" | "babyPink" | "babyBlue" | "deepBlue" | "lavender" | "mint";
 
 export interface KeybindPreferences {
   toggleMute: string;
@@ -27,6 +28,7 @@ interface PreferencesState {
   pinnedSoundIds: string[];
   recentDecorationIds: string[];
   windowMaterial: WindowMaterial;
+  theme: AppTheme;
   noiseSuppression: boolean;
   noiseSuppressionEngine: "native" | "rnnoise";
 acrylicDim: number;
@@ -59,6 +61,7 @@ const defaults: PreferencesData = {
   pinnedSoundIds: [],
   recentDecorationIds: [],
   windowMaterial: "mica",
+  theme: "default",
   noiseSuppression: false,
   noiseSuppressionEngine: "native",
 acrylicDim: 55,

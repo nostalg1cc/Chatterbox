@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { UserAvatar } from "@/components/user-avatar";
-import { SettingsDialog } from "@/features/settings/settings-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { formattedBytes, prepareChatMedia, type ChatMediaProvider, type PreparedMedia } from "@/lib/media";
 import { supabase } from "@/lib/supabase";
@@ -277,7 +276,6 @@ export function Composer({
               </div>
             </div>
             <div className="mt-1 flex flex-col gap-0.5 border-t border-white/[0.11] pt-2">
-              <SettingsDialog buttonLabel="Settings" />
               <Button variant="ghost" size="sm" className="w-full justify-start text-destructive hover:text-destructive" onClick={() => void useAuth.getState().signOut()}>Sign out</Button>
             </div>
           </PopoverContent>

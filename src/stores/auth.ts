@@ -12,6 +12,7 @@ interface AuthState {
   init: () => void;
   updateGeneralSettings: (name: string, nameColor: NameColor, decoration: string | null, nameDecoration: string | null, nameFont: NameFont, nameWeight: NameWeight) => Promise<void>;
   updateAvatar: (path: string, animatedPath?: string | null) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
   applyProfile: (profile: Profile) => void;
   signOut: () => Promise<void>;
 }
@@ -83,6 +84,19 @@ export const useAuth = create<AuthState>()((set, get) => ({
       .select()
       .single();
     if (error) throw new Error("Couldn't update your avatar.");
+    set({ profile: data as Profile });
+  },
+
+  completeOnboarding: async () => {
+    const { userId } = get();
+    if (!userId) return;
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ onboarding_completed_at: new Date().toISOString() })
+      .eq("id", userId)
+      .select()
+      .single();
+    if (error) throw new Error("Couldn't finish onboarding.");
     set({ profile: data as Profile });
   },
 

@@ -35,16 +35,24 @@
 }
 
 :root {
-  background: #1e1e1e;
+  /* --app-bg and --material-color are the two knobs a theme (see
+     [data-theme] below) actually needs to touch - everything else in the
+     shared material system (stroke/shadow highlights) is a white-based
+     "catching light from above" effect that reads correctly over any
+     base hue, so it deliberately doesn't vary per theme. */
+  --app-bg: #1e1e1e;
+  background: var(--app-bg);
   /* Shared "glass pill" material (see button.md): a solid fill clipped to
      padding-box, a light-catching gradient stroke clipped to border-box
      underneath it, and the same fill again behind the stroke so the ring
      composites against the surface's own color rather than the page.
      --material-color is the only thing that should vary per-surface.
-     A few shades above .stage's own #1e1e1e background on purpose - just
-     enough to read as "ah, a different surface" at rest without hover,
-     not a hard contrast jump. */
+     A few shades above --app-bg on purpose - just enough to read as "ah,
+     a different surface" at rest without hover, not a hard contrast jump. */
   --material-color: #282828;
+  /* Repeated green accent (on-toggles, save actions, healthy-storage bars)
+     pulled into one var instead of scattered #00b339 literals. */
+  --v3-accent-green: #00b339;
   --material-stroke: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.26) 0%,
@@ -67,6 +75,35 @@
   font-stretch: 112.5%;
 }
 
+/* Appearance themes (src/features/settings - "Appearance" tab, persisted as
+   preferences.theme, applied as document.documentElement.dataset.theme in
+   App.tsx). Each theme keeps the same hue/saturation for both variables,
+   background stepped up to material the same way the default theme's
+   #1e1e1e -> #282828 is - a reskin of the existing material system, not a
+   different one. "default" needs no rule here since it's just the plain
+   :root values above. Keep src/lib/themes.ts's THEME_OPTIONS preview swatch
+   values in sync by hand if these change. */
+[data-theme="babyPink"] {
+  --app-bg: hsl(335 34% 15%);
+  --material-color: hsl(335 34% 20%);
+}
+[data-theme="babyBlue"] {
+  --app-bg: hsl(205 34% 14%);
+  --material-color: hsl(205 34% 19%);
+}
+[data-theme="deepBlue"] {
+  --app-bg: hsl(222 45% 11%);
+  --material-color: hsl(222 45% 16%);
+}
+[data-theme="lavender"] {
+  --app-bg: hsl(265 30% 15%);
+  --material-color: hsl(265 30% 20%);
+}
+[data-theme="mint"] {
+  --app-bg: hsl(160 26% 12%);
+  --material-color: hsl(160 26% 17%);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -81,7 +118,7 @@ body,
 
 body {
   min-height: 100vh;
-  background: #1e1e1e;
+  background: var(--app-bg);
   user-select: none;
 }
 
@@ -91,7 +128,7 @@ body {
   width: 100%;
   min-height: 100vh;
   place-items: center;
-  background: #1e1e1e;
+  background: var(--app-bg);
   isolation: isolate;
 }
 
@@ -1499,13 +1536,15 @@ body {
   position: absolute;
   inset: 0;
   /* Capped at 80% even at the very top - darkens for legibility without
-     ever fully blacking the content out from underneath. */
+     ever fully blacking the content out from underneath. color-mix against
+     --app-bg (not a hardcoded rgba) so this follows the active theme -
+     works regardless of whether --app-bg is defined as hex or hsl. */
   background: linear-gradient(
     to bottom,
-    rgba(30, 30, 30, 0.8) 0%,
-    rgba(30, 30, 30, 0.64) 20%,
-    rgba(30, 30, 30, 0.416) 45%,
-    rgba(30, 30, 30, 0.192) 70%,
+    color-mix(in srgb, var(--app-bg) 80%, transparent) 0%,
+    color-mix(in srgb, var(--app-bg) 64%, transparent) 20%,
+    color-mix(in srgb, var(--app-bg) 41.6%, transparent) 45%,
+    color-mix(in srgb, var(--app-bg) 19.2%, transparent) 70%,
     transparent 100%
   );
 }
@@ -1531,10 +1570,10 @@ body {
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(30, 30, 30, 0.8) 0%,
-    rgba(30, 30, 30, 0.64) 20%,
-    rgba(30, 30, 30, 0.416) 45%,
-    rgba(30, 30, 30, 0.192) 70%,
+    color-mix(in srgb, var(--app-bg) 80%, transparent) 0%,
+    color-mix(in srgb, var(--app-bg) 64%, transparent) 20%,
+    color-mix(in srgb, var(--app-bg) 41.6%, transparent) 45%,
+    color-mix(in srgb, var(--app-bg) 19.2%, transparent) 70%,
     transparent 100%
   );
 }
@@ -2647,7 +2686,7 @@ button.v3-dashboard__row:hover,
 .v3-dashboard__avatar img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .v3-dashboard__avatar-fallback { display: grid; width: 100%; height: 100%; place-items: center; border-radius: 50%; color: rgba(230,230,230,.8); font-size: 14px; font-weight: 600; background: #2c2d2d; }
 .v3-dashboard__avatar-decoration { position: absolute; z-index: 2; top: 50%; left: 50%; width: 130%; height: 130%; max-width: none; object-fit: contain; transform: translate(-50%, -50%); }
-.v3-dashboard__presence { position: absolute; z-index: 3; right: -1px; bottom: -1px; width: 11px; height: 11px; border: 2px solid #1e1e1e; border-radius: 50%; background: #6b6b6b; }
+.v3-dashboard__presence { position: absolute; z-index: 3; right: -1px; bottom: -1px; width: 11px; height: 11px; border: 2px solid var(--app-bg); border-radius: 50%; background: #6b6b6b; }
 .v3-dashboard__presence.is-online { background: #00d084; }
 .v3-dashboard__presence.is-away { background: #f5c344; }
 
@@ -2711,32 +2750,446 @@ button.v3-dashboard__row:hover,
   animation: v3-loading-spin .75s linear infinite;
 }
 @keyframes v3-loading-spin { to { transform: rotate(360deg); } }
-/* V3 settings: one calm, solid surface with a persistent profile-save affordance. */
-.v3-settings-dialog {
-  color: rgba(245,245,245,.94);
-  background-image:
-    linear-gradient(var(--material-color), var(--material-color)),
-    var(--material-stroke),
-    linear-gradient(var(--material-color), var(--material-color)) !important;
-  background-blend-mode: normal, color-dodge, normal !important;
-  background-origin: border-box !important;
-  background-clip: padding-box, border-box, border-box !important;
-  border: 1.25px solid transparent !important;
-  box-shadow: 0 18px 60px rgba(0,0,0,.62), var(--material-shadow) !important;
+/* Full-screen Settings view (src/features/settings/settings-view.tsx) -
+   mounted as a plain .stage-internal sibling, never a portal/dialog. That's
+   what keeps it draggable: the old Settings dialog was a Radix Dialog that
+   portaled to <body>, escaping .stage's isolation:isolate context entirely
+   and covering the window drag region regardless of any z-index inside
+   .stage. Same "push content below the strip" technique as .v3-dashboard -
+   nothing here ever paints inside the drag strip's 0-70px band, so there's
+   no scoped drag-region div to fight over. */
+.v3-settings {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  overflow: hidden;
+  padding-top: 120px;
 }
-.v3-settings-dialog > * { position: relative; z-index: 1; }
-.v3-settings-sidebar { background: #191919 !important; }
-.v3-settings-sidebar [role="tab"] { min-height:40px; border-radius:14px; color:rgba(225,225,225,.64); transition:color 150ms ease,background 150ms ease,box-shadow 150ms ease; }
-.v3-settings-sidebar [role="tab"]:hover { color:rgba(255,255,255,.94); background:rgba(255,255,255,.06); }
-.v3-settings-sidebar [role="tab"][data-state="active"] { color:#fff; background:#2a2a2a; box-shadow:0 0 0 1.25px rgba(0,0,0,.78),inset 0 1px rgba(255,255,255,.13); }
-.v3-settings-content { background: var(--material-color); }
-.v3-settings-content [role="tabpanel"] { scrollbar-color:rgba(255,255,255,.22) transparent; }
-.v3-settings-content .bg-card,.v3-settings-content .surface-panel,.v3-settings-content .bg-muted\/20,.v3-settings-content .bg-muted\/35 { background:#252525 !important; }
-.v3-settings-content .border-white\/\[0\.14\],.v3-settings-content .border-white\/\[0\.13\],.v3-settings-content .border-white\/\[0\.11\] { border-color:rgba(0,0,0,.78) !important; box-shadow:inset 0 1px rgba(255,255,255,.10); }
-.v3-settings-content input,.v3-settings-content select { background:#1a1a1a !important; border-color:rgba(0,0,0,.82) !important; box-shadow:inset 0 1px rgba(255,255,255,.07); }
-.v3-settings-content [role="switch"] { box-shadow:0 0 0 1px rgba(0,0,0,.75),inset 0 1px rgba(255,255,255,.10); }
-.v3-settings-save { min-height:40px; border-radius:14px; color:#fff; background:#00b339 !important; box-shadow:0 0 0 1.25px rgba(0,66,27,.9),inset 0 1px rgba(255,255,255,.22); }
-.v3-settings-save:hover { background:#00c442 !important; }
+/* Lives in the same persistent top-chrome band as .top-audio-controls and
+   the portaled window controls (fixed, z-index:5, .stage-internal) rather
+   than inside .v3-settings's own scrolling flow - it's a page-level nav
+   affordance, not settings content, so it shouldn't move with a scrolled
+   panel. Plain breadcrumb-style text, not a boxed button - replaces both
+   the old sidebar "SETTINGS" label and the separate floating close button
+   with one click target that reads naturally as "leave this page". */
+.v3-settings__back {
+  position: fixed;
+  top: 30px;
+  left: 30px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  color: rgba(217, 217, 217, 0.7);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  transition: color 150ms ease;
+}
+.v3-settings__back svg { width: 18px; height: 18px; flex: none; }
+.v3-settings__back:hover { color: #fff; }
+.v3-settings__sidebar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 240px;
+  padding: 0 14px 30px;
+  overflow-y: auto;
+}
+.v3-settings__tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* Border/outline reserved (transparent) on every tab, not just .is-active -
+   so switching the active tab only ever swaps colors in place, never adds
+   or removes a box-affecting property that could reflow the row. */
+.v3-settings__tab {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1.25px solid transparent;
+  border-radius: 14px;
+  outline: 1.25px solid transparent;
+  outline-offset: 0;
+  color: rgba(225, 225, 225, 0.64);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  transition: color 150ms ease, background 150ms ease;
+}
+.v3-settings__tab svg { width: 17px; height: 17px; flex: none; }
+.v3-settings__tab:hover { color: rgba(255, 255, 255, 0.94); background: rgba(255, 255, 255, 0.06); }
+.v3-settings__tab.is-active { color: #fff; }
+.v3-settings__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.v3-settings__panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 54px 40px 60px;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+.v3-settings__placeholder {
+  color: rgba(225, 225, 225, 0.5);
+  font-size: 13.5px;
+}
+
+/* Shared tab-content vocabulary - every ported tab (Appearance, Chat,
+   Voice, Keybinds, Soundboard, About, General) composes from these instead
+   of hand-rolling its own cards, so all 7 read as one consistent surface. */
+.v3-settings__tab-panel { display: flex; flex-direction: column; gap: 22px; max-width: 640px; }
+.v3-settings__heading { display: flex; flex-direction: column; gap: 6px; }
+.v3-settings__heading h2 { margin: 0; color: #fff; font-size: 19px; font-weight: 700; }
+.v3-settings__heading p { margin: 0; color: rgba(217, 217, 217, 0.55); font-size: 12.5px; line-height: 1.55; }
+
+/* Joins the shared glass-pill list (see the big selector group further
+   down) so it picks up the ambient --material-color/--material-stroke -
+   same "a different surface" fill every button/pill in the app already
+   uses, themed for free across all 6 appearance themes. */
+.v3-settings__panel { border-radius: 14px; overflow: hidden; }
+.v3-settings__panel-section + .v3-settings__panel-section { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.v3-settings__panel-section { padding: 16px; }
+
+.v3-settings__row { display: flex; align-items: center; gap: 16px; padding: 14px 16px; }
+.v3-settings__row-icon { width: 19px; height: 19px; flex: none; align-self: flex-start; margin-top: 1px; color: rgba(217, 217, 217, 0.55); }
+.v3-settings__row + .v3-settings__row { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.v3-settings__row--tight,
+.v3-settings__row--tight + .v3-settings__row--tight { padding: 0; border-top: 0; }
+.v3-settings__row-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.v3-settings__row-title { margin: 0; color: #fff; font-size: 13.5px; font-weight: 600; }
+.v3-settings__row-desc { margin: 0; color: rgba(217, 217, 217, 0.55); font-size: 12px; line-height: 1.5; }
+
+.v3-settings__field { display: flex; flex-direction: column; gap: 7px; }
+.v3-settings__field-label { display: flex; align-items: center; gap: 6px; color: rgba(217, 217, 217, 0.6); font-size: 12px; font-weight: 600; }
+.v3-settings__field-label svg { width: 14px; height: 14px; }
+.v3-settings__input,
+.v3-settings__select {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #f2f2f2;
+  font: inherit;
+  font-size: 13.5px;
+  background: rgba(0, 0, 0, 0.18);
+  outline: none;
+  transition: border-color 150ms ease;
+}
+.v3-settings__input:focus,
+.v3-settings__select:focus { border-color: rgba(255, 255, 255, 0.32); }
+.v3-settings__input:disabled { color: rgba(217, 217, 217, 0.45); cursor: not-allowed; }
+.v3-settings__input::placeholder { color: rgba(217, 217, 217, 0.4); }
+.v3-settings__select { cursor: pointer; }
+
+/* Segmented pick-one-of-N groups (name font/weight, name effect). */
+.v3-settings__choice-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.v3-settings__choice {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(217, 217, 217, 0.75);
+  font: inherit;
+  font-size: 12px;
+  text-transform: capitalize;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+.v3-settings__choice:hover { color: #fff; background: rgba(255, 255, 255, 0.07); }
+.v3-settings__choice.is-active { border-color: rgba(255, 255, 255, 0.5); color: #fff; background: rgba(255, 255, 255, 0.12); }
+
+.v3-settings__swatch-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.v3-settings__swatch {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.v3-settings__swatch:hover { background: rgba(255, 255, 255, 0.07); }
+.v3-settings__swatch.is-active { border-color: rgba(255, 255, 255, 0.55); background: rgba(255, 255, 255, 0.12); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12); }
+.v3-settings__swatch-dot { width: 14px; height: 14px; border-radius: 50%; }
+
+.v3-settings__theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.v3-settings__theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.025);
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.v3-settings__theme-card:hover { background: rgba(255, 255, 255, 0.05); }
+.v3-settings__theme-card.is-active { border-color: rgba(255, 255, 255, 0.32); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.16); }
+.v3-settings__theme-preview { display: flex; height: 48px; align-items: center; gap: 8px; border-radius: 10px; padding: 10px; }
+.v3-settings__theme-preview-dot { width: 24px; height: 24px; flex: none; border-radius: 50%; }
+.v3-settings__theme-preview-bar { height: 10px; flex: 1; border-radius: 999px; }
+.v3-settings__theme-card-footer { display: flex; align-items: center; justify-content: space-between; color: #fff; font-size: 13px; font-weight: 500; }
+.v3-settings__theme-card-footer svg { width: 16px; height: 16px; color: rgba(255, 255, 255, 0.8); }
+
+.v3-settings__storage-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: rgba(217, 217, 217, 0.7); font-size: 12px; font-weight: 600; }
+.v3-settings__storage-value { color: rgba(217, 217, 217, 0.55); font-weight: 500; font-variant-numeric: tabular-nums; }
+.v3-settings__storage-bar { height: 8px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, 0.08); }
+.v3-settings__storage-bar-fill { height: 100%; border-radius: 999px; background: var(--v3-accent-green); transition: width 200ms ease; }
+.v3-settings__storage-bar-fill.is-near-limit { background: #f5b942; }
+.v3-settings__sound-add { display: flex; gap: 8px; margin-top: 14px; }
+.v3-settings__hidden-input { display: none; }
+.v3-settings__sound-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.v3-settings__sound-row + .v3-settings__sound-row { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.v3-settings__input--inline { height: 30px; }
+.v3-settings__engine-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: rgba(217, 217, 217, 0.5); font-size: 12px; }
+.v3-settings__engine-row .v3-settings__choice { width: auto; height: 28px; }
+.v3-settings__field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* Sits between stacked panels via the tab-panel's own flex gap; the
+   negative bottom margin pulls it tight against the panel it labels so it
+   reads as "this panel's heading" rather than a floating caption. */
+.v3-settings__section-label {
+  margin: 0 0 -10px 2px;
+  color: rgba(217, 217, 217, 0.45);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Profile card at the top of My Account: avatar (hover to change), name
+   rendered with the live font/weight/color/effect draft, username below. */
+.v3-settings__profile-card { display: flex; align-items: center; gap: 16px; padding: 18px 20px; }
+.v3-settings__profile-avatar {
+  position: relative;
+  display: flex;
+  width: 72px;
+  height: 72px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: transparent;
+}
+.v3-settings__profile-avatar > div:first-child { transform: scale(1.8); }
+.v3-settings__avatar-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  opacity: 0;
+  background: rgba(0, 0, 0, 0.5);
+  transition: opacity 150ms ease;
+}
+.v3-settings__profile-avatar:hover .v3-settings__avatar-overlay,
+.v3-settings__avatar-overlay.is-busy { opacity: 1; }
+.v3-settings__avatar-overlay svg { width: 20px; height: 20px; }
+.v3-settings__profile-name { margin: 0; overflow: hidden; font-size: 19px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Recently-used decorations stay visible inline (never hidden behind a
+   click) - the strip is filled out from the catalog so there's always a
+   full row to browse without opening the picker. */
+.v3-settings__deco-strip { display: flex; flex-wrap: wrap; gap: 10px; }
+.v3-settings__deco-thumb {
+  position: relative;
+  display: flex;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.v3-settings__deco-thumb:hover { background: rgba(255, 255, 255, 0.08); }
+.v3-settings__deco-thumb.is-active { border-color: rgba(255, 255, 255, 0.55); background: rgba(255, 255, 255, 0.12); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12); }
+.v3-settings__deco-thumb img { position: absolute; width: calc(100% + 0.6rem); max-width: none; object-fit: contain; }
+.v3-settings__deco-thumb--none,
+.v3-settings__deco-thumb--more { color: rgba(217, 217, 217, 0.5); }
+.v3-settings__deco-thumb--none svg,
+.v3-settings__deco-thumb--more svg { width: 16px; height: 16px; }
+
+/* Discord-style unsaved-changes affordance: fixed to the viewport so it
+   stays put regardless of scroll position within the tab panel, slides in
+   only while there's an actual draft to act on. */
+.v3-settings__savebar {
+  position: fixed;
+  left: 296px;
+  right: 40px;
+  bottom: 24px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  border-radius: 14px;
+  color: rgba(245, 245, 245, 0.92);
+  font-size: 13px;
+  font-weight: 600;
+  background: #232323;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.45), 0 0 0 1.25px rgba(0, 0, 0, 0.8), inset 0 1px rgba(255, 255, 255, 0.12);
+  opacity: 0;
+  transform: translateY(24px);
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 200ms cubic-bezier(0.22, 0.9, 0.25, 1);
+}
+.v3-settings__savebar.is-visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.v3-settings__savebar-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+
+.v3-settings__about-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.v3-settings__about-actions { display: flex; flex: none; align-items: center; gap: 8px; }
+.v3-settings__spin { animation: v3-settings-spin 800ms linear infinite; }
+.v3-settings__update-progress { margin-top: 16px; }
+.v3-settings__footnote {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.13);
+  border-radius: 10px;
+  color: rgba(217, 217, 217, 0.5);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+.v3-settings__empty-state {
+  padding: 32px;
+  border: 1px dashed rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  color: rgba(217, 217, 217, 0.5);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.v3-toggle {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  width: 38px;
+  height: 22px;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  transition: background 150ms ease;
+}
+.v3-toggle__knob {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transform: translateX(0);
+  transition: transform 150ms ease;
+}
+.v3-toggle.is-on { background: var(--v3-accent-green); }
+.v3-toggle.is-on .v3-toggle__knob { transform: translateX(16px); }
+
+.v3-slider { display: flex; flex-direction: column; gap: 6px; }
+.v3-slider__head { display: flex; align-items: center; justify-content: space-between; color: rgba(217, 217, 217, 0.6); font-size: 12px; }
+.v3-slider__value { font-variant-numeric: tabular-nums; }
+.v3-slider__input { width: 100%; accent-color: rgba(255, 255, 255, 0.85); }
+
+/* Same flat white affirmative-action pattern as .top-alert__action--confirm
+   - a solid fill, not the glass-pill trick, and fully pill-rounded like
+   every other button in the app (999px, not a soft rectangle). */
+.v3-settings__save {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 18px;
+  border: 1.25px solid transparent;
+  border-radius: 999px;
+  color: #111;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #fff;
+  transition: filter 150ms ease;
+}
+.v3-settings__save:hover { filter: brightness(0.94); }
+.v3-settings__save:disabled { cursor: not-allowed; opacity: 0.45; }
+.v3-settings__save svg { width: 15px; height: 15px; }
+.v3-settings__save .lucide-loader-circle { animation: v3-settings-spin 800ms linear infinite; }
+
+.v3-settings__ghost-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: rgba(217, 217, 217, 0.75);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+  transition: color 150ms ease, background 150ms ease;
+}
+.v3-settings__ghost-button:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.v3-settings__ghost-button:disabled { cursor: not-allowed; opacity: 0.5; }
+.v3-settings__ghost-button svg { width: 14px; height: 14px; }
+.v3-settings__ghost-button.is-danger:hover { color: #ff6b6b; }
+.v3-settings__keybind-button { flex: none; min-width: 168px; justify-content: center; font-weight: 500; text-transform: none; }
+.v3-settings__keybind-button.is-recording { border-color: rgba(255, 255, 255, 0.32); color: #fff; }
+
+.v3-settings__icon-button {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  color: rgba(217, 217, 217, 0.55);
+  cursor: pointer;
+  background: transparent;
+  transition: color 150ms ease, background 150ms ease;
+}
+.v3-settings__icon-button:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.v3-settings__icon-button.is-danger:hover { color: #ff6b6b; }
+.v3-settings__icon-button svg { width: 15px; height: 15px; }
+
+@keyframes v3-settings-spin { to { transform: rotate(360deg); } }
 
 /* Shared V3 notification treatment: top-alert motion, Sonner's existing actions. */
 [data-sonner-toaster][data-x-position="center"] { top:18px !important; left:50% !important; transform:translateX(-50%); }
@@ -2744,20 +3197,6 @@ button.v3-dashboard__row:hover,
 [data-sonner-toaster] [data-sonner-toast].cn-toast [data-button] { border-radius:11px; color:#fff; background:#303030; box-shadow:inset 0 1px rgba(255,255,255,.12); }
 [data-sonner-toaster] [data-sonner-toast].cn-toast [data-button]:hover { background:#3a3a3a; }
 @keyframes v3-toast-enter { 0% { opacity:0; transform:translateY(-56px) scale(.72); } 64% { opacity:1; transform:translateY(8px) scale(1.015); } 100% { opacity:1; transform:translateY(0) scale(1); } }
-/* Settings correction: explicit V3 close control and a real sticky account action bar. */
-.v3-settings-dialog > *:not([data-slot="dialog-close"]) { position: relative; z-index: 1; }
-.v3-settings-close { position:absolute !important; z-index:20 !important; top:14px !important; right:14px !important; display:grid; width:34px; height:34px; place-items:center; padding:0; border:0; border-radius:50%; color:rgba(235,235,235,.72); background:#252525; box-shadow:0 0 0 1.25px rgba(0,0,0,.82),inset 0 1px rgba(255,255,255,.13); cursor:pointer; }
-.v3-settings-close:hover { color:#fff; background:#343434; }
-.v3-settings-close svg { width:17px; height:17px; }
-/* Lets the window still be dragged while Settings is open, without covering
-   the close button (which sits above this at z-index:20). */
-.v3-settings-drag-region { position:absolute; top:0; left:0; right:56px; z-index:1; height:44px; }
-.v3-settings-content [role="tabpanel"] > section > form { padding:16px; border-radius:18px; background:#252525; box-shadow:0 0 0 1.25px rgba(0,0,0,.78),inset 0 1px rgba(255,255,255,.10); }
-.v3-settings-content button:not([role="switch"]) { border-color:rgba(0,0,0,.78); background:#2a2a2a; box-shadow:0 0 0 1px rgba(0,0,0,.52),inset 0 1px rgba(255,255,255,.10); }
-.v3-settings-content button:not([role="switch"]):hover { background:#343434; }
-.v3-settings-content .v3-settings-preview-save { color:#fff; background:#00b339 !important; box-shadow:0 0 0 1.25px rgba(0,66,27,.9),inset 0 1px rgba(255,255,255,.22); }
-.v3-settings-content .v3-settings-preview-save:hover { background:#00c442 !important; }
-.v3-settings-content .sticky.top-0 { padding-top:18px; background:#252525 !important; box-shadow:0 0 0 1.25px rgba(0,0,0,.78),inset 0 1px rgba(255,255,255,.12),0 12px 24px rgba(0,0,0,.32) !important; }
 /* Fast local controls belong in their matching audio dropdown. */
 .deafen-dropdown {
   width: 232px;
@@ -2858,7 +3297,8 @@ button.v3-dashboard__row:hover,
 .v3-pending-media,
 .v3-command-menu,
 .v3-chat-switcher__menu,
-.v3-settings-dialog,
+.v3-settings__tab.is-active,
+.v3-settings__panel,
 .v3-inline-editor {
   background-image:
     linear-gradient(var(--material-color), var(--material-color)),
@@ -3086,4 +3526,54 @@ html.is-web .text-input-bar {
 html.is-web .text-input-bar input {
   font-size: 15px;
 }
+
+/* Onboarding (src/features/onboarding/onboarding-flow.tsx) - a full-screen,
+   blocking, one-time wizard that replaces V3Shell outright while active, so
+   it isn't .stage-internal and reuses Settings' shared row/panel/choice/
+   swatch/theme-grid CSS rather than .stage's glass-pill list. Ships its own
+   .window-drag-region copy since the usual one only exists inside V3Shell. */
+.v3-onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 96px 40px 40px;
+  background: var(--app-bg);
+}
+.v3-onboarding__card {
+  display: flex;
+  width: 100%;
+  max-width: 560px;
+  flex-direction: column;
+  gap: 28px;
+}
+.v3-onboarding__progress { display: flex; gap: 6px; }
+.v3-onboarding__progress-dot { flex: 1; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); transition: background 200ms ease; }
+.v3-onboarding__progress-dot.is-active { background: rgba(255, 255, 255, 0.55); }
+.v3-onboarding__progress-dot.is-done { background: var(--v3-accent-green); }
+.v3-onboarding__step { display: flex; flex-direction: column; }
+.v3-onboarding__step-heading h1 { margin: 0; color: #fff; font-size: 24px; font-weight: 700; }
+.v3-onboarding__step-heading > p { margin: 8px 0 0; color: rgba(217, 217, 217, 0.55); font-size: 13.5px; line-height: 1.5; }
+.v3-onboarding__footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.v3-onboarding__footer .v3-settings__save { padding: 0 22px; }
+
+.v3-onboarding__name-input { height: 46px; font-size: 16px; }
+
+.v3-onboarding__avatar-picker { display: flex; align-items: center; gap: 16px; margin-top: 22px; }
+.v3-onboarding__avatar-button { width: 84px; height: 84px; }
+.v3-onboarding__avatar-button > div:first-child { transform: scale(2.1); }
+
+.v3-onboarding__name-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 64px;
+  margin: 20px 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.v3-onboarding__name-preview p { margin: 0; font-size: 20px; font-weight: 700; }
 

@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { GlobalTitlebar } from "@/components/titlebar";
 import { V3Shell } from "@/features/v3-shell/v3-shell";
 import { AuthScreen } from "@/features/auth/auth-screen";
+import { OnboardingFlow } from "@/features/onboarding/onboarding-flow";
 import { KeybindManager } from "@/features/settings/keybind-manager";
 import { TopAlert } from "@/features/v3-shell/components/TopAlert";
 import { subscribeToAppNotices } from "@/lib/app-notices";
@@ -11,14 +12,23 @@ import { checkForUpdateAndNotify, UPDATED_VERSION_KEY } from "@/lib/updater";
 import { useAlerts } from "@/stores/alerts";
 import { useAuth } from "@/stores/auth";
 import { useFriends } from "@/stores/friends";
+import { usePreferences } from "@/stores/preferences";
 import { usePresence } from "@/stores/presence";
 import { useVoice } from "@/stores/voice";
 
 export default function App() {
   const userId = useAuth((state) => state.userId);
   const status = useAuth((state) => state.status);
+  const profile = useAuth((state) => state.profile);
   const activeAlert = useAlerts((state) => state.active);
   const dismissAlert = useAlerts((state) => state.dismiss);
+  const theme = usePreferences((state) => state.theme);
+
+  // Not gated on sign-in - the sign-in screen itself sits on the same
+  // themed background, so this has to apply before auth even resolves.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   useEffect(() => { useAuth.getState().init(); }, []);
   useEffect(() => { if (!userId) return; return useVoice.getState().init(userId); }, [userId]);
@@ -68,7 +78,7 @@ export default function App() {
         </div>
       )}
       {status === "signedIn" ? (
-        <V3Shell />
+        profile && !profile.onboarding_completed_at ? <OnboardingFlow /> : <V3Shell />
       ) : status === "signedOut" ? (
         <AuthScreen />
       ) : (
