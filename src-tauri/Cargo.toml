@@ -1,6 +1,6 @@
 [package]
 name = "nitro"
-version = "0.1.64"
+version = "0.1.65"
 description = "Nitro - minimal 1:1 chat"
 authors = ["Nitro"]
 edition = "2021"

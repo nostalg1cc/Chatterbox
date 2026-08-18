@@ -12,13 +12,9 @@ export function DecorationStep({
   const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
-    <div className="v3-onboarding__step-heading">
-      <h1>Pick an avatar decoration</h1>
-      <p>Totally optional flair around your avatar. You can always change this later.</p>
-      <div style={{ marginTop: 20 }}>
-        <AvatarDecorationStrip selected={decoration} onSelect={onChange} onBrowseAll={() => setPickerOpen(true)} />
-      </div>
+    <>
+      <AvatarDecorationStrip selected={decoration} onSelect={onChange} onBrowseAll={() => setPickerOpen(true)} />
       <AvatarDecorationPicker open={pickerOpen} onOpenChange={setPickerOpen} selected={decoration} onSelect={onChange} />
-    </div>
+    </>
   );
 }

@@ -1,7 +1,24 @@
+import { useLayoutEffect, useRef } from "react";
 import { Paperclip } from "lucide-react";
 
+const MAX_HEIGHT_PX = 200;
+
 export function InputBar({ value, onChange, onSubmit, onPaste, onKeyDown, onAttach, commandName = null }) {
+  const textareaRef = useRef(null);
+
+  // Auto-grow: measure natural content height with height reset to auto
+  // first (otherwise scrollHeight would just report the previously-set
+  // height back), then clamp to MAX_HEIGHT_PX and let the textarea's own
+  // overflow-y:auto take over past that.
+  useLayoutEffect(() => {
+    const node = textareaRef.current;
+    if (!node) return;
+    node.style.height = "auto";
+    node.style.height = Math.min(node.scrollHeight, MAX_HEIGHT_PX) + "px";
+  }, [value]);
+
   function handleSubmit(event) { event.preventDefault(); onSubmit?.(); }
+
   return (
     <form
       className={"text-input-bar" + (onAttach ? " text-input-bar--with-attach" : "") + (commandName ? " text-input-bar--command" : "")}
@@ -14,9 +31,10 @@ export function InputBar({ value, onChange, onSubmit, onPaste, onKeyDown, onAtta
         </button>
       )}
       {commandName && <span className="text-input-bar__command-chip">/{commandName}</span>}
-      <input
+      <textarea
+        ref={textareaRef}
         id="message-composer"
-        type="text"
+        rows={1}
         value={value}
         onChange={(event) => onChange?.(event.target.value)}
         onPaste={onPaste}

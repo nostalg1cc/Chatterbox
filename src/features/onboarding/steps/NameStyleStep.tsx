@@ -28,10 +28,7 @@ export function NameStyleStep({
   onDecorationChange: (effect: string | null) => void;
 }) {
   return (
-    <div className="v3-onboarding__step-heading">
-      <h1>Style your name</h1>
-      <p>How your display name appears in chat, to everyone.</p>
-
+    <>
       <div className="v3-onboarding__name-preview">
         <p className={nameColorClass(nameColor)}>
           <DecoratedText effect={nameDecoration as TextDecoration | null} font={nameFont} weight={nameWeight}>
@@ -92,6 +89,6 @@ export function NameStyleStep({
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

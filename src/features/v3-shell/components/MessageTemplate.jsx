@@ -93,8 +93,14 @@ export function MessageTemplate({ name, avatar, avatarDecoration, nameDecoration
             </>}
           </>
         )}
-        {sourceMessage && !sourceMessage.deleted_at && !editing && <V3MessageActions message={sourceMessage} onEdit={() => setEditing(true)} />}
       </div>
+      {/* A direct child of <article> (not nested in .message-template__content)
+          specifically so it positions relative to the whole message card's
+          top edge - a reply preview renders above .message-template__content
+          as its own sibling, so anchoring the tray to that div's top instead
+          of the article's would land it lower than the card's true top for
+          any message with a reply attached. */}
+      {sourceMessage && !sourceMessage.deleted_at && !editing && <V3MessageActions message={sourceMessage} onEdit={() => setEditing(true)} />}
     </article>
   );
 }

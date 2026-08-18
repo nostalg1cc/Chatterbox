@@ -1,24 +1,37 @@
-import { DecoratedText, type TextDecoration } from "@/components/decorated-text";
-import { UserAvatar } from "@/components/user-avatar";
-import { nameColorClass } from "@/lib/name-colors";
+import { MessageTemplate } from "@/features/v3-shell/components/MessageTemplate";
+import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
+
+// Same URL-building logic as v3-shell.jsx's local avatarUrl() helper -
+// MessageTemplate takes a resolved URL, not a profile object, matching how
+// every other caller of it already works.
+function avatarUrl(profile: Profile | null) {
+  const path = profile?.avatar_animated_path || profile?.avatar_path;
+  if (!path) return null;
+  const url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+  return profile?.avatar_updated_at ? `${url}?v=${encodeURIComponent(profile.avatar_updated_at)}` : url;
+}
 
 export function FinishStep({ previewProfile }: { previewProfile: Profile | null }) {
   return (
-    <div className="v3-onboarding__step-heading">
-      <h1>You're all set</h1>
-      <p>Here's how you'll show up. You can fine-tune any of this later in Settings.</p>
-      <div className="v3-settings__panel v3-settings__profile-card" style={{ marginTop: 20 }}>
-        <UserAvatar profile={previewProfile} size="lg" animated playOnHover={false} />
-        <div className="v3-settings__row-copy">
-          <p className={"v3-settings__profile-name " + nameColorClass(previewProfile?.name_color)}>
-            <DecoratedText effect={previewProfile?.name_decoration as TextDecoration | null} font={previewProfile?.name_font} weight={previewProfile?.name_weight}>
-              {previewProfile?.display_name || "Your display name"}
-            </DecoratedText>
-          </p>
-          <p className="v3-settings__row-desc">@{previewProfile?.username ?? "username"}</p>
-        </div>
-      </div>
+    <div className="v3-onboarding__finish-preview">
+      {/* The real message component, not a lookalike - this is exactly how
+          the message would render in an actual conversation, avatar
+          decoration/name font/weight/color/effect and all. sourceMessage is
+          left undefined so the action tray and reactions never mount - it's
+          a preview, not something you can actually edit/react to. */}
+      <MessageTemplate
+        name={previewProfile?.display_name || "You"}
+        avatar={avatarUrl(previewProfile)}
+        avatarDecoration={previewProfile?.avatar_decoration}
+        nameDecoration={previewProfile?.name_decoration}
+        nameColor={previewProfile?.name_color}
+        nameFont={previewProfile?.name_font}
+        nameWeight={previewProfile?.name_weight}
+        message="Welcome to Nitro!"
+        timestamp="Just now"
+        showMeta
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { OnboardingFlow } from "@/features/onboarding/onboarding-flow";
 import { KeybindManager } from "@/features/settings/keybind-manager";
 import { TopAlert } from "@/features/v3-shell/components/TopAlert";
 import { subscribeToAppNotices } from "@/lib/app-notices";
+import { grainDataUrl, grainSizeToBaseFrequency } from "@/lib/grain";
 import { checkForUpdateAndNotify, UPDATED_VERSION_KEY } from "@/lib/updater";
 import { useAlerts } from "@/stores/alerts";
 import { useAuth } from "@/stores/auth";
@@ -23,12 +24,22 @@ export default function App() {
   const activeAlert = useAlerts((state) => state.active);
   const dismissAlert = useAlerts((state) => state.dismiss);
   const theme = usePreferences((state) => state.theme);
+  const grainSize = usePreferences((state) => state.grainSize);
+  const grainIntensity = usePreferences((state) => state.grainIntensity);
 
   // Not gated on sign-in - the sign-in screen itself sits on the same
   // themed background, so this has to apply before auth even resolves.
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  // Same reasoning as the theme effect above - applies to the sign-in
+  // screen's background too, not just once signed in.
+  useEffect(() => {
+    const root = document.documentElement.style;
+    root.setProperty("--v3-grain-image", grainDataUrl(grainSizeToBaseFrequency(grainSize)));
+    root.setProperty("--v3-grain-opacity", String(grainIntensity / 100));
+  }, [grainSize, grainIntensity]);
 
   useEffect(() => { useAuth.getState().init(); }, []);
   useEffect(() => { if (!userId) return; return useVoice.getState().init(userId); }, [userId]);

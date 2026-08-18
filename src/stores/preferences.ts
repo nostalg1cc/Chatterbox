@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 export type WindowMaterial = "mica" | "acrylic";
-export type AppTheme = "default" | "babyPink" | "babyBlue" | "deepBlue" | "lavender" | "mint";
+export type AppTheme = "default" | "babyPink" | "babyBlue" | "deepBlue" | "lavender" | "mint" | "sunset" | "crimson" | "forest" | "slate" | "violet" | "mocha" | "gold" | "teal" | "rose" | "charcoal";
 
 export interface KeybindPreferences {
   toggleMute: string;
@@ -29,6 +29,8 @@ interface PreferencesState {
   recentDecorationIds: string[];
   windowMaterial: WindowMaterial;
   theme: AppTheme;
+  grainSize: number;
+  grainIntensity: number;
   noiseSuppression: boolean;
   noiseSuppressionEngine: "native" | "rnnoise";
 acrylicDim: number;
@@ -62,6 +64,11 @@ const defaults: PreferencesData = {
   recentDecorationIds: [],
   windowMaterial: "mica",
   theme: "default",
+  // 0-100, purely cosmetic scales mapped to the SVG noise filter's
+  // baseFrequency/opacity in App.tsx - defaults reproduce the original
+  // hardcoded grain (baseFrequency 0.35, opacity 0.12) exactly.
+  grainSize: 65,
+  grainIntensity: 12,
   noiseSuppression: false,
   noiseSuppressionEngine: "native",
 acrylicDim: 55,

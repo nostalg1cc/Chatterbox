@@ -453,6 +453,22 @@ export function V3Shell() {
   }
 
   function handleComposerKeyDown(event) {
+    // The composer is a textarea now (multi-line messages), so Enter no
+    // longer submits for free via native form-submit-on-Enter - decide here
+    // instead, honoring the enterToSend preference (Settings -> Chat):
+    // enterToSend on (default) sends on plain Enter, Shift+Enter inserts a
+    // newline; off flips that, Enter inserts and Ctrl/Cmd+Enter sends. IME
+    // composition (e.g. confirming a candidate) must never trigger a send.
+    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+      const enterToSend = usePreferences.getState().enterToSend;
+      const wantsSend = enterToSend ? !event.shiftKey : event.ctrlKey || event.metaKey;
+      if (wantsSend) {
+        event.preventDefault();
+        void handleComposerSubmit();
+      }
+      return;
+    }
+
     // Backspacing on an empty argument with a chip showing would otherwise
     // do nothing (there's no text left in the visible input to delete) -
     // treat it as "never mind" and drop back to a blank composer instead of

@@ -3,7 +3,11 @@ import { Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
 import { useAuth } from "@/stores/auth";
 import { useChat } from "@/stores/chat";
 
-const QUICK_REACTIONS = ["❤", "😂", "👍", "👀", "🔥", "🎉"];
+// U+2764 (heart) defaults to plain text/outline presentation without the
+// U+FE0F emoji variation selector, unlike the others here which are already
+// emoji-presentation by default - without it, only the heart renders as a
+// monochrome outline instead of red/filled.
+const QUICK_REACTIONS = ["❤️", "😂", "👍", "👎", "💩", "🔥"];
 const EMPTY_REACTIONS = [];
 
 export function V3MessageActions({ message, onEdit }) {
