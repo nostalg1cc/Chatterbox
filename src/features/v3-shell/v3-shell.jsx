@@ -168,7 +168,6 @@ export function V3Shell() {
   const [pendingMedia, setPendingMedia] = useState(null);
   const [pendingPreviewUrl, setPendingPreviewUrl] = useState(null);
   const [mediaStage, setMediaStage] = useState("idle");
-  const [hoveredDecorationHeaderId, setHoveredDecorationHeaderId] = useState(null);
   const [isSelfTyping, setIsSelfTyping] = useState(false);
   // Lives in useChat, not local state - the toggle button moved into the
   // global titlebar (a separate portaled React tree, see
@@ -327,7 +326,6 @@ export function V3Shell() {
   // empty the instant the text exactly matches a command name, which is
   // exactly what happens after the first Tab-fill.
   const tabCycleRef = useRef(null);
-  const decorationGroups = useMemo(() => { const headers = new Map(); const latest = new Map(); let headerId = null; liveMessages.forEach((message, index) => { if (startsNewMessageGroup(message, liveMessages[index - 1])) headerId = message.id; headers.set(message.id, headerId); if (message.message_kind === "chat") latest.set(message.sender_id, headerId); }); return { headers, autoplay: new Set(latest.values()) }; }, [liveMessages]);
 
   useEffect(() => {
     if (!userId) return;
@@ -879,8 +877,7 @@ export function V3Shell() {
                   timestamp={messageTimestamp(message.created_at)}
                   sourceMessage={message}
                   replyPreview={replyPreview}
-                  decorationActive={decorationGroups.autoplay.has(message.id) || hoveredDecorationHeaderId === decorationGroups.headers.get(message.id)}
-                  onDecorationHoverChange={(hovered) => setHoveredDecorationHeaderId(hovered ? decorationGroups.headers.get(message.id) : null)}
+                  decorationActive
                 />
               </div>
             );

@@ -22,7 +22,7 @@ export function ThemePicker({ theme, onChange }: { theme: AppTheme; onChange: (t
                 className={"v3-settings__theme-card" + (theme === option.value ? " is-active" : "")}
                 onClick={() => onChange(option.value)}
               >
-                <div className="v3-settings__theme-preview" style={{ background: option.bg }}>
+                <div className="v3-settings__theme-preview" style={{ background: `linear-gradient(135deg, ${option.bg} 0%, ${option.accent} 180%)` }}>
                   <span className="v3-settings__theme-preview-dot" style={{ background: option.material }} />
                   <span className="v3-settings__theme-preview-bar" style={{ background: option.material }} />
                 </div>

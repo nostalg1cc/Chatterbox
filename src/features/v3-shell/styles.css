@@ -95,73 +95,39 @@
    different one. "default" needs no rule here since it's just the plain
    :root values above. Keep src/lib/themes.ts's THEME_OPTIONS preview swatch
    values in sync by hand if these change. */
-[data-theme="babyPink"] {
-  --app-bg: hsl(335 34% 15%);
-  --material-color: hsl(335 34% 20%);
-}
-[data-theme="babyBlue"] {
-  --app-bg: hsl(205 34% 14%);
-  --material-color: hsl(205 34% 19%);
-}
-[data-theme="deepBlue"] {
-  --app-bg: hsl(222 45% 11%);
-  --material-color: hsl(222 45% 16%);
-}
-[data-theme="lavender"] {
-  --app-bg: hsl(265 30% 15%);
-  --material-color: hsl(265 30% 20%);
-}
-[data-theme="mint"] {
-  --app-bg: hsl(160 26% 12%);
-  --material-color: hsl(160 26% 17%);
-}
-[data-theme="sunset"] {
-  --app-bg: hsl(28 40% 13%);
-  --material-color: hsl(28 40% 18%);
-}
-[data-theme="crimson"] {
-  --app-bg: hsl(355 38% 13%);
-  --material-color: hsl(355 38% 18%);
-}
-[data-theme="forest"] {
-  --app-bg: hsl(140 28% 12%);
-  --material-color: hsl(140 28% 17%);
-}
-[data-theme="slate"] {
-  --app-bg: hsl(215 14% 14%);
-  --material-color: hsl(215 14% 19%);
-}
-/* A real hue, not another muted pastel - saturation pushed well past the
-   pink/blue/lavender trio above instead of just another shade of the same
-   idea. */
-[data-theme="violet"] {
-  --app-bg: hsl(275 55% 16%);
-  --material-color: hsl(275 55% 22%);
-}
-/* Warm neutral counterpart to Slate's cool neutral - brown/coffee rather
-   than gray, so the two "no strong hue" options actually read differently. */
-[data-theme="mocha"] {
-  --app-bg: hsl(25 20% 14%);
-  --material-color: hsl(25 20% 19%);
-}
-[data-theme="gold"] {
-  --app-bg: hsl(45 45% 13%);
-  --material-color: hsl(45 45% 18%);
-}
-[data-theme="teal"] {
-  --app-bg: hsl(185 35% 12%);
-  --material-color: hsl(185 35% 17%);
-}
-[data-theme="rose"] {
-  --app-bg: hsl(320 40% 15%);
-  --material-color: hsl(320 40% 20%);
-}
-/* Near-desaturated, not just "another dark neutral" - low enough saturation
-   to read as close to true black/OLED rather than a gray or brown tint. */
-[data-theme="charcoal"] {
-  --app-bg: hsl(220 6% 9%);
-  --material-color: hsl(220 6% 14%);
-}
+[data-theme="slate"] { --app-bg: hsl(215 18% 17%); --material-color: hsl(215 18% 23%); }
+[data-theme="charcoal"] { --app-bg: hsl(220 8% 11%); --material-color: hsl(220 8% 16%); }
+[data-theme="graphite"] { --app-bg: hsl(205 13% 15%); --material-color: hsl(205 13% 22%); }
+
+[data-theme="babyPink"] { --app-bg: hsl(335 62% 19%); --material-color: hsl(335 62% 26%); }
+[data-theme="blush"] { --app-bg: hsl(345 70% 19%); --material-color: hsl(345 70% 27%); }
+[data-theme="rose"] { --app-bg: hsl(320 66% 19%); --material-color: hsl(320 66% 27%); }
+[data-theme="fuchsia"] { --app-bg: hsl(300 76% 18%); --material-color: hsl(300 76% 27%); }
+[data-theme="crimson"] { --app-bg: hsl(355 62% 17%); --material-color: hsl(355 62% 25%); }
+[data-theme="ruby"] { --app-bg: hsl(0 70% 17%); --material-color: hsl(0 70% 25%); }
+
+[data-theme="babyBlue"] { --app-bg: hsl(205 60% 18%); --material-color: hsl(205 60% 26%); }
+[data-theme="sky"] { --app-bg: hsl(200 72% 18%); --material-color: hsl(200 72% 26%); }
+[data-theme="deepBlue"] { --app-bg: hsl(222 66% 15%); --material-color: hsl(222 66% 23%); }
+[data-theme="cobalt"] { --app-bg: hsl(226 76% 16%); --material-color: hsl(226 76% 25%); }
+[data-theme="teal"] { --app-bg: hsl(185 56% 15%); --material-color: hsl(185 56% 23%); }
+[data-theme="aqua"] { --app-bg: hsl(190 72% 16%); --material-color: hsl(190 72% 25%); }
+
+[data-theme="mint"] { --app-bg: hsl(160 48% 16%); --material-color: hsl(160 48% 24%); }
+[data-theme="emerald"] { --app-bg: hsl(150 68% 16%); --material-color: hsl(150 68% 25%); }
+[data-theme="forest"] { --app-bg: hsl(140 48% 15%); --material-color: hsl(140 48% 23%); }
+[data-theme="lime"] { --app-bg: hsl(104 50% 16%); --material-color: hsl(104 50% 25%); }
+
+[data-theme="lavender"] { --app-bg: hsl(265 50% 19%); --material-color: hsl(265 50% 27%); }
+[data-theme="violet"] { --app-bg: hsl(275 68% 18%); --material-color: hsl(275 68% 27%); }
+[data-theme="amethyst"] { --app-bg: hsl(285 65% 18%); --material-color: hsl(285 65% 27%); }
+[data-theme="indigo"] { --app-bg: hsl(245 63% 17%); --material-color: hsl(245 63% 26%); }
+
+[data-theme="sunset"] { --app-bg: hsl(28 62% 17%); --material-color: hsl(28 62% 25%); }
+[data-theme="coral"] { --app-bg: hsl(12 68% 18%); --material-color: hsl(12 68% 26%); }
+[data-theme="gold"] { --app-bg: hsl(45 62% 17%); --material-color: hsl(45 62% 25%); }
+[data-theme="amber"] { --app-bg: hsl(38 72% 18%); --material-color: hsl(38 72% 26%); }
+[data-theme="mocha"] { --app-bg: hsl(25 30% 16%); --material-color: hsl(25 30% 23%); }
 
 * {
   box-sizing: border-box;
@@ -3083,7 +3049,30 @@ button.v3-dashboard__row:hover,
 .v3-settings__storage-bar { height: 8px; overflow: hidden; border-radius: 999px; background: rgba(var(--fg-rgb), 0.08); }
 .v3-settings__storage-bar-fill { height: 100%; border-radius: 999px; background: var(--v3-accent-green); transition: width 200ms ease; }
 .v3-settings__storage-bar-fill.is-near-limit { background: #f5b942; }
-.v3-settings__sound-add { display: flex; gap: 8px; margin-top: 14px; }
+.v3-settings__sound-add { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.v3-settings__sound-add .v3-settings__row-desc { flex: 1; }
+.v3-settings__sound-draft { display: grid; gap: 14px; margin-top: 14px; padding: 14px; border: 1px solid rgba(var(--fg-rgb), 0.1); border-radius: 12px; background: rgba(0, 0, 0, 0.12); }
+.v3-settings__sound-draft > audio { display: none; }
+.v3-settings__sound-draft-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.v3-settings__sound-draft-head > div { min-width: 0; }
+.v3-settings__sound-draft-head .v3-settings__row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v3-settings__sound-trim-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: rgba(var(--fg-muted-rgb), 0.64); font-size: 12px; font-weight: 600; }
+.v3-settings__sound-trim-head > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.v3-settings__sound-trim-head svg { width: 14px; height: 14px; }
+.v3-settings__sound-trim-head > span:last-child { color: var(--v3-accent-green); font-size: 11px; }
+.v3-settings__sound-trim-head > span:last-child.is-invalid { color: #f5b942; }
+.v3-settings__sound-trim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.v3-settings__sound-trim-grid label { display: grid; gap: 8px; min-width: 0; color: rgba(var(--fg-muted-rgb), 0.6); font-size: 11px; font-weight: 600; }
+.v3-settings__sound-trim-grid input { width: 100%; margin: 0; accent-color: var(--v3-accent-green); cursor: pointer; }
+.v3-settings__sound-draft-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.v3-settings__ghost-button.is-primary { border-color: rgba(0, 179, 57, 0.52); color: #eafff1; background: rgba(0, 179, 57, 0.23); }
+.v3-settings__ghost-button.is-primary:hover { color: #fff; background: rgba(0, 179, 57, 0.34); }
+.v3-settings__ghost-button.is-primary:disabled { color: rgba(var(--fg-muted-rgb), 0.55); background: rgba(var(--fg-rgb), 0.03); }
+@media (max-width: 560px) {
+  .v3-settings__sound-add { align-items: stretch; flex-direction: column; }
+  .v3-settings__sound-trim-grid { grid-template-columns: 1fr; gap: 10px; }
+  .v3-settings__sound-draft-actions > * { flex: 1; justify-content: center; }
+}
 .v3-settings__hidden-input { display: none; }
 .v3-settings__sound-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
 .v3-settings__sound-row + .v3-settings__sound-row { border-top: 1px solid rgba(var(--fg-rgb), 0.08); }
@@ -3748,4 +3737,3 @@ html.is-web .text-input-bar textarea {
    480px/viewport-capped default instead of stretching edge to edge. */
 .v3-onboarding__finish-preview { display: flex; justify-content: center; padding: 12px 0; }
 .v3-onboarding__finish-preview .message-template { width: 100%; max-width: 460px; }
-

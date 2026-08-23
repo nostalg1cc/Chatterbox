@@ -7,7 +7,12 @@ export interface PreparedSound {
   durationMs: number;
 }
 
-export async function prepareSoundboardAudio(file: File): Promise<PreparedSound> {
+export interface SoundboardTrim {
+  startMs: number;
+  endMs: number;
+}
+
+export async function prepareSoundboardAudio(file: File, requestedTrim?: SoundboardTrim): Promise<PreparedSound> {
   if (!file.type.startsWith("audio/")) throw new Error("Choose an audio file.");
   if (file.size > 25 * 1024 * 1024) throw new Error("Source audio can be up to 25 MiB.");
   const input = await file.arrayBuffer();
@@ -21,7 +26,7 @@ export async function prepareSoundboardAudio(file: File): Promise<PreparedSound>
     await decodeContext.close();
   }
 
-  const trimmed = trimBounds(decoded);
+  const trimmed = requestedTrim ? explicitTrimBounds(decoded, requestedTrim) : trimBounds(decoded);
   const duration = (trimmed.end - trimmed.start) / decoded.sampleRate;
   if (duration < 0.1) throw new Error("The sound is empty.");
   if (duration > MAX_DURATION_SECONDS) {
@@ -42,6 +47,14 @@ export async function prepareSoundboardAudio(file: File): Promise<PreparedSound>
     throw new Error("The compressed clip is over 512 KiB. Shorten it and try again.");
   }
   return { blob, durationMs: Math.round(duration * 1000) };
+}
+
+function explicitTrimBounds(buffer: AudioBuffer, trim: SoundboardTrim): { start: number; end: number } {
+  const startMs = Number.isFinite(trim.startMs) ? trim.startMs : 0;
+  const endMs = Number.isFinite(trim.endMs) ? trim.endMs : buffer.duration * 1000;
+  const start = Math.round(Math.max(0, Math.min(startMs, buffer.duration * 1000)) * buffer.sampleRate / 1000);
+  const end = Math.round(Math.max(startMs, Math.min(endMs, buffer.duration * 1000)) * buffer.sampleRate / 1000);
+  return { start, end: Math.max(start, Math.min(buffer.length, end)) };
 }
 
 function trimBounds(buffer: AudioBuffer): { start: number; end: number } {

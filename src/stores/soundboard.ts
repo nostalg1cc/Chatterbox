@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { create } from "zustand";
 import { useAlerts } from "./alerts";
-import { prepareSoundboardAudio, playSoundboardUrl, preloadSoundboardClips, type SoundboardPlayback } from "@/lib/soundboard-audio";
+import { prepareSoundboardAudio, playSoundboardUrl, preloadSoundboardClips, type SoundboardPlayback, type SoundboardTrim } from "@/lib/soundboard-audio";
 import { supabase } from "@/lib/supabase";
 import { usePreferences } from "./preferences";
 import { broadcastVoiceSoundboard, broadcastVoiceSoundboardStop, prepareVoiceSoundboard, useVoice } from "./voice";
@@ -27,7 +27,7 @@ interface SoundboardState {
   playbackProgress: number;
   load: () => Promise<void>;
   loadAvailable: (conversationId: string) => Promise<void>;
-  upload: (file: File, name: string) => Promise<void>;
+  upload: (file: File, name: string, trim?: SoundboardTrim) => Promise<void>;
   rename: (soundId: string, name: string) => Promise<void>;
   remove: (soundId: string) => Promise<void>;
   play: (soundId: string) => Promise<void>;
@@ -45,7 +45,23 @@ usePreferences.subscribe((state, previousState) => {
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("soundboard-storage", { body });
-  if (error) throw new Error(error.message);
+  if (error) {
+    // FunctionsHttpError intentionally carries the Edge Function's response body
+    // separately. Surface its useful message instead of the generic non-2xx text.
+    const context = (error as { context?: unknown }).context;
+    let serverMessage: string | null = null;
+    if (context instanceof Response) {
+      try {
+        const payload = await context.clone().json() as { error?: unknown; message?: unknown };
+        serverMessage = typeof payload.error === "string"
+          ? payload.error
+          : typeof payload.message === "string"
+            ? payload.message
+            : null;
+      } catch { /* the transport message below remains a safe fallback */ }
+    }
+    throw new Error(serverMessage ?? error.message);
+  }
   if (data?.error) throw new Error(data.error);
   return data as T;
 }
@@ -99,14 +115,14 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
     }
   },
 
-  upload: async (file, requestedName) => {
+  upload: async (file, requestedName, trim) => {
     const name = requestedName.trim().slice(0, 32);
     if (!name) throw new Error("Give the sound a name.");
     set({ uploading: true });
     const soundId = crypto.randomUUID();
     let reserved = false;
     try {
-      const prepared = await prepareSoundboardAudio(file);
+      const prepared = await prepareSoundboardAudio(file, trim);
       const reservation = await invoke<{ path: string; token: string }>({ mode: "reserve", soundId, name, sizeBytes: prepared.blob.size, durationMs: prepared.durationMs });
       reserved = true;
       const { error } = await supabase.storage.from("soundboard").uploadToSignedUrl(reservation.path, reservation.token, prepared.blob, { contentType: "audio/webm", cacheControl: "31536000" });

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 export type WindowMaterial = "mica" | "acrylic";
-export type AppTheme = "default" | "babyPink" | "babyBlue" | "deepBlue" | "lavender" | "mint" | "sunset" | "crimson" | "forest" | "slate" | "violet" | "mocha" | "gold" | "teal" | "rose" | "charcoal";
+export type AppTheme = "default" | "slate" | "charcoal" | "graphite" | "babyPink" | "blush" | "rose" | "fuchsia" | "crimson" | "ruby" | "babyBlue" | "sky" | "deepBlue" | "cobalt" | "teal" | "aqua" | "mint" | "emerald" | "forest" | "lime" | "lavender" | "violet" | "amethyst" | "indigo" | "sunset" | "coral" | "gold" | "amber" | "mocha";
 
 export interface KeybindPreferences {
   toggleMute: string;
