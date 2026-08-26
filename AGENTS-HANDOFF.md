@@ -934,3 +934,10 @@ npx tsc --noEmit      # typecheck
 - [x] Added native-suppression clarity plus a safe local-only 100–200% partner voice boost, accessible from both Voice & Video settings and the in-call output dropdown.
 - [x] Bounded V3 microphone/output device pickers with persistent top-level sliders and scrollable device lists.
 - [x] Built the signed NSIS installer, MSI installer, and updater signatures for v0.1.32.
+
+### Phase 143 - Nitro v0.1.67 history navigation release (August 26)
+- [x] Added a delayed, animated jump-to-latest control beside the V3 composer. It only appears after the viewer is more than 1,560px or 2.25 viewports from the newest message, while the composer contracts within its existing width to make room.
+- [x] Kept the control itself on the shared V3 icon-button material; only its surrounding slot owns the enter/exit motion.
+- [x] Bumped all desktop version records to v0.1.67, including the previously stale package-lock root metadata.
+- [x] Built and signed the current-user NSIS installer and published GitHub release `v0.1.67` with installer, `.sig`, and UTF-8 no-BOM `latest.json`.
+- [x] Verified the public updater endpoint returns v0.1.67 with a 416-character signature and an HTTP 200 installer URL.
