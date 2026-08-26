@@ -22,6 +22,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleX,
+  ArrowDown,
   LoaderCircle,
   MessageCircle,
   ScreenShare,
@@ -284,6 +285,7 @@ export function V3Shell() {
   const hasActiveMessages = Boolean(activeId && Object.prototype.hasOwnProperty.call(messagesByConversation, activeId));
   const isInitialLoad = !loaded || (conversations.length > 0 && (!activeId || !hasActiveMessages));
   const uiSounds = useUiSounds();
+  const [showScrollToLatest, setShowScrollToLatest] = useState(false);
   const messageHistoryRef = useRef(null);
   const messageListRef = useRef(null);
   // Explicit "should this stay pinned to the bottom" intent, instead of a
@@ -717,6 +719,7 @@ export function V3Shell() {
   const pinToBottom = useCallback(() => {
     const history = messageHistoryRef.current;
     if (!history) return;
+    setShowScrollToLatest(false);
     programmaticScrollRef.current = true;
     history.scrollTop = history.scrollHeight;
   }, []);
@@ -729,6 +732,41 @@ export function V3Shell() {
     await useChat.getState().loadOlder(activeId);
     loadingOlderRef.current = false;
   }, [activeId, hasMore]);
+
+  const scrollToLatest = useCallback(() => {
+    const history = messageHistoryRef.current;
+    if (!history) return;
+    // Keep this immediate rather than smooth: messages can still change height
+    // while link previews/media finish loading, and the existing pinning logic
+    // is intentionally built around an exact bottom position.
+    atBottomRef.current = true;
+    setShowScrollToLatest(false);
+    programmaticScrollRef.current = true;
+    history.scrollTop = history.scrollHeight;
+  }, []);
+
+  const handleHistoryScroll = useCallback((event) => {
+    const history = event.currentTarget;
+    const distanceFromBottom = history.scrollHeight - history.scrollTop - history.clientHeight;
+    const isAtBottom = distanceFromBottom < 40;
+
+    if (programmaticScrollRef.current) {
+      programmaticScrollRef.current = false;
+      if (isAtBottom) setShowScrollToLatest(false);
+    } else {
+      atBottomRef.current = isAtBottom;
+      setShowScrollToLatest((isVisible) => {
+        // Let short manual scrolls feel natural. The jump control only earns
+        // its space once returning to the newest message would actually save
+        // more effort than a quick wheel/trackpad flick.
+        const revealDistance = Math.max(1560, history.clientHeight * 2.25);
+        const shouldShow = distanceFromBottom > revealDistance;
+        return isVisible === shouldShow ? isVisible : shouldShow;
+      });
+    }
+
+    if (history.scrollTop < 96) void loadOlderMessages();
+  }, [loadOlderMessages]);
 
   useLayoutEffect(() => {
     const history = messageHistoryRef.current;
@@ -834,7 +872,7 @@ export function V3Shell() {
 
       {chatView === "settings" && <SettingsView />}
 
-      {chatView === "chat" && <section ref={messageHistoryRef} className="message-history" aria-label="Chat messages" onScroll={(event) => { const el = event.currentTarget; if (programmaticScrollRef.current) { programmaticScrollRef.current = false; } else { atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; } if (el.scrollTop < 96) void loadOlderMessages(); }}>
+      {chatView === "chat" && <section ref={messageHistoryRef} className="message-history" aria-label="Chat messages" onScroll={handleHistoryScroll}>
         <div className="message-list" ref={messageListRef}>
           {hasMore && <div className="v3-load-older">{loadingOlder ? "Loading earlier messages…" : "Scroll up for earlier messages"}</div>}
           {liveMessages.map((message, index) => {
@@ -951,6 +989,18 @@ export function V3Shell() {
             onAttach={() => attachmentInputRef.current?.click()}
             commandName={activeCommand?.name ?? null}
           />
+          <div className={`composer-scroll-latest-wrap${showScrollToLatest ? " is-visible" : ""}`}>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Scroll to latest messages"
+              title="Scroll to latest messages"
+              tabIndex={showScrollToLatest ? 0 : -1}
+              onClick={scrollToLatest}
+            >
+              <ArrowDown />
+            </button>
+          </div>
         </div>
       </div>}
       <div className="temporarily-hidden" aria-hidden="true">

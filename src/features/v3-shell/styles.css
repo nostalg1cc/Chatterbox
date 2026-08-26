@@ -1662,13 +1662,58 @@ body {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 8px;
+  gap: 0;
 }
 
 .composer-row .text-input-bar {
   width: auto;
   max-width: none;
   flex: 1;
+}
+
+/* Kept in the composer row, rather than floating beside it, so revealing the
+   jump-to-latest control simply lends it part of the existing composer width. */
+.composer-scroll-latest-wrap {
+  --scroll-latest-size: 40px;
+  display: flex;
+  width: 0;
+  height: var(--scroll-latest-size);
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-10px) scale(0.86);
+  transform-origin: left center;
+  transition:
+    width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin-left 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease-out,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.composer-scroll-latest-wrap.is-visible {
+  width: var(--scroll-latest-size);
+  margin-left: 8px;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) scale(1);
+}
+
+/* The button inside deliberately has no custom styling: it is the exact
+   shared .icon-button used everywhere else in V3. The wrapper alone owns
+   the enter/exit motion and composer-width handoff. */
+html.is-web .composer-scroll-latest-wrap {
+  --scroll-latest-size: 46px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-scroll-latest-wrap {
+    transition-duration: 0ms;
+  }
 }
 
 .bottom-composer .typing-indicator {
