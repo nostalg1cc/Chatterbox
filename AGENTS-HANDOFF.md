@@ -947,3 +947,7 @@ npx tsc --noEmit      # typecheck
 - [x] Kept healthy calls direct P2P. On a measured quality failure or a failed normal ICE restart, the client refreshes its authenticated Cloudflare TURN credentials and restarts ICE with relay-only candidate policy; if a live route switch is rejected, it rebuilds the peer connection in relay-only mode while preserving the voice room.
 - [x] Hardened TURN credential handling so missing/invalid relay candidates are explicitly logged and never silently masquerade as a usable fallback. A temporary broker failure leaves an otherwise-live direct call usable rather than permanently showing Reconnecting.
 - [x] Verified TypeScript, production build, and whitespace checks; prepared for the signed v0.1.68 desktop release.
+
+### Phase 145 - Nitro v0.1.68 voice-reliability hotfix (August 29)
+- [x] Published GitHub release `v0.1.68` with the signed 28.1 MB NSIS installer, 416-byte signature, and UTF-8 no-BOM `latest.json` updater manifest.
+- [x] Verified the public latest-manifest endpoint reports v0.1.68 with a 416-character signature and an HTTP 200 installer URL.
