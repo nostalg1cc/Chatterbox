@@ -90,6 +90,15 @@ const ICE_SERVERS: RTCIceServer[] = [
 const HEARTBEAT_MS = 45_000;
 const TURN_CREDENTIAL_TTL_SAFETY_MS = 10 * 60_000;
 const CHANNEL_TIMEOUT_MS = 15_000;
+// A connection can remain formally "connected" while its direct path is
+// shedding enough audio packets to sound robotic. Sample the receiving RTP
+// stats a few times before doing anything so normal Wi-Fi blips never cause a
+// route switch, then prefer the managed relay for the rest of that call.
+const VOICE_HEALTH_SAMPLE_MS = 3_000;
+const VOICE_HEALTH_SAMPLES_BEFORE_RELAY = 2;
+const VOICE_HEALTH_MIN_PACKETS = 40;
+const VOICE_HEALTH_PACKET_LOSS_RATIO = 0.08;
+const VOICE_HEALTH_JITTER_SECONDS = 0.08;
 
 let currentUserId: string | null = null;
 let discoveryChannel: RealtimeChannel | null = null;
@@ -109,6 +118,7 @@ let screenAudioCleanup: (() => void) | null = null;
 let cloudflareScreenConnection: RTCPeerConnection | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let voiceHealthTimer: ReturnType<typeof setInterval> | null = null;
 let signalingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
 let preferencesUnsubscribe: (() => void) | null = null;
 let beforeUnloadHandler: (() => void) | null = null;
@@ -121,6 +131,13 @@ let isSettingRemoteAnswerPending = false;
 let restartAttempted = false;
 let connectionRecoveryInProgress = false;
 let peerRebuildAttempts = 0;
+let relayRecoveryAttempted = false;
+let forceRelayTransport = false;
+let unhealthyVoiceSamples = 0;
+let previousInboundAudioStats: {
+  packetsReceived: number;
+  packetsLost: number;
+} | null = null;
 let signalingRecoveryAttempts = 0;
 let disconnecting = false;
 let localVoiceActivity: VoiceActivityMonitor | null = null;
@@ -130,6 +147,93 @@ let lastRemoteSoundboardAt = 0;
 const remoteSoundboardPlaybacks = new Map<string, SoundboardPlayback>();
 const cancelledRemoteSoundboardPlaybacks = new Set<string>();
 const pendingSoundboardReadiness = new Map<string, { resolve: (ready: boolean) => void; timeout: number }>();
+
+function hasTurnRelay(servers = activeIceServers): boolean {
+  return servers.some((server) => {
+    const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+    return urls.some((url) => typeof url === "string" && /^turns?:/i.test(url));
+  });
+}
+
+function getVoiceConnectionConfiguration(): RTCConfiguration {
+  return {
+    iceServers: activeIceServers,
+    iceCandidatePoolSize: 4,
+    // "relay" is deliberately only enabled after a measured failure. Direct
+    // P2P stays the lowest-latency route when it is healthy.
+    iceTransportPolicy: forceRelayTransport ? "relay" : "all",
+  };
+}
+
+function clearVoiceHealthMonitor(): void {
+  if (voiceHealthTimer) window.clearInterval(voiceHealthTimer);
+  voiceHealthTimer = null;
+  unhealthyVoiceSamples = 0;
+  previousInboundAudioStats = null;
+}
+
+function startVoiceHealthMonitor(connection: RTCPeerConnection): void {
+  clearVoiceHealthMonitor();
+  voiceHealthTimer = window.setInterval(() => {
+    void assessVoiceHealth(connection);
+  }, VOICE_HEALTH_SAMPLE_MS);
+}
+
+async function assessVoiceHealth(connection: RTCPeerConnection): Promise<void> {
+  if (
+    peerConnection !== connection ||
+    connection.connectionState !== "connected" ||
+    disconnecting ||
+    forceRelayTransport ||
+    relayRecoveryAttempted
+  ) {
+    return;
+  }
+
+  try {
+    const report = await connection.getStats();
+    const inbound = Array.from(report.values()).find((entry) => {
+      if (entry.type !== "inbound-rtp") return false;
+      const stats = entry as RTCStats & { kind?: unknown; mediaType?: unknown };
+      return stats.kind === "audio" || stats.mediaType === "audio";
+    }) as (RTCStats & {
+      packetsReceived?: unknown;
+      packetsLost?: unknown;
+      jitter?: unknown;
+    }) | undefined;
+
+    if (!inbound) return;
+    const packetsReceived = typeof inbound.packetsReceived === "number" ? inbound.packetsReceived : 0;
+    const packetsLost = typeof inbound.packetsLost === "number" ? Math.max(0, inbound.packetsLost) : 0;
+    const jitter = typeof inbound.jitter === "number" ? inbound.jitter : 0;
+    const previous = previousInboundAudioStats;
+    previousInboundAudioStats = { packetsReceived, packetsLost };
+    if (!previous) return;
+
+    const receivedDelta = Math.max(0, packetsReceived - previous.packetsReceived);
+    const lostDelta = Math.max(0, packetsLost - previous.packetsLost);
+    const totalPackets = receivedDelta + lostDelta;
+    if (totalPackets < VOICE_HEALTH_MIN_PACKETS) return;
+
+    const lossRatio = lostDelta / totalPackets;
+    const unhealthy =
+      lossRatio >= VOICE_HEALTH_PACKET_LOSS_RATIO ||
+      jitter >= VOICE_HEALTH_JITTER_SECONDS;
+    unhealthyVoiceSamples = unhealthy ? unhealthyVoiceSamples + 1 : 0;
+    if (unhealthyVoiceSamples < VOICE_HEALTH_SAMPLES_BEFORE_RELAY) return;
+
+    console.warn("Voice path is unhealthy; switching this call to TURN relay.", {
+      lossRatio: Number(lossRatio.toFixed(3)),
+      jitterMs: Math.round(jitter * 1000),
+    });
+    clearVoiceHealthMonitor();
+    await attemptRelayRecovery("audio quality");
+  } catch (error) {
+    // Stats are purely diagnostic. A browser that declines one sample must not
+    // destabilise an otherwise healthy call.
+    console.debug("Voice health sample was unavailable", error);
+  }
+}
 
 function setSpeaking(userId: string, value: boolean): void {
   useVoice.setState((state) =>
@@ -431,9 +535,12 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   },
 }));
 
-async function refreshTurnCredentials(): Promise<void> {
+async function refreshTurnCredentials(force = false): Promise<boolean> {
   const state = useVoice.getState();
-  if (!state.activeConversationId || (turnCredentialsExpireAt - Date.now()) > TURN_CREDENTIAL_TTL_SAFETY_MS) return;
+  if (!state.activeConversationId) return false;
+  if (!force && (turnCredentialsExpireAt - Date.now()) > TURN_CREDENTIAL_TTL_SAFETY_MS) {
+    return hasTurnRelay();
+  }
   const { data, error } = await supabase.functions.invoke("realtime-credentials", {
     body: { conversationId: state.activeConversationId },
   });
@@ -441,17 +548,23 @@ async function refreshTurnCredentials(): Promise<void> {
   if (error || !Array.isArray(candidate?.iceServers)) {
     activeIceServers = ICE_SERVERS;
     turnCredentialsExpireAt = 0;
-    console.info("Cloudflare TURN is unavailable; continuing with direct WebRTC.");
-    return;
+    console.warn("Cloudflare TURN is unavailable; continuing with direct WebRTC.", error);
+    return false;
   }
   const servers = candidate.iceServers.filter((server): server is RTCIceServer => {
     if (!server || typeof server !== "object") return false;
     const value = server as RTCIceServer;
     return typeof value.urls === "string" || Array.isArray(value.urls);
   });
-  if (!servers.length) return;
+  if (!servers.length || !hasTurnRelay(servers)) {
+    activeIceServers = ICE_SERVERS;
+    turnCredentialsExpireAt = 0;
+    console.warn("Cloudflare TURN returned no usable relay candidates.");
+    return false;
+  }
   activeIceServers = servers;
   turnCredentialsExpireAt = typeof candidate.expiresAt === "number" ? candidate.expiresAt : Date.now() + 12 * 60 * 60_000;
+  return true;
 }
 function initializeVoice(userId: string): () => void {
   currentUserId = userId;
@@ -903,11 +1016,9 @@ function ensurePeerConnection(remoteUserId: string): void {
   isSettingRemoteAnswerPending = false;
   restartAttempted = false;
   pendingCandidates = [];
+  clearVoiceHealthMonitor();
 
-  const connection = new RTCPeerConnection({
-    iceServers: activeIceServers,
-    iceCandidatePoolSize: 4,
-  });
+  const connection = new RTCPeerConnection(getVoiceConnectionConfiguration());
   peerConnection = connection;
 
   const audioTrack = microphone.outputStream.getAudioTracks()[0];
@@ -957,6 +1068,25 @@ function ensurePeerConnection(remoteUserId: string): void {
     handleRemoteTrack(event);
   };
 
+  connection.oniceconnectionstatechange = () => {
+    if (peerConnection !== connection) return;
+    if (
+      connection.iceConnectionState === "connected" ||
+      connection.iceConnectionState === "completed"
+    ) {
+      clearDisconnectTimer();
+      useVoice.setState({ status: "connected", error: null });
+      startVoiceHealthMonitor(connection);
+    } else if (connection.iceConnectionState === "disconnected") {
+      clearVoiceHealthMonitor();
+      useVoice.setState({ status: "reconnecting" });
+      scheduleConnectionFailure();
+    } else if (connection.iceConnectionState === "failed") {
+      clearVoiceHealthMonitor();
+      void attemptIceRestart();
+    }
+  };
+
   connection.onconnectionstatechange = () => {
     if (peerConnection !== connection) return;
     if (connection.connectionState === "connected") {
@@ -964,15 +1094,19 @@ function ensurePeerConnection(remoteUserId: string): void {
       restartAttempted = false;
       peerRebuildAttempts = 0;
       useVoice.setState({ status: "connected", error: null });
+      startVoiceHealthMonitor(connection);
     } else if (connection.connectionState === "disconnected") {
+      clearVoiceHealthMonitor();
       useVoice.setState({ status: "reconnecting" });
       scheduleConnectionFailure();
     } else if (connection.connectionState === "failed") {
+      clearVoiceHealthMonitor();
       attemptIceRestart();
     } else if (
       connection.connectionState === "connecting" ||
       connection.connectionState === "new"
     ) {
+      clearVoiceHealthMonitor();
       useVoice.setState({ status: "connecting" });
     }
   };
@@ -1333,22 +1467,90 @@ async function stopLocalScreen(updateServer: boolean): Promise<void> {
 function scheduleConnectionFailure(): void {
   clearDisconnectTimer();
   disconnectTimer = setTimeout(() => {
-    if (peerConnection && peerConnection.connectionState !== "connected") void attemptIceRestart();
+    const recovering = useVoice.getState().status === "reconnecting";
+    if (peerConnection && (peerConnection.connectionState !== "connected" || recovering)) {
+      void attemptIceRestart();
+    }
   }, 10_000);
 }
 
+async function attemptRelayRecovery(reason: "audio quality" | "connection failure"): Promise<boolean> {
+  const connection = peerConnection;
+  if (
+    !connection ||
+    !remoteSessionId ||
+    disconnecting ||
+    relayRecoveryAttempted
+  ) {
+    return false;
+  }
+
+  relayRecoveryAttempted = true;
+  useVoice.setState({ status: "reconnecting", error: null });
+  const relayAvailable = await refreshTurnCredentials(true);
+  if (!relayAvailable || peerConnection !== connection) {
+    console.warn(`Voice ${reason} recovery could not obtain Cloudflare TURN credentials.`);
+    // The old direct pair can still be carrying audio. Do not strand that call
+    // in a permanent reconnecting UI just because the credential broker is
+    // temporarily unavailable; the normal failed-connection path will still
+    // continue through peer rebuilding below.
+    if (peerConnection === connection && connection.connectionState === "connected") {
+      useVoice.setState({ status: "connected", error: null });
+      startVoiceHealthMonitor(connection);
+    }
+    return false;
+  }
+
+  forceRelayTransport = true;
+  try {
+    // setConfiguration + restartIce is the supported way to replace ICE
+    // routing mid-call. With "relay" selected, Chromium only considers TURN
+    // candidates instead of returning to the flaky direct candidate pair.
+    connection.setConfiguration({
+      iceServers: activeIceServers,
+      iceTransportPolicy: "relay",
+    });
+    connection.restartIce();
+    clearDisconnectTimer();
+    disconnectTimer = setTimeout(() => void attemptIceRestart(), 12_000);
+    return true;
+  } catch (error) {
+    // A fresh RTCPeerConnection is the conservative fallback for a WebView
+    // that declines a live transport-policy change. It retains the current
+    // room/signaling session and is constructed relay-only.
+    console.warn("Live TURN route switch failed; rebuilding the voice peer.", error);
+    await rebuildPeerConnection();
+    return peerConnection !== null;
+  }
+}
+
 async function attemptIceRestart(): Promise<void> {
-  if (connectionRecoveryInProgress || !peerConnection || !remoteSessionId || peerConnection.connectionState === "connected" || disconnecting) return;
+  const isRecovering = useVoice.getState().status === "reconnecting";
+  if (
+    connectionRecoveryInProgress ||
+    !peerConnection ||
+    !remoteSessionId ||
+    (peerConnection.connectionState === "connected" && !isRecovering) ||
+    disconnecting
+  ) return;
   connectionRecoveryInProgress = true;
   try {
     if (!restartAttempted) {
       restartAttempted = true;
       useVoice.setState({ status: "reconnecting", error: null });
       await refreshTurnCredentials();
-      peerConnection?.setConfiguration({ iceServers: activeIceServers });
+      peerConnection?.setConfiguration({
+        iceServers: activeIceServers,
+        iceTransportPolicy: forceRelayTransport ? "relay" : "all",
+      });
       peerConnection?.restartIce();
       clearDisconnectTimer();
-      disconnectTimer = setTimeout(() => void attemptIceRestart(), 20_000);
+      disconnectTimer = setTimeout(() => void attemptIceRestart(), 12_000);
+      return;
+    }
+    if (!relayRecoveryAttempted && await attemptRelayRecovery("connection failure")) {
+      clearDisconnectTimer();
+      disconnectTimer = setTimeout(() => void attemptIceRestart(), 12_000);
       return;
     }
     if (peerRebuildAttempts < 2) {
@@ -1401,12 +1603,14 @@ function clearDisconnectTimer(): void {
 
 function closePeerConnection(setSolo = true): void {
   clearDisconnectTimer();
+  clearVoiceHealthMonitor();
   const connection = peerConnection;
   peerConnection = null;
   if (connection) {
     connection.onicecandidate = null;
     connection.onnegotiationneeded = null;
     connection.ontrack = null;
+    connection.oniceconnectionstatechange = null;
     connection.onconnectionstatechange = null;
     connection.ondatachannel = null;
     connection.close();
@@ -1449,6 +1653,8 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
   heartbeatTimer = null;
   clearSignalingRecovery();
   peerRebuildAttempts = 0;
+  relayRecoveryAttempted = false;
+  forceRelayTransport = false;
   await stopLocalScreen(false);
   closePeerConnection(false);
 

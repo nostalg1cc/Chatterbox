@@ -941,3 +941,9 @@ npx tsc --noEmit      # typecheck
 - [x] Bumped all desktop version records to v0.1.67, including the previously stale package-lock root metadata.
 - [x] Built and signed the current-user NSIS installer and published GitHub release `v0.1.67` with installer, `.sig`, and UTF-8 no-BOM `latest.json`.
 - [x] Verified the public updater endpoint returns v0.1.67 with a 416-character signature and an HTTP 200 installer URL.
+
+### Phase 144 - Unreleased voice-path recovery hardening (August 29)
+- [x] Added a conservative WebRTC inbound-audio health monitor. Sustained high packet loss or jitter now triggers recovery even when the browser still reports the connection as technically connected (the typical robotic-audio failure mode).
+- [x] Kept healthy calls direct P2P. On a measured quality failure or a failed normal ICE restart, the client refreshes its authenticated Cloudflare TURN credentials and restarts ICE with relay-only candidate policy; if a live route switch is rejected, it rebuilds the peer connection in relay-only mode while preserving the voice room.
+- [x] Hardened TURN credential handling so missing/invalid relay candidates are explicitly logged and never silently masquerade as a usable fallback. A temporary broker failure leaves an otherwise-live direct call usable rather than permanently showing Reconnecting.
+- [x] Verified TypeScript, production build, and whitespace checks; prepared for the signed v0.1.68 desktop release.
