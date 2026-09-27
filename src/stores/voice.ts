@@ -89,7 +89,14 @@ const ICE_SERVERS: RTCIceServer[] = [
 ];
 const HEARTBEAT_MS = 45_000;
 const TURN_CREDENTIAL_TTL_SAFETY_MS = 10 * 60_000;
+const TURN_CREDENTIAL_REQUEST_TIMEOUT_MS = 5_000;
 const CHANNEL_TIMEOUT_MS = 15_000;
+const SIGNAL_SEND_ATTEMPTS = 2;
+const SIGNAL_SEND_TIMEOUT_MS = 2_500;
+const SIGNAL_OUTBOX_MAX = 64;
+const SIGNAL_OUTBOX_TTL_MS = 20_000;
+const RELAY_RECOVERY_MAX_ATTEMPTS = 5;
+const CONNECTION_FAILURE_DELAY_MS = 6_000;
 // A connection can remain formally "connected" while its direct path is
 // shedding enough audio packets to sound robotic. Sample the receiving RTP
 // stats a few times before doing anything so normal Wi-Fi blips never cause a
@@ -132,8 +139,13 @@ let restartAttempted = false;
 let connectionRecoveryInProgress = false;
 let peerRebuildAttempts = 0;
 let relayRecoveryAttempted = false;
+let relayRecoveryInProgress = false;
+let relayRecoveryAttempts = 0;
+let relayRecoveryRetryAfter = 0;
+let directFallbackAttempted = false;
 let forceRelayTransport = false;
 let unhealthyVoiceSamples = 0;
+let healthAssessmentInProgress = false;
 let previousInboundAudioStats: {
   packetsReceived: number;
   packetsLost: number;
@@ -143,6 +155,12 @@ let disconnecting = false;
 let localVoiceActivity: VoiceActivityMonitor | null = null;
 let remoteVoiceActivity: VoiceActivityMonitor | null = null;
 let pendingCandidates: RTCIceCandidateInit[] = [];
+let pendingVoiceSignals: { signal: VoiceSignal; expiresAt: number }[] = [];
+let flushingVoiceSignals = false;
+let signalFlushRunId = 0;
+let signalFlushRetryTimer: ReturnType<typeof setTimeout> | null = null;
+const receivedVoiceSignalIds = new Map<string, number>();
+let turnCredentialRequestId = 0;
 let lastRemoteSoundboardAt = 0;
 const remoteSoundboardPlaybacks = new Map<string, SoundboardPlayback>();
 const cancelledRemoteSoundboardPlaybacks = new Set<string>();
@@ -179,19 +197,62 @@ function startVoiceHealthMonitor(connection: RTCPeerConnection): void {
   }, VOICE_HEALTH_SAMPLE_MS);
 }
 
+function getSelectedVoiceRoute(report: RTCStatsReport): {
+  roundTripTime?: number;
+  localCandidateType?: string;
+} | null {
+  const transport = Array.from(report.values()).find((entry) => entry.type === "transport") as
+    | (RTCStats & { selectedCandidatePairId?: string })
+    | undefined;
+  let pair = transport?.selectedCandidatePairId
+    ? report.get(transport.selectedCandidatePairId)
+    : undefined;
+  if (!pair) {
+    pair = Array.from(report.values()).find((entry) => {
+      if (entry.type !== "candidate-pair") return false;
+      const stats = entry as RTCStats & { state?: string; nominated?: boolean; selected?: boolean };
+      return stats.state === "succeeded" && (stats.nominated === true || stats.selected === true);
+    });
+  }
+  if (!pair || pair.type !== "candidate-pair") return null;
+
+  const pairStats = pair as RTCStats & {
+    currentRoundTripTime?: number;
+    localCandidateId?: string;
+  };
+  const localCandidate = pairStats.localCandidateId
+    ? report.get(pairStats.localCandidateId)
+    : undefined;
+  const candidateStats = localCandidate as (RTCStats & { candidateType?: string }) | undefined;
+  return {
+    roundTripTime: pairStats.currentRoundTripTime,
+    localCandidateType: candidateStats?.candidateType,
+  };
+}
+
 async function assessVoiceHealth(connection: RTCPeerConnection): Promise<void> {
   if (
     peerConnection !== connection ||
     connection.connectionState !== "connected" ||
     disconnecting ||
+    relayRecoveryInProgress ||
     forceRelayTransport ||
-    relayRecoveryAttempted
+    relayRecoveryAttempted ||
+    healthAssessmentInProgress
   ) {
     return;
   }
 
+  healthAssessmentInProgress = true;
   try {
     const report = await connection.getStats();
+    const route = getSelectedVoiceRoute(report);
+    // If ICE already selected TURN naturally, changing policy cannot improve
+    // the route. Keep the call stable rather than repeatedly forcing a restart.
+    if (route?.localCandidateType === "relay") {
+      unhealthyVoiceSamples = 0;
+      return;
+    }
     const inbound = Array.from(report.values()).find((entry) => {
       if (entry.type !== "inbound-rtp") return false;
       const stats = entry as RTCStats & { kind?: unknown; mediaType?: unknown };
@@ -213,25 +274,47 @@ async function assessVoiceHealth(connection: RTCPeerConnection): Promise<void> {
     const receivedDelta = Math.max(0, packetsReceived - previous.packetsReceived);
     const lostDelta = Math.max(0, packetsLost - previous.packetsLost);
     const totalPackets = receivedDelta + lostDelta;
-    if (totalPackets < VOICE_HEALTH_MIN_PACKETS) return;
+    if (totalPackets < VOICE_HEALTH_MIN_PACKETS) {
+      unhealthyVoiceSamples = 0;
+      return;
+    }
 
     const lossRatio = lostDelta / totalPackets;
     const unhealthy =
       lossRatio >= VOICE_HEALTH_PACKET_LOSS_RATIO ||
       jitter >= VOICE_HEALTH_JITTER_SECONDS;
     unhealthyVoiceSamples = unhealthy ? unhealthyVoiceSamples + 1 : 0;
+    if (!unhealthy && !forceRelayTransport && !relayRecoveryAttempted) {
+      relayRecoveryAttempts = 0;
+      relayRecoveryRetryAfter = 0;
+    }
     if (unhealthyVoiceSamples < VOICE_HEALTH_SAMPLES_BEFORE_RELAY) return;
 
-    console.warn("Voice path is unhealthy; switching this call to TURN relay.", {
+    console.warn("Voice path is unhealthy; attempting TURN relay recovery.", {
       lossRatio: Number(lossRatio.toFixed(3)),
       jitterMs: Math.round(jitter * 1000),
+      roundTripTimeMs: typeof route?.roundTripTime === "number"
+        ? Math.round(route.roundTripTime * 1000)
+        : null,
+      localCandidateType: route?.localCandidateType ?? "unknown",
     });
     clearVoiceHealthMonitor();
-    await attemptRelayRecovery("audio quality");
+    const recovered = await attemptRelayRecovery("audio quality");
+    if (
+      !recovered &&
+      peerConnection === connection &&
+      connection.connectionState === "connected" &&
+      !forceRelayTransport &&
+      !relayRecoveryAttempted
+    ) {
+      startVoiceHealthMonitor(connection);
+    }
   } catch (error) {
     // Stats are purely diagnostic. A browser that declines one sample must not
     // destabilise an otherwise healthy call.
     console.debug("Voice health sample was unavailable", error);
+  } finally {
+    healthAssessmentInProgress = false;
   }
 }
 
@@ -398,12 +481,22 @@ export const useVoice = create<VoiceState>()((set, get) => ({
         error: null,
       }));
 
-      await refreshTurnCredentials();
+      // Voice signaling and direct ICE should come up immediately; a slow
+      // credential broker must not hold the call setup path hostage. The TURN
+      // servers are installed for any ICE restart/recovery once they arrive.
+      void refreshTurnCredentials();
       try {
         await connectRoomChannel(room, sessionId);
       } catch (error) {
         if (get().sessionId !== sessionId) throw error;
-        await connectRoomChannel(room, sessionId);
+        try {
+          await connectRoomChannel(room, sessionId);
+        } catch (retryError) {
+          if (get().sessionId !== sessionId) throw retryError;
+      console.warn("Voice signaling is still unavailable; retrying in the background.", retryError);
+          set({ status: "reconnecting", error: null });
+          scheduleSignalingRecovery(room, sessionId);
+        }
       }
       playAppSound("voice_join");
     } catch (error) {
@@ -537,34 +630,84 @@ export const useVoice = create<VoiceState>()((set, get) => ({
 
 async function refreshTurnCredentials(force = false): Promise<boolean> {
   const state = useVoice.getState();
-  if (!state.activeConversationId) return false;
+  const conversationId = state.activeConversationId;
+  if (!conversationId) return false;
   if (!force && (turnCredentialsExpireAt - Date.now()) > TURN_CREDENTIAL_TTL_SAFETY_MS) {
     return hasTurnRelay();
   }
-  const { data, error } = await supabase.functions.invoke("realtime-credentials", {
-    body: { conversationId: state.activeConversationId },
-  });
-  const candidate = data as { iceServers?: unknown; expiresAt?: unknown } | null;
-  if (error || !Array.isArray(candidate?.iceServers)) {
-    activeIceServers = ICE_SERVERS;
-    turnCredentialsExpireAt = 0;
-    console.warn("Cloudflare TURN is unavailable; continuing with direct WebRTC.", error);
-    return false;
+  const requestId = ++turnCredentialRequestId;
+  try {
+    const { data, error } = await supabase.functions.invoke("realtime-credentials", {
+      body: { conversationId },
+      timeout: TURN_CREDENTIAL_REQUEST_TIMEOUT_MS,
+    });
+    const latest = useVoice.getState();
+    if (
+      requestId !== turnCredentialRequestId ||
+      latest.activeConversationId !== conversationId
+    ) {
+      return hasTurnRelay();
+    }
+
+    const candidate = data as { iceServers?: unknown; expiresAt?: unknown } | null;
+    if (error || !Array.isArray(candidate?.iceServers)) {
+      const cachedRelayUsable = hasTurnRelay() && turnCredentialsExpireAt > Date.now();
+      if (!cachedRelayUsable) {
+        activeIceServers = ICE_SERVERS;
+        turnCredentialsExpireAt = 0;
+      }
+      console.warn("Cloudflare TURN is unavailable; continuing with direct WebRTC.", error);
+      return cachedRelayUsable;
+    }
+    const servers = candidate.iceServers.filter((server): server is RTCIceServer => {
+      if (!server || typeof server !== "object") return false;
+      const value = server as RTCIceServer;
+      return typeof value.urls === "string" || Array.isArray(value.urls);
+    });
+    if (!servers.length || !hasTurnRelay(servers)) {
+      const cachedRelayUsable = hasTurnRelay() && turnCredentialsExpireAt > Date.now();
+      if (!cachedRelayUsable) {
+        activeIceServers = ICE_SERVERS;
+        turnCredentialsExpireAt = 0;
+      }
+      console.warn("Cloudflare TURN returned no usable relay candidates.");
+      return cachedRelayUsable;
+    }
+    activeIceServers = servers;
+    turnCredentialsExpireAt = typeof candidate.expiresAt === "number"
+      ? candidate.expiresAt
+      : Date.now() + 12 * 60 * 60_000;
+
+    // Existing media keeps its selected route; this updates the server list
+    // for a subsequent ICE restart without forcing an unnecessary interruption.
+    try {
+      const connection = peerConnection;
+      if (connection) {
+        connection.setConfiguration({
+          ...connection.getConfiguration(),
+          iceServers: activeIceServers,
+        });
+      }
+    } catch (error) {
+      console.debug("TURN servers will be applied on the next peer rebuild.", error);
+    }
+    return true;
+  } catch (error) {
+    const latest = useVoice.getState();
+    if (
+      requestId !== turnCredentialRequestId ||
+      latest.activeConversationId !== conversationId
+    ) {
+      return hasTurnRelay();
+    }
+    const cachedRelayUsable = hasTurnRelay() && turnCredentialsExpireAt > Date.now();
+    if (!cachedRelayUsable) {
+      activeIceServers = ICE_SERVERS;
+      turnCredentialsExpireAt = 0;
+    }
+    console.warn("Cloudflare TURN credential request failed; keeping direct WebRTC available.", error);
+    return cachedRelayUsable;
   }
-  const servers = candidate.iceServers.filter((server): server is RTCIceServer => {
-    if (!server || typeof server !== "object") return false;
-    const value = server as RTCIceServer;
-    return typeof value.urls === "string" || Array.isArray(value.urls);
-  });
-  if (!servers.length || !hasTurnRelay(servers)) {
-    activeIceServers = ICE_SERVERS;
-    turnCredentialsExpireAt = 0;
-    console.warn("Cloudflare TURN returned no usable relay candidates.");
-    return false;
-  }
-  activeIceServers = servers;
-  turnCredentialsExpireAt = typeof candidate.expiresAt === "number" ? candidate.expiresAt : Date.now() + 12 * 60 * 60_000;
-  return true;
 }
 function initializeVoice(userId: string): () => void {
   currentUserId = userId;
@@ -872,22 +1015,28 @@ async function connectRoomChannel(
   room: VoiceRoom,
   sessionId: string
 ): Promise<void> {
-  if (roomChannel) await supabase.removeChannel(roomChannel);
+  const previousChannel = roomChannel;
+  roomChannel = null;
   roomSubscribed = false;
+  if (previousChannel) await supabase.removeChannel(previousChannel);
 
   const topic =
     "voice:" + room.conversation_id + ":" + room.generation;
-  roomChannel = supabase.channel(topic, {
+  const channel = supabase.channel(topic, {
     config: {
       private: true,
-      broadcast: { ack: false, self: false },
+      // Wait for server receipt for SDP/ICE packets. This is not an end-peer
+      // delivery acknowledgement, but it prevents send() from appearing
+      // successful while the Realtime socket has not accepted the signal.
+      broadcast: { ack: true, self: false },
       presence: { key: sessionId },
     },
   });
+  roomChannel = channel;
 
-  roomChannel
+  channel
     .on("broadcast", { event: "signal" }, (message) => {
-      void handleSignal(message.payload);
+      void receiveVoiceSignal(message.payload);
     })
     .on("broadcast", { event: "soundboard" }, (message) => {
       handleRemoteSoundboardPlay(message.payload);
@@ -907,12 +1056,22 @@ async function connectRoomChannel(
       reject(new Error("Voice signaling timed out."));
     }, CHANNEL_TIMEOUT_MS);
 
-    roomChannel?.subscribe(async (status) => {
+    channel.subscribe(async (status) => {
+      const state = useVoice.getState();
+      if (
+        roomChannel !== channel ||
+        state.sessionId !== sessionId ||
+        state.activeConversationId !== room.conversation_id
+      ) return;
+
       if (status === "SUBSCRIBED") {
         try {
           roomSubscribed = true;
           await updateRoomPresence();
+          if (roomChannel !== channel) return;
+          clearSignalingRecovery();
           startHeartbeat();
+          void flushPendingVoiceSignals();
           syncRoomPresence();
           if (!settled) {
             settled = true;
@@ -932,7 +1091,8 @@ async function connectRoomChannel(
         }
       } else if (
         status === "CHANNEL_ERROR" ||
-        status === "TIMED_OUT"
+        status === "TIMED_OUT" ||
+        status === "CLOSED"
       ) {
         roomSubscribed = false;
         if (!settled) {
@@ -1291,6 +1451,7 @@ function buildSignal(
     version: 1 as const,
     generation: room.generation,
     fromSessionId: state.sessionId,
+    signalId: crypto.randomUUID(),
     ...(remoteSessionId ? { toSessionId: remoteSessionId } : {}),
   };
 
@@ -1303,13 +1464,140 @@ function buildSignal(
   return { ...base, type: "screen-stopped" };
 }
 
+function isCurrentVoiceSignal(signal: VoiceSignal): boolean {
+  const state = useVoice.getState();
+  const conversationId = state.activeConversationId;
+  const room = conversationId ? state.rooms[conversationId] : undefined;
+  return Boolean(
+    !disconnecting &&
+    room &&
+    state.sessionId === signal.fromSessionId &&
+    room.generation === signal.generation &&
+    (!signal.toSessionId || !remoteSessionId || signal.toSessionId === remoteSessionId)
+  );
+}
+
+function queueVoiceSignal(signal: VoiceSignal): void {
+  if (!isCurrentVoiceSignal(signal)) return;
+  if (signal.signalId && pendingVoiceSignals.some((entry) => entry.signal.signalId === signal.signalId)) return;
+  while (pendingVoiceSignals.length >= SIGNAL_OUTBOX_MAX) {
+    const candidateIndex = pendingVoiceSignals.findIndex((entry) => entry.signal.type === "ice-candidate");
+    pendingVoiceSignals.splice(candidateIndex >= 0 ? candidateIndex : 0, 1);
+  }
+  pendingVoiceSignals.push({ signal, expiresAt: Date.now() + SIGNAL_OUTBOX_TTL_MS });
+}
+
+function scheduleVoiceSignalFlush(delayMs = 1_000): void {
+  if (signalFlushRetryTimer || disconnecting) return;
+  signalFlushRetryTimer = window.setTimeout(() => {
+    signalFlushRetryTimer = null;
+    void flushPendingVoiceSignals();
+  }, delayMs);
+}
+
+async function deliverVoiceSignal(
+  channel: RealtimeChannel,
+  signal: VoiceSignal
+): Promise<boolean> {
+  for (let attempt = 0; attempt < SIGNAL_SEND_ATTEMPTS; attempt += 1) {
+    if (channel !== roomChannel || !roomSubscribed || !isCurrentVoiceSignal(signal)) return false;
+    try {
+      const result = await channel.send({
+        type: "broadcast",
+        event: "signal",
+        payload: signal,
+      }, { timeout: SIGNAL_SEND_TIMEOUT_MS });
+      if (result === "ok") return channel === roomChannel && isCurrentVoiceSignal(signal);
+      console.warn("Voice signal was not accepted by Realtime.", { type: signal.type, result });
+    } catch (error) {
+      console.warn("Voice signal send failed.", { type: signal.type, error });
+    }
+    if (attempt + 1 < SIGNAL_SEND_ATTEMPTS) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 250 * 2 ** attempt));
+    }
+  }
+  return false;
+}
+
+async function flushPendingVoiceSignals(): Promise<void> {
+  if (flushingVoiceSignals || !roomChannel || !roomSubscribed || disconnecting) return;
+  flushingVoiceSignals = true;
+  const runId = ++signalFlushRunId;
+  if (signalFlushRetryTimer) {
+    window.clearTimeout(signalFlushRetryTimer);
+    signalFlushRetryTimer = null;
+  }
+  try {
+    while (pendingVoiceSignals.length && roomChannel && roomSubscribed && !disconnecting) {
+      const entry = pendingVoiceSignals[0];
+      if (entry.expiresAt <= Date.now() || !isCurrentVoiceSignal(entry.signal)) {
+        pendingVoiceSignals.shift();
+        continue;
+      }
+      const channel = roomChannel;
+      if (!(await deliverVoiceSignal(channel, entry.signal))) {
+        return;
+      }
+      if (pendingVoiceSignals[0] === entry) pendingVoiceSignals.shift();
+    }
+  } finally {
+    if (runId === signalFlushRunId) {
+      flushingVoiceSignals = false;
+      if (pendingVoiceSignals.length && roomChannel && roomSubscribed && !disconnecting) {
+        scheduleVoiceSignalFlush(1_500);
+      }
+    }
+  }
+}
+
 function sendSignal(signal: VoiceSignal): void {
-  if (!roomChannel || !roomSubscribed) return;
-  void roomChannel.send({
-    type: "broadcast",
-    event: "signal",
-    payload: signal,
+  if (!isCurrentVoiceSignal(signal)) return;
+  if (!roomChannel || !roomSubscribed || pendingVoiceSignals.length) {
+    queueVoiceSignal(signal);
+    void flushPendingVoiceSignals();
+    return;
+  }
+
+  // Keep the normal connected path low-latency: SDP/ICE sends can proceed
+  // independently. When the channel is unavailable or a send fails, the
+  // bounded outbox replays them in insertion order after recovery.
+  const channel = roomChannel;
+  void deliverVoiceSignal(channel, signal).then((delivered) => {
+    if (delivered || !isCurrentVoiceSignal(signal)) return;
+    queueVoiceSignal(signal);
+    void flushPendingVoiceSignals();
   });
+}
+
+async function receiveVoiceSignal(raw: unknown): Promise<void> {
+  const signal = raw as VoiceSignal;
+  const key = signal?.signalId && signal?.fromSessionId
+    ? `${signal.fromSessionId}:${signal.signalId}`
+    : null;
+  const now = Date.now();
+  for (const [receivedKey, timestamp] of receivedVoiceSignalIds) {
+    if (now - timestamp > 60_000) receivedVoiceSignalIds.delete(receivedKey);
+  }
+  if (key && receivedVoiceSignalIds.has(key)) return;
+  if (key) {
+    receivedVoiceSignalIds.set(key, now);
+    while (receivedVoiceSignalIds.size > 256) {
+      const oldest = receivedVoiceSignalIds.keys().next().value;
+      if (!oldest) break;
+      receivedVoiceSignalIds.delete(oldest);
+    }
+  }
+
+  try {
+    await handleSignal(signal);
+  } catch (error) {
+    if (key) receivedVoiceSignalIds.delete(key);
+    console.warn("Voice signal could not be processed; scheduling ICE recovery.", {
+      type: signal?.type,
+      error,
+    });
+    scheduleConnectionFailure();
+  }
 }
 
 function voicePartnerId(conversationId: string): string | null {
@@ -1471,7 +1759,7 @@ function scheduleConnectionFailure(): void {
     if (peerConnection && (peerConnection.connectionState !== "connected" || recovering)) {
       void attemptIceRestart();
     }
-  }, 10_000);
+  }, CONNECTION_FAILURE_DELAY_MS);
 }
 
 async function attemptRelayRecovery(reason: "audio quality" | "connection failure"): Promise<boolean> {
@@ -1480,37 +1768,46 @@ async function attemptRelayRecovery(reason: "audio quality" | "connection failur
     !connection ||
     !remoteSessionId ||
     disconnecting ||
-    relayRecoveryAttempted
+    relayRecoveryAttempted ||
+    relayRecoveryInProgress ||
+    relayRecoveryAttempts >= RELAY_RECOVERY_MAX_ATTEMPTS ||
+    Date.now() < relayRecoveryRetryAfter
   ) {
     return false;
   }
 
-  relayRecoveryAttempted = true;
-  useVoice.setState({ status: "reconnecting", error: null });
-  const relayAvailable = await refreshTurnCredentials(true);
-  if (!relayAvailable || peerConnection !== connection) {
-    console.warn(`Voice ${reason} recovery could not obtain Cloudflare TURN credentials.`);
-    // The old direct pair can still be carrying audio. Do not strand that call
-    // in a permanent reconnecting UI just because the credential broker is
-    // temporarily unavailable; the normal failed-connection path will still
-    // continue through peer rebuilding below.
-    if (peerConnection === connection && connection.connectionState === "connected") {
-      useVoice.setState({ status: "connected", error: null });
-      startVoiceHealthMonitor(connection);
-    }
-    return false;
-  }
-
-  forceRelayTransport = true;
+  relayRecoveryInProgress = true;
+  relayRecoveryAttempts += 1;
+  const wasConnected = connection.connectionState === "connected";
+  if (!wasConnected) useVoice.setState({ status: "reconnecting", error: null });
   try {
+    const relayAvailable = await refreshTurnCredentials(true);
+    if (!relayAvailable || peerConnection !== connection) {
+      const retryDelay = Math.min(30_000, 2_000 * 2 ** (relayRecoveryAttempts - 1));
+      relayRecoveryRetryAfter = Date.now() + retryDelay;
+      console.warn(`Voice ${reason} recovery could not obtain Cloudflare TURN credentials.`);
+      // The current direct pair may still be carrying audio. Keep it usable
+      // and leave the monitor armed so a temporary broker outage is retryable.
+      if (wasConnected && peerConnection === connection && connection.connectionState === "connected") {
+        useVoice.setState({ status: "connected", error: null });
+      }
+      return false;
+    }
+
+    forceRelayTransport = true;
     // setConfiguration + restartIce is the supported way to replace ICE
     // routing mid-call. With "relay" selected, Chromium only considers TURN
     // candidates instead of returning to the flaky direct candidate pair.
     connection.setConfiguration({
+      ...connection.getConfiguration(),
       iceServers: activeIceServers,
       iceTransportPolicy: "relay",
     });
     connection.restartIce();
+    relayRecoveryAttempted = true;
+    restartAttempted = true;
+    directFallbackAttempted = false;
+    relayRecoveryRetryAfter = 0;
     clearDisconnectTimer();
     disconnectTimer = setTimeout(() => void attemptIceRestart(), 12_000);
     return true;
@@ -1519,18 +1816,33 @@ async function attemptRelayRecovery(reason: "audio quality" | "connection failur
     // that declines a live transport-policy change. It retains the current
     // room/signaling session and is constructed relay-only.
     console.warn("Live TURN route switch failed; rebuilding the voice peer.", error);
-    await rebuildPeerConnection();
-    return peerConnection !== null;
+    if (forceRelayTransport && peerConnection === connection) {
+      relayRecoveryAttempted = true;
+      restartAttempted = true;
+      await rebuildPeerConnection();
+      return peerConnection !== null;
+    }
+
+    forceRelayTransport = false;
+    relayRecoveryRetryAfter = Date.now() + Math.min(30_000, 2_000 * 2 ** (relayRecoveryAttempts - 1));
+    if (wasConnected && peerConnection === connection && connection.connectionState === "connected") {
+      useVoice.setState({ status: "connected", error: null });
+    }
+    return false;
+  } finally {
+    relayRecoveryInProgress = false;
   }
 }
 
 async function attemptIceRestart(): Promise<void> {
   const isRecovering = useVoice.getState().status === "reconnecting";
+  const connection = peerConnection;
   if (
     connectionRecoveryInProgress ||
-    !peerConnection ||
+    relayRecoveryInProgress ||
+    !connection ||
     !remoteSessionId ||
-    (peerConnection.connectionState === "connected" && !isRecovering) ||
+    (connection.connectionState === "connected" && !isRecovering) ||
     disconnecting
   ) return;
   connectionRecoveryInProgress = true;
@@ -1538,17 +1850,70 @@ async function attemptIceRestart(): Promise<void> {
     if (!restartAttempted) {
       restartAttempted = true;
       useVoice.setState({ status: "reconnecting", error: null });
-      await refreshTurnCredentials();
-      peerConnection?.setConfiguration({
+      const wasForcingRelay = forceRelayTransport;
+      // A direct ICE restart should not wait on the TURN broker. Refresh in
+      // the background so it is ready for a later relay fallback; only wait
+      // when relay-only is already the selected recovery policy.
+      const relayAvailable = wasForcingRelay
+        ? await refreshTurnCredentials()
+        : hasTurnRelay();
+      if (!wasForcingRelay) void refreshTurnCredentials();
+      if (peerConnection !== connection) return;
+      if (wasForcingRelay && !relayAvailable) {
+        // Do not leave a relay-only peer with no valid TURN server configured.
+        // A direct attempt is preferable to a guaranteed dead route while the
+        // credential broker is unavailable.
+        forceRelayTransport = false;
+        relayRecoveryAttempted = false;
+        directFallbackAttempted = true;
+      }
+      connection.setConfiguration({
+        ...connection.getConfiguration(),
         iceServers: activeIceServers,
         iceTransportPolicy: forceRelayTransport ? "relay" : "all",
       });
-      peerConnection?.restartIce();
+      connection.restartIce();
       clearDisconnectTimer();
       disconnectTimer = setTimeout(() => void attemptIceRestart(), 12_000);
       return;
     }
-    if (!relayRecoveryAttempted && await attemptRelayRecovery("connection failure")) {
+    if (!relayRecoveryAttempted) {
+      if (Date.now() < relayRecoveryRetryAfter) {
+        clearDisconnectTimer();
+        disconnectTimer = setTimeout(
+          () => void attemptIceRestart(),
+          Math.min(12_000, relayRecoveryRetryAfter - Date.now())
+        );
+        return;
+      }
+      if (await attemptRelayRecovery("connection failure")) {
+        clearDisconnectTimer();
+        disconnectTimer = setTimeout(() => void attemptIceRestart(), 12_000);
+        return;
+      }
+      if (peerConnection !== connection) return;
+      if (!relayRecoveryAttempted && relayRecoveryAttempts < RELAY_RECOVERY_MAX_ATTEMPTS) {
+        clearDisconnectTimer();
+        disconnectTimer = setTimeout(
+          () => void attemptIceRestart(),
+          Math.max(1_500, Math.min(12_000, relayRecoveryRetryAfter - Date.now()))
+        );
+        return;
+      }
+    }
+    if (forceRelayTransport && relayRecoveryAttempted && !directFallbackAttempted) {
+      // TURN can itself be a bad route (or fail behind a restrictive firewall).
+      // After the relay ICE restart has had its window, try standard ICE again
+      // instead of rebuilding relay-only peers until the call gives up.
+      directFallbackAttempted = true;
+      forceRelayTransport = false;
+      relayRecoveryAttempted = false;
+      connection.setConfiguration({
+        ...connection.getConfiguration(),
+        iceServers: activeIceServers,
+        iceTransportPolicy: "all",
+      });
+      connection.restartIce();
       clearDisconnectTimer();
       disconnectTimer = setTimeout(() => void attemptIceRestart(), 12_000);
       return;
@@ -1574,9 +1939,17 @@ async function rebuildPeerConnection(): Promise<void> {
     return;
   }
   useVoice.setState({ status: "reconnecting", error: null });
+  const wasForcingRelay = forceRelayTransport;
+  const relayAvailable = wasForcingRelay
+    ? await refreshTurnCredentials()
+    : hasTurnRelay();
+  if (!wasForcingRelay) void refreshTurnCredentials();
+  if (wasForcingRelay && !relayAvailable) {
+    forceRelayTransport = false;
+    relayRecoveryAttempted = false;
+  }
   closePeerConnection(false);
   remoteSessionId = preservedRemoteSessionId;
-  await refreshTurnCredentials();
   ensurePeerConnection(remoteUserId);
   await updateRoomPresence();
 }
@@ -1652,8 +2025,18 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   heartbeatTimer = null;
   clearSignalingRecovery();
+  if (signalFlushRetryTimer) window.clearTimeout(signalFlushRetryTimer);
+  signalFlushRetryTimer = null;
+  pendingVoiceSignals = [];
+  receivedVoiceSignalIds.clear();
+  signalFlushRunId += 1;
+  flushingVoiceSignals = false;
   peerRebuildAttempts = 0;
   relayRecoveryAttempted = false;
+  relayRecoveryInProgress = false;
+  relayRecoveryAttempts = 0;
+  relayRecoveryRetryAfter = 0;
+  directFallbackAttempted = false;
   forceRelayTransport = false;
   await stopLocalScreen(false);
   closePeerConnection(false);
@@ -1887,6 +2270,10 @@ export interface VoiceCallStats {
   /** True if audio is relayed through a TURN server rather than a direct
    * path - relayed connections typically carry more latency. */
   relayed: boolean;
+  /** Latest inbound RTP jitter estimate, in whole milliseconds. */
+  jitterMs: number | null;
+  /** Inbound audio packet loss ratio over this peer connection's lifetime. */
+  packetLossPercent: number | null;
 }
 
 // The call is a direct WebRTC peer connection (occasionally TURN-relayed),
@@ -1895,26 +2282,29 @@ export interface VoiceCallStats {
 // ping" to some middlebox.
 export async function getVoiceCallStats(): Promise<VoiceCallStats | null> {
   if (!peerConnection) return null;
-  const report = await peerConnection.getStats();
-  let selectedPairId: string | null = null;
-  for (const entry of report.values()) {
-    if (entry.type === "transport" && entry.selectedCandidatePairId) {
-      selectedPairId = entry.selectedCandidatePairId;
-    }
+  try {
+    const report = await peerConnection.getStats();
+    const route = getSelectedVoiceRoute(report);
+    if (!route) return null;
+    const inbound = Array.from(report.values()).find((entry) => {
+      if (entry.type !== "inbound-rtp") return false;
+      const stats = entry as RTCStats & { kind?: unknown; mediaType?: unknown };
+      return stats.kind === "audio" || stats.mediaType === "audio";
+    }) as (RTCStats & {
+      packetsReceived?: unknown;
+      packetsLost?: unknown;
+      jitter?: unknown;
+    }) | undefined;
+    const received = typeof inbound?.packetsReceived === "number" ? inbound.packetsReceived : null;
+    const lost = typeof inbound?.packetsLost === "number" ? Math.max(0, inbound.packetsLost) : null;
+    const total = received !== null && lost !== null ? received + lost : 0;
+    return {
+      rttMs: typeof route.roundTripTime === "number" ? Math.round(route.roundTripTime * 1000) : null,
+      relayed: route.localCandidateType === "relay",
+      jitterMs: typeof inbound?.jitter === "number" ? Math.round(inbound.jitter * 1000) : null,
+      packetLossPercent: total > 0 && lost !== null ? Number(((lost / total) * 100).toFixed(1)) : null,
+    };
+  } catch {
+    return null;
   }
-  let pair = selectedPairId ? report.get(selectedPairId) : null;
-  if (!pair) {
-    for (const entry of report.values()) {
-      if (entry.type === "candidate-pair" && entry.state === "succeeded" && entry.nominated) {
-        pair = entry;
-        break;
-      }
-    }
-  }
-  if (!pair) return null;
-  const rttMs = typeof pair.currentRoundTripTime === "number"
-    ? Math.round(pair.currentRoundTripTime * 1000)
-    : null;
-  const localCandidate = pair.localCandidateId ? report.get(pair.localCandidateId) : null;
-  return { rttMs, relayed: localCandidate?.candidateType === "relay" };
 }

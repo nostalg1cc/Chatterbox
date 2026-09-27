@@ -569,7 +569,14 @@ export function V3Shell() {
       return;
     }
     const path = stats.relayed ? "relayed" : "direct";
-    useChat.getState().addLocalSystemMessage(activeId, `Round-trip to your partner: ${stats.rttMs}ms (${path})`);
+    const quality = [
+      stats.jitterMs !== null ? `${stats.jitterMs}ms jitter` : null,
+      stats.packetLossPercent !== null ? `${stats.packetLossPercent}% inbound loss` : null,
+    ].filter(Boolean).join(" · ");
+    useChat.getState().addLocalSystemMessage(
+      activeId,
+      `Voice link: ${stats.rttMs}ms RTT (${path})${quality ? ` · ${quality}` : ""}`
+    );
   }
 
   function clearComposerAfterCommand() {

@@ -16,7 +16,12 @@ function isUuid(value: unknown): value is string {
 }
 
 function validTurnUrl(value: unknown): value is string {
-  return typeof value === "string" && /^(turn|turns):turn\.cloudflare\.com:/i.test(value) && !value.includes(":53");
+  if (typeof value !== "string") return false;
+  const match = value.match(/^turns?:turn\.cloudflare\.com:(\d+)(?:[/?]|$)/i);
+  // Filter the browser-blocked alternate port 53 exactly. A substring check
+  // also removes valid TLS port 5349, which can be essential on locked-down
+  // networks.
+  return Boolean(match && match[1] !== "53");
 }
 
 const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
@@ -38,33 +43,48 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
   const keySecret = Deno.env.get("CLOUDFLARE_TURN_KEY_SECRET");
   if (!keyId || !keySecret) return json({ error: "Cloudflare relay is not configured yet." }, 503);
 
-  const response = await fetch(
-    `https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${keySecret}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ ttl: 43_200 }),
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4_000);
+  let response: Response;
+  let payload: { iceServers?: { urls?: unknown; username?: unknown; credential?: unknown } | Array<{ urls?: unknown; username?: unknown; credential?: unknown }> } | null;
+  try {
+    response = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate-ice-servers`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${keySecret}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ttl: 43_200 }),
+        signal: controller.signal,
+      }
+    );
+    if (!response.ok) {
+      console.error("Cloudflare TURN credential request failed", response.status);
+      return json({ error: "Cloudflare relay credentials could not be issued." }, 503);
     }
-  );
-  if (!response.ok) {
-    console.error("Cloudflare TURN credential request failed", response.status);
+    payload = await response.json().catch(() => null);
+  } catch (error) {
+    console.error("Cloudflare TURN credential request could not reach the provider", error);
     return json({ error: "Cloudflare relay credentials could not be issued." }, 503);
+  } finally {
+    clearTimeout(timeout);
   }
 
-  const payload = await response.json() as { iceServers?: { urls?: unknown; username?: unknown; credential?: unknown } | Array<{ urls?: unknown; username?: unknown; credential?: unknown }> };
-  const servers = Array.isArray(payload.iceServers) ? payload.iceServers : payload.iceServers ? [payload.iceServers] : [];
-  const relay = servers.find((entry) =>
-    Array.isArray(entry.urls) && typeof entry.username === "string" && typeof entry.credential === "string"
-  );
-  const urls = Array.isArray(relay?.urls) ? relay.urls.filter(validTurnUrl) : [];
-  if (!relay || !urls.length) {
+  const servers = Array.isArray(payload?.iceServers) ? payload.iceServers : payload?.iceServers ? [payload.iceServers] : [];
+  const relays = servers.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const urls = (Array.isArray(entry.urls) ? entry.urls : typeof entry.urls === "string" ? [entry.urls] : [])
+      .filter(validTurnUrl);
+    if (!urls.length || typeof entry.username !== "string" || typeof entry.credential !== "string") return [];
+    return [{ urls, username: entry.username, credential: entry.credential, credentialType: "password" as const }];
+  });
+  if (!relays.length) {
     return json({ error: "Cloudflare returned invalid relay credentials." }, 503);
   }
 
   return json({
     iceServers: [
       { urls: ["stun:stun.cloudflare.com:3478"] },
-      { urls, username: relay.username, credential: relay.credential, credentialType: "password" },
+      ...relays,
     ],
     expiresAt: Date.now() + 43_200_000,
   });

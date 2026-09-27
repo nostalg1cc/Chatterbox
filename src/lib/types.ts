@@ -131,28 +131,19 @@ export interface VoicePresence {
   joinedAt: string;
 }
 
-export type VoiceSignal =
-  | {
-      version: 1;
-      generation: string;
-      fromSessionId: string;
-      toSessionId?: string;
-      type: "ready";
-    }
-  | {
-      version: 1;
-      generation: string;
-      fromSessionId: string;
-      toSessionId?: string;
-      type: "description";
-      description: RTCSessionDescriptionInit;
-    }
-  | {
-      version: 1;
-      generation: string;
-      fromSessionId: string;
-      toSessionId?: string;
-      type: "ice-candidate";
-      candidate: RTCIceCandidateInit;
-    }  | { version: 1; generation: string; fromSessionId: string; toSessionId?: string; type: "screen-published"; cloudflareSessionId: string; trackNames: string[]; }
-  | { version: 1; generation: string; fromSessionId: string; toSessionId?: string; type: "screen-stopped"; };
+type VoiceSignalBase = {
+  version: 1;
+  generation: string;
+  fromSessionId: string;
+  toSessionId?: string;
+  /** Stable across retries so the receiver can safely ignore duplicates. */
+  signalId?: string;
+};
+
+export type VoiceSignal = VoiceSignalBase & (
+  | { type: "ready" }
+  | { type: "description"; description: RTCSessionDescriptionInit }
+  | { type: "ice-candidate"; candidate: RTCIceCandidateInit }
+  | { type: "screen-published"; cloudflareSessionId: string; trackNames: string[] }
+  | { type: "screen-stopped" }
+);

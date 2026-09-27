@@ -1,11 +1,11 @@
-﻿{
-    "version":  "0.1.9",
-    "notes":  "Voice header polish: stable elapsed call status, labeled Voicechat / Join voice / Leave voice controls, reliable header dragging over media, and immediate screen-share PiP cleanup when sharing stops.",
-    "pub_date":  "2026-07-15T21:43:06.3598224Z",
-    "platforms":  {
-                      "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRa0RLazZwdmlJd3BMVDJ6QlBQSXVKQnc1a1kwVzFVcC83L0sxay9kWXNIU3E2eGFlbzF6L3FlRW5lSVJldHdjOW0vSDZ5YldVSml6SDg4MDc0N0FPYW96K2V5cjI3TncwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTUxNzQyCWZpbGU6RGlzbGlnaHRfMC4xLjlfeDY0LXNldHVwLmV4ZQphN0s0VmQ0dm5Ibi9EbXU5d3lTaG1SM1V0Smd4MEcvTitaK3pVemxtRThtMVBGR1dLQ1BxaGw0TEcvVUhsYk5zUU1IVlZaODNUYkd3SjlJcWtrTUJCQT09Cg==",
-                                             "url":  "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.9/Dislight_0.1.9_x64-setup.exe"
-                                         }
-                  }
+{
+  "version": "0.1.69",
+  "notes": "Voice reliability improvements: faster call setup, more resilient signaling, and improved TURN recovery.",
+  "pub_date": "2026-09-27T04:22:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErME1kVGcxRmVoc0UrcTVGcEF4dE5kRFBpVlh2UGZZMzhWdE5Kd0xBNW8rYmV4UUZEZU1yQUpzZ3FuUGhnR21Gb2VZUEorRi9iNElDSXprdXNZOThHT3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNDgyOTA2CWZpbGU6Tml0cm9fMC4xLjY5X3g2NC1zZXR1cC5leGUKcmVKMTJXY2doUlNzUzJiUGw2QTNJNlFaTzhldDJoZkNOQUN5U2NSVFFvUC91M1Z4a0t2VWEzbkl4VmdMSlNVMmliZDAvM0kyMW1oaGV4SHpvME1mQnc9PQo=",
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.69/Nitro_0.1.69_x64-setup.exe"
+    }
+  }
 }
