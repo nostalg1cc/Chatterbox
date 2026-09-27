@@ -972,4 +972,12 @@ npx tsc --noEmit      # typecheck
 - [x] Expanded the `/ping` voice diagnostic response to include selected direct/relayed route, RTT, inbound jitter, and inbound packet-loss estimate.
 - [x] Verified `npx tsc -b`, `deno check` for `realtime-credentials`, `npm run build`, and `git diff --check`.
 - [x] Deployed `realtime-credentials` Edge Function v9 to Nitro's Supabase project with JWT verification still enabled.
-- [x] Built the v0.1.69 NSIS installer and generated its updater signature; the signature matches the no-BOM `updates/latest.json` manifest. GitHub publication and real two-client call testing remain pending.
+- [x] Built the v0.1.69 NSIS installer and generated its updater signature; the signature matches the no-BOM `updates/latest.json` manifest. See Phase 148 for publication verification.
+- [ ] A real two-client call test across normal, restrictive/relay-only, and network-change cases is still needed.
+
+### Phase 148 - Nitro v0.1.69 voice reliability release (September 27)
+- [x] Pushed commit `a57b707` to `main` and tag `v0.1.69` to GitHub.
+- [x] Published GitHub release `v0.1.69` with only the signed 28,096,191-byte NSIS installer, its 416-byte `.sig`, and `latest.json`.
+- [x] Verified the public latest updater endpoint reports v0.1.69 with a 416-character signature and the installer URL returns HTTP 200.
+- [x] Deployed `realtime-credentials` Edge Function v9 to the production Supabase project; status is ACTIVE and JWT verification remains enabled.
+- [ ] Still requires a real two-client call test. No MSI or temporary/test artifacts were included in the release.
