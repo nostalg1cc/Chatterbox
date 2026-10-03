@@ -1014,4 +1014,6 @@ npx tsc --noEmit      # typecheck
 ### Phase 152 - Main-window shutdown follow-up (October 3)
 - [x] Found that the main close button only closes its window while the hidden `voice-hud` window remains alive. Added a native main-window Destroyed handler that exits the whole application, including HUD/WebViews and global shortcuts.
 - [x] Native `cargo check` and whitespace validation pass.
-- [ ] Validate installed-app X/Alt-F4 shutdown during idle and active voice, including disappearance of app-owned WebView2 children. This follow-up is not included in the published v0.1.70 installer.
+- [x] Built signed v0.1.71 NSIS patch and cryptographically verified it against the configured updater public key. Isolated-profile native smoke test initialized main/HUD windows, closed main, and confirmed clean exit plus disappearance of all seven child processes. Reusable smoke test: `audits/shutdown-smoke.ps1`.
+- [ ] Installed-app X/Alt-F4 shutdown during active voice remains a user-session verification; smoke test covers the built release executable with an isolated, signed-out profile.
+- [ ] Publish v0.1.71 installer/signature/updater manifest and verify public delivery.

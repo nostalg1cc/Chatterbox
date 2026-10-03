@@ -1,11 +1,11 @@
 {
-  "version": "0.1.70",
-  "notes": "Voice recovery and security update: safer join/leave, recovery after outages and network changes, independent screen-share recovery, protected attachments, and backend authorization fixes. Both participants should update.",
-  "pub_date": "2026-10-03T05:22:32.241394Z",
+  "version": "0.1.71",
+  "notes": "Shutdown patch: closing Nitro with X or Alt-F4 now exits the entire app, including its hidden voice overlay. Includes the voice recovery and security fixes from v0.1.70.",
+  "pub_date": "2026-10-03T05:36:39.4734955Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.70/Nitro_0.1.70_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMEdDRURyQTd0QUhhT0pmc2JpRk5YOGZvUjhib3NxMGpTWFMwcEt1NWZmVEI2OUV4U1ZXQkNpdElhQzE3dnNUcnNlbjUxZlNVT3IzYThJTmcrU1JJTkFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDA0NzcwCWZpbGU6Tml0cm9fMC4xLjcwX3g2NC1zZXR1cC5leGUKM1BiNVR1N0gyVUl2NmlHN2RMdG9RYTB4dERtaEhwL284d2lBUkR0K0xQRDlidTBELzE2L2FMSTBkOVB0RFg5SDIrNVBKWW10UTNscHRXZ0xwS0VqRFE9PQo="
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.71/Nitro_0.1.71_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMEFYY0xPSjYxVHlUNGJDMmRxangwZkVTbjVpSkxsQWVsMDUrajR3cmp1VEhsSG1MaUhZZkRSeGRxVWpLaWFLcEs0QURPL0pVa3duSHY2RG4vUTBjWUF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDA1NzE4CWZpbGU6Tml0cm9fMC4xLjcxX3g2NC1zZXR1cC5leGUKcXlBdEprY0JwNVJERFRTZy8rWXAwdDNYNlJkMkJTSmlHM3FrLzB1OXNJcERHd3UvZms3K0tXOWNxMVN5dEJiMzNlL2ZIbGk4RXI1bm1RTldFVHVERFE9PQo="
     }
   }
 }
