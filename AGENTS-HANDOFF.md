@@ -1016,4 +1016,4 @@ npx tsc --noEmit      # typecheck
 - [x] Native `cargo check` and whitespace validation pass.
 - [x] Built signed v0.1.71 NSIS patch and cryptographically verified it against the configured updater public key. Isolated-profile native smoke test initialized main/HUD windows, closed main, and confirmed clean exit plus disappearance of all seven child processes. Reusable smoke test: `audits/shutdown-smoke.ps1`.
 - [ ] Installed-app X/Alt-F4 shutdown during active voice remains a user-session verification; smoke test covers the built release executable with an isolated, signed-out profile.
-- [ ] Publish v0.1.71 installer/signature/updater manifest and verify public delivery.
+- [x] Pushed release commit `19cb94c` and tag `v0.1.71`; published the signed installer/signature/updater manifest at https://github.com/nostalg1cc/Chatterbox/releases/tag/v0.1.71. Public latest manifest matches local v0.1.71 without a BOM, and installer delivery returns HTTP 200. Installer size: 27,683,015 bytes; SHA-256: `7158d0e31b7c9baf5c03013e6e132b7449b8ecf6c97430aa869efd83cc0360a7`.
