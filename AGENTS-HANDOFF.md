@@ -991,8 +991,8 @@ npx tsc --noEmit      # typecheck
 - [x] Checked deployed Supabase voice functions/policies/triggers/cron, edge sources, security advisors; Vercel production deployment; Cloudinary usage/asset metadata. Cloudflare direct account analytics were unavailable.
 - [x] Production TypeScript/Vite build passes. Five isolated source-extracted reproductions confirm canceled join resurrection, stale heartbeat teardown, healthy voice teardown on absent signaling presence, viewer subscriber cleanup omission, and IPv6 preview-guard bypass.
 - [x] Recorded severity, evidence, fix proposals, test matrix and access limits in audits/2026-10-03-project-audit.md; reproduction harness in audits/2026-10-03-voice-repro.mjs.
-- [ ] Fix audit findings; no application/backend changes or deployments were made. Priority: session cancellation/identity checks, friendship identity immutability, preview destination safety, lease/presence reconciliation, and separate screen publisher/subscriber ownership.
-- [ ] Align Vercel production v0.1.65 (805dd21) with desktop/local v0.1.69; current web deployment misses newer voice fixes.
+- [x] Fixed the actionable code/backend audit findings in Phase 151. The original Phase 150 audit made no application/backend changes or deployments.
+- [x] Aligned Vercel production and desktop on v0.1.70 in Phase 151.
 - [ ] Run real two-client direct/relay/network-switch/signaling-outage/sleep-resume tests. Isolated reproductions and compilation do not establish end-to-end recovery reliability.
 
 ### Phase 151 - Nitro v0.1.70 audit remediation and release (October 3)
@@ -1006,6 +1006,7 @@ npx tsc --noEmit      # typecheck
 - [x] Moved all 13 Cloudinary chat attachments to authenticated delivery with invalidation. Broker issues authorized five-minute downloads and revokes deleted attachments; valid image/video probes return 206, expired/forged signatures return 401. Public-key-only scheduled cleanup probe returns 403.
 - [x] Excluded signing/recovery files and local experiments from deployment inputs. Release builds use `.release-workspace` with only tracked/task sources; signing identity is the ignored root `.dislight-updater.key.local`, whose public key matches the configured updater. The similarly named user-profile key has a different public identity and must not be used for this app's updates.
 - [x] Passed TypeScript, Edge Function checks, eight isolated lifecycle regressions, private/mapped-address checks, SQL authorization/rotation/quota checks, Vite and signed NSIS build. Verified the signature against the configured updater public key.
-- [ ] Publish/push v0.1.70 installer, signature and no-BOM manifest; verify public updater delivery.
+- [x] Pushed release commit `f8d9121` and tag `v0.1.70`; published the signed NSIS installer, signature and no-BOM manifest at https://github.com/nostalg1cc/Chatterbox/releases/tag/v0.1.70. Public latest updater manifest matches the verified local manifest and points to v0.1.70. Installer size: 27,680,988 bytes; SHA-256: `987987c4deca26df398399c4bde39e42be7d76a24618789ff4d0f3c712317e6b`.
+- [x] Deployed the matching production web build at https://dislight.vercel.app (deployment `dpl_EkGPqH9yF8qVifEeecyomvWUKsGr`); login/signup browser smoke check passed with no reported browser errors.
 - [ ] Real two-client direct/TURN/IP-switch/signaling-outage/sleep-resume/packet-loss testing remains required. Supabase leaked-password protection needs dashboard/account configuration; no Auth-management credential is available in this session. Cloudflare direct account controls remain uninspected.
 - Details and residual limitations: audits/2026-10-03-project-audit.md and audits/v0.1.70-release-notes.md. Both participants must update for tightened voice authorization.
