@@ -8,6 +8,7 @@ import {
   configureRemoteAudio,
   createMicrophonePipeline,
   createRemoteAudioElement,
+  disposeRemoteAudio,
   setMicrophoneGain,
   stopMicrophonePipeline,
   type MicrophonePipeline,
@@ -17,6 +18,7 @@ import { playSoundboardUrl, preloadSoundboardClip, type SoundboardPlayback } fro
 import { createCloudflareScreenPublisher, createCloudflareScreenSubscriber } from "@/lib/cloudflare-realtime";
 import { monitorVoiceActivity, type VoiceActivityMonitor } from "@/lib/voice-activity";
 import { supabase } from "@/lib/supabase";
+import { recordVoiceEvent } from "@/lib/voice-diagnostics";
 import type {
   VoiceConnectionStatus,
   VoiceParticipant,
@@ -36,6 +38,7 @@ interface VoiceJoinParticipant {
 }
 
 interface VoiceJoinResponse {
+  channel_token?: string;
   status: "joined" | "conflict";
   conversation_id?: string;
   generation?: string;
@@ -122,7 +125,28 @@ let localScreenTrack: MediaStreamTrack | null = null;
 // boostScreenShareAudio) - separate from localScreenStream's own tracks,
 // which stay the raw capture used for the muted local preview.
 let screenAudioCleanup: (() => void) | null = null;
-let cloudflareScreenConnection: RTCPeerConnection | null = null;
+let screenPublisher: RTCPeerConnection | null = null;
+let screenSubscriber: RTCPeerConnection | null = null;
+let screenPublisherAbort: AbortController | null = null;
+let screenSubscriberAbort: AbortController | null = null;
+let publisherRenewalTimer: ReturnType<typeof setTimeout> | null = null;
+let subscriberRenewalTimer: ReturnType<typeof setTimeout> | null = null;
+let publishedScreen: { sessionId: string; trackNames: string[] } | null = null;
+let remoteScreen: { sessionId: string; trackNames: string[]; voiceSessionId: string } | null = null;
+let screenPublishAttempt = 0;
+let screenSubscribeAttempt = 0;
+let screenRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+let presenceGraceTimer: ReturnType<typeof setTimeout> | null = null;
+let turnRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let leaseRequest: { sessionId: string; promise: Promise<void> } | null = null;
+let membershipQueue: Promise<unknown> = Promise.resolve();
+let activeChannelToken: string | null = null;
+let desiredConversationId: string | null = null;
+let microphoneAttempt = 0;
+const pendingJoinMicrophones = new Map<number, MicrophonePipeline>();
+let microphoneQueue: Promise<void> = Promise.resolve();
+let resumeHandler: (() => void) | null = null;
+let deviceChangeHandler: (() => void) | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let voiceHealthTimer: ReturnType<typeof setInterval> | null = null;
@@ -193,6 +217,7 @@ function clearVoiceHealthMonitor(): void {
 function startVoiceHealthMonitor(connection: RTCPeerConnection): void {
   clearVoiceHealthMonitor();
   voiceHealthTimer = window.setInterval(() => {
+    void getVoiceCallStats().then((stats) => { if (stats && peerConnection === connection) recordVoiceEvent("voice_quality", { rttMs: stats.rttMs, jitterMs: stats.jitterMs, packetLossPercent: stats.packetLossPercent, relayed: stats.relayed }); });
     void assessVoiceHealth(connection);
   }, VOICE_HEALTH_SAMPLE_MS);
 }
@@ -395,6 +420,12 @@ export const useVoice = create<VoiceState>()((set, get) => ({
 
   join: async (conversationId, takeover = false) => {
     const attempt = ++joinAttempt;
+    const userId = currentUserId;
+    if (!userId) return;
+    desiredConversationId = conversationId;
+    const isCurrent = () => attempt === joinAttempt && currentUserId === userId && desiredConversationId === conversationId;
+    let acquiredMicrophone: MicrophonePipeline | null = null;
+    let serverJoined = false;
     if (get().status === "joining") { await disconnectLocal(true); takeover = true; }
     if (
       get().activeConversationId === conversationId &&
@@ -406,6 +437,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
 
     if (get().activeConversationId && get().activeConversationId !== conversationId) {
       if (!takeover) {
+        desiredConversationId = get().activeConversationId;
         useAlerts.getState().show({
           severity: "neutral",
           message: "You are already in another voice channel.",
@@ -416,27 +448,37 @@ export const useVoice = create<VoiceState>()((set, get) => ({
       await disconnectLocal(true);
     }
 
+    if (!isCurrent()) return;
     set({ status: "joining", error: null });
     const sessionId = crypto.randomUUID();
+    recordVoiceEvent("join_started");
 
     try {
-      microphone = await createPreferredMicrophone();
-      if (attempt !== joinAttempt) { await stopMicrophonePipeline(microphone); microphone = null; return; }
-      applyLocalMuteState();
-      localVoiceActivity?.stop();
-      localVoiceActivity = startLocalVoiceActivity(microphone);
+      acquiredMicrophone = await createPreferredMicrophone();
+      if (!isCurrent()) { await stopMicrophonePipeline(acquiredMicrophone); return; }
+      pendingJoinMicrophones.set(attempt, acquiredMicrophone);
 
-      const { data, error } = await supabase.rpc("join_voice_room", {
-        p_conversation_id: conversationId,
-        p_session_id: sessionId,
-        p_takeover: takeover,
+      const { data, error } = await queueMembership(async () => {
+        if (!isCurrent()) return { data: null, error: null };
+        const result = await supabase.rpc("join_voice_room", {
+          p_conversation_id: conversationId, p_session_id: sessionId, p_takeover: takeover,
+        }).abortSignal(AbortSignal.timeout(12_000));
+        if (!isCurrent() && (result.data as VoiceJoinResponse | null)?.status === "joined") {
+          await supabase.rpc("leave_voice_room", { p_session_id: sessionId }).abortSignal(AbortSignal.timeout(5_000));
+        }
+        return result;
       });
+      if (!isCurrent()) { await stopMicrophonePipeline(acquiredMicrophone); return; }
       if (error) throw new Error(error.message);
 
       const response = data as VoiceJoinResponse;
+      serverJoined = response.status === "joined";
+      activeChannelToken = response.channel_token ?? null;
       if (response.status === "conflict") {
-        await stopMicrophonePipeline(microphone);
-        microphone = null;
+        await stopMicrophonePipeline(acquiredMicrophone);
+        acquiredMicrophone = null;
+        if (!isCurrent()) return;
+        desiredConversationId = null;
         set({ status: "idle", error: null });
         useAlerts.getState().show({
           severity: "neutral",
@@ -450,7 +492,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
         !response.conversation_id ||
         !response.generation ||
         !response.started_at ||
-        !response.started_by
+        !response.started_by || !response.channel_token
       ) {
         throw new Error("The voice room returned an incomplete response.");
       }
@@ -469,6 +511,13 @@ export const useVoice = create<VoiceState>()((set, get) => ({
         })
       );
 
+      pendingJoinMicrophones.delete(attempt);
+      microphone = acquiredMicrophone;
+      acquiredMicrophone = null;
+      applyLocalMuteState();
+      localVoiceActivity?.stop();
+      localVoiceActivity = startLocalVoiceActivity(microphone);
+      watchMicrophone(microphone);
       set((state) => ({
         rooms: { ...state.rooms, [room.conversation_id]: room },
         participants: {
@@ -481,6 +530,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
         error: null,
       }));
 
+      startHeartbeat();
       // Voice signaling and direct ICE should come up immediately; a slow
       // credential broker must not hold the call setup path hostage. The TURN
       // servers are installed for any ICE restart/recovery once they arrive.
@@ -493,28 +543,33 @@ export const useVoice = create<VoiceState>()((set, get) => ({
           await connectRoomChannel(room, sessionId);
         } catch (retryError) {
           if (get().sessionId !== sessionId) throw retryError;
-      console.warn("Voice signaling is still unavailable; retrying in the background.", retryError);
+          console.warn("Voice signaling is still unavailable; retrying in the background.", retryError);
           set({ status: "reconnecting", error: null });
           scheduleSignalingRecovery(room, sessionId);
         }
       }
-      playAppSound("voice_join");
+      if (isCurrent() && get().sessionId === sessionId) playAppSound("voice_join");
     } catch (error) {
+      await stopMicrophonePipeline(acquiredMicrophone);
+      if (!isCurrent()) return;
       const message =
         error instanceof Error ? error.message : "Voice could not start.";
       if (get().sessionId === sessionId) {
         await disconnectLocal(true);
       } else {
-        await stopMicrophonePipeline(microphone);
-        microphone = null;
+        if (serverJoined) void supabase.rpc("leave_voice_room", { p_session_id: sessionId });
       }
+      desiredConversationId = null;
       set({ status: "idle", error: message });
       useAlerts.getState().show({ severity: "danger", message });
+    } finally {
+      pendingJoinMicrophones.delete(attempt);
     }
   },
 
   leave: async () => {
     joinAttempt += 1;
+    desiredConversationId = null;
     const wasActive = Boolean(get().activeConversationId);
     await disconnectLocal(true);
     if (wasActive) playAppSound("voice_leave");
@@ -549,8 +604,13 @@ export const useVoice = create<VoiceState>()((set, get) => ({
 
   startScreenShare: async () => {
     if (!get().activeConversationId || localScreenTrack) return;
+    const conversationId = get().activeConversationId!;
+    const sessionId = get().sessionId;
+    const attempt = ++screenPublishAttempt;
+    const isCurrent = () => screenPublishAttempt === attempt && get().activeConversationId === conversationId && get().sessionId === sessionId;
     try {
       const stream = await captureScreen();
+      if (!isCurrent()) { stream.getTracks().forEach((track) => track.stop()); return; }
       const track = stream.getVideoTracks()[0];
       if (!track) {
         for (const mediaTrack of stream.getTracks()) mediaTrack.stop();
@@ -578,17 +638,24 @@ export const useVoice = create<VoiceState>()((set, get) => ({
       // audio merged into) it; if Cloudflare can't be reached, screen
       // sharing just isn't available this session rather than falling back
       // onto a path that risks the actual call.
-      const conversationId = get().activeConversationId!;
       let published = false;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           if (attempt) await new Promise((resolve) => window.setTimeout(resolve, 550));
-          const cloudflare = await createCloudflareScreenPublisher(conversationId, boosted.stream);
-          cloudflareScreenConnection = cloudflare.connection;
+          if (!isCurrent()) return;
+          screenPublisherAbort?.abort();
+          const controller = new AbortController();
+          screenPublisherAbort = controller;
+          const cloudflare = await createCloudflareScreenPublisher(conversationId, boosted.stream, sessionId!, activeIceServers, controller.signal);
+          if (!isCurrent()) { cloudflare.connection.close(); return; }
+          screenPublisher = cloudflare.connection;
+          publishedScreen = { sessionId: cloudflare.sessionId, trackNames: cloudflare.trackNames };
+          watchScreenConnection(cloudflare.connection);
           sendScreenPublished(cloudflare.sessionId, cloudflare.trackNames);
           published = true;
           break;
         } catch {
+          if (!isCurrent()) return;
           // Retried once above; falls through to the failure branch below.
         }
       }
@@ -602,6 +669,7 @@ export const useVoice = create<VoiceState>()((set, get) => ({
       await updateRoomPresence();
       await sendHeartbeat();
     } catch (error) {
+      if (!isCurrent()) return;
       await stopLocalScreen(false);
       if (error instanceof DOMException && error.name === "NotAllowedError") return;
       useAlerts.getState().show({
@@ -628,23 +696,143 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   },
 }));
 
+function queueMembership<T>(task: () => Promise<T>): Promise<T> {
+  const result = membershipQueue.then(task, task);
+  membershipQueue = result.catch(() => undefined);
+  return result;
+}
+
+function sameVoiceSession(sessionId: string, conversationId: string): boolean {
+  const state = useVoice.getState();
+  return !disconnecting && state.sessionId === sessionId && state.activeConversationId === conversationId && desiredConversationId === conversationId;
+}
+
+function watchMicrophone(pipeline: MicrophonePipeline): void {
+  for (const track of pipeline.rawStream.getAudioTracks()) {
+    track.onended = () => {
+      if (microphone === pipeline && desiredConversationId) void replaceMicrophone();
+    };
+  }
+}
+
+function clearRemoteScreen(): void {
+  screenSubscribeAttempt += 1;
+  remoteScreen = null;
+  screenSubscriberAbort?.abort();
+  screenSubscriberAbort = null;
+  if (subscriberRenewalTimer) clearTimeout(subscriberRenewalTimer);
+  subscriberRenewalTimer = null;
+  screenSubscriber?.close();
+  screenSubscriber = null;
+  useVoice.setState({ remoteScreenStream: null });
+}
+
+function renewScreenConnection(connection: RTCPeerConnection): void {
+  if (connection === screenPublisher) { screenPublisherAbort?.abort(); screenPublisher = null; }
+  else if (connection === screenSubscriber) { screenSubscriberAbort?.abort(); screenSubscriber = null; }
+  else return;
+  connection.close();
+  void recoverScreens();
+}
+
+function watchScreenConnection(connection: RTCPeerConnection): void {
+  // Provider ownership records last two hours; renew before that window closes.
+  const timer = setTimeout(() => renewScreenConnection(connection), 105 * 60_000);
+  if (connection === screenPublisher) { if (publisherRenewalTimer) clearTimeout(publisherRenewalTimer); publisherRenewalTimer = timer; }
+  else { if (subscriberRenewalTimer) clearTimeout(subscriberRenewalTimer); subscriberRenewalTimer = timer; }
+  connection.onconnectionstatechange = () => {
+    if (connection !== screenPublisher && connection !== screenSubscriber) return;
+    recordVoiceEvent("screen_transport", { state: connection.connectionState });
+    if (["failed", "disconnected"].includes(connection.connectionState)) scheduleScreenRecovery();
+  };
+}
+
+function scheduleScreenRecovery(): void {
+  if (screenRecoveryTimer || !desiredConversationId) return;
+  screenRecoveryTimer = setTimeout(() => {
+    screenRecoveryTimer = null;
+    void recoverScreens();
+  }, 4_000);
+}
+
+async function subscribeRemoteScreen(screen: NonNullable<typeof remoteScreen>): Promise<void> {
+  const state = useVoice.getState();
+  if (!state.sessionId || !state.activeConversationId) return;
+  const { sessionId, activeConversationId: conversationId } = state;
+  const attempt = ++screenSubscribeAttempt;
+  const isCurrent = () => attempt === screenSubscribeAttempt && remoteScreen === screen && sameVoiceSession(sessionId, conversationId);
+  screenSubscriberAbort?.abort();
+  screenSubscriberAbort = null;
+  if (subscriberRenewalTimer) clearTimeout(subscriberRenewalTimer);
+  subscriberRenewalTimer = null;
+  screenSubscriber?.close();
+  screenSubscriber = null;
+  useVoice.setState({ remoteScreenStream: null });
+  const controller = new AbortController();
+  screenSubscriberAbort = controller;
+  try {
+    const connection = await createCloudflareScreenSubscriber(conversationId, screen.sessionId, screen.trackNames, (stream) => {
+      if (isCurrent()) useVoice.setState({ remoteScreenStream: stream });
+    }, sessionId, activeIceServers, controller.signal);
+    if (!isCurrent()) { connection.close(); return; }
+    screenSubscriber = connection;
+    watchScreenConnection(connection);
+  } catch {
+    if (screenSubscriberAbort === controller) screenSubscriberAbort = null;
+    if (isCurrent()) scheduleScreenRecovery();
+  }
+}
+
+async function recoverScreens(): Promise<void> {
+  const state = useVoice.getState();
+  if (!state.sessionId || !state.activeConversationId || !roomSubscribed) return;
+  if (localScreenStream && !(screenPublisherAbort && !screenPublisherAbort.signal.aborted && !screenPublisher) && (!screenPublisher || ["failed", "disconnected", "closed"].includes(screenPublisher.connectionState))) {
+    const attempt = ++screenPublishAttempt;
+    const stream = localScreenStream;
+    const { sessionId, activeConversationId: conversationId } = state;
+    screenPublisherAbort?.abort();
+    const controller = new AbortController();
+    screenPublisherAbort = controller;
+    screenPublisher?.close();
+    screenPublisher = null;
+    screenAudioCleanup?.();
+    const boosted = boostScreenShareAudio(stream);
+    screenAudioCleanup = boosted.cleanup;
+    try {
+      const result = await createCloudflareScreenPublisher(conversationId, boosted.stream, sessionId, activeIceServers, controller.signal);
+      if (attempt !== screenPublishAttempt || !sameVoiceSession(sessionId, conversationId)) { result.connection.close(); return; }
+      screenPublisher = result.connection;
+      publishedScreen = { sessionId: result.sessionId, trackNames: result.trackNames };
+      watchScreenConnection(result.connection);
+      sendScreenPublished(result.sessionId, result.trackNames);
+    } catch {
+      if (screenPublisherAbort === controller) screenPublisherAbort = null;
+      if (attempt === screenPublishAttempt && sameVoiceSession(sessionId, conversationId)) scheduleScreenRecovery();
+    }
+  }
+  if (remoteScreen && !(screenSubscriberAbort && !screenSubscriberAbort.signal.aborted && !screenSubscriber) && (!screenSubscriber || ["failed", "disconnected", "closed"].includes(screenSubscriber.connectionState))) {
+    await subscribeRemoteScreen(remoteScreen);
+  }
+}
+
 async function refreshTurnCredentials(force = false): Promise<boolean> {
   const state = useVoice.getState();
   const conversationId = state.activeConversationId;
-  if (!conversationId) return false;
+  const sessionId = state.sessionId;
+  if (!conversationId || !sessionId) return false;
   if (!force && (turnCredentialsExpireAt - Date.now()) > TURN_CREDENTIAL_TTL_SAFETY_MS) {
     return hasTurnRelay();
   }
   const requestId = ++turnCredentialRequestId;
   try {
     const { data, error } = await supabase.functions.invoke("realtime-credentials", {
-      body: { conversationId },
+      body: { conversationId, voiceSessionId: sessionId },
       timeout: TURN_CREDENTIAL_REQUEST_TIMEOUT_MS,
     });
     const latest = useVoice.getState();
     if (
       requestId !== turnCredentialRequestId ||
-      latest.activeConversationId !== conversationId
+      latest.activeConversationId !== conversationId || latest.sessionId !== sessionId
     ) {
       return hasTurnRelay();
     }
@@ -677,6 +865,9 @@ async function refreshTurnCredentials(force = false): Promise<boolean> {
     turnCredentialsExpireAt = typeof candidate.expiresAt === "number"
       ? candidate.expiresAt
       : Date.now() + 12 * 60 * 60_000;
+    recordVoiceEvent("turn_credentials", { outcome: "ready" });
+    if (turnRefreshTimer) clearTimeout(turnRefreshTimer);
+    scheduleTurnRenewal(sessionId, conversationId, Math.max(30_000, turnCredentialsExpireAt - Date.now() - TURN_CREDENTIAL_TTL_SAFETY_MS));
 
     // Existing media keeps its selected route; this updates the server list
     // for a subsequent ICE restart without forcing an unnecessary interruption.
@@ -696,7 +887,7 @@ async function refreshTurnCredentials(force = false): Promise<boolean> {
     const latest = useVoice.getState();
     if (
       requestId !== turnCredentialRequestId ||
-      latest.activeConversationId !== conversationId
+      latest.activeConversationId !== conversationId || latest.sessionId !== sessionId
     ) {
       return hasTurnRelay();
     }
@@ -709,6 +900,29 @@ async function refreshTurnCredentials(force = false): Promise<boolean> {
     return cachedRelayUsable;
   }
 }
+function scheduleTurnRenewal(sessionId: string, conversationId: string, delay: number): void {
+  if (turnRefreshTimer) clearTimeout(turnRefreshTimer);
+  turnRefreshTimer = setTimeout(() => {
+    turnRefreshTimer = null;
+    if (!sameVoiceSession(sessionId, conversationId)) return;
+    void refreshTurnCredentials(true).then(async () => {
+      if (!sameVoiceSession(sessionId, conversationId)) return;
+      if (turnCredentialsExpireAt - Date.now() <= TURN_CREDENTIAL_TTL_SAFETY_MS) {
+        scheduleTurnRenewal(sessionId, conversationId, 30_000);
+        return;
+      }
+      const connection = peerConnection;
+      if (connection) {
+        const stats = await getVoiceCallStats();
+        if (peerConnection === connection && sameVoiceSession(sessionId, conversationId) && (forceRelayTransport || stats?.relayed)) connection.restartIce();
+      }
+      for (const screen of [screenPublisher, screenSubscriber]) {
+        if (screen) renewScreenConnection(screen);
+      }
+    }).catch(() => { if (sameVoiceSession(sessionId, conversationId)) scheduleTurnRenewal(sessionId, conversationId, 30_000); });
+  }, delay);
+}
+
 function initializeVoice(userId: string): () => void {
   currentUserId = userId;
   void loadVoiceDiscovery();
@@ -727,7 +941,7 @@ function initializeVoice(userId: string): () => void {
       applyRemoteAudioPreferences();
     }
     if (
-      state.inputDeviceId !== previous.inputDeviceId &&
+      (state.inputDeviceId !== previous.inputDeviceId || state.noiseSuppression !== previous.noiseSuppression || state.echoCancellation !== previous.echoCancellation) &&
       useVoice.getState().activeConversationId
     ) {
       void replaceMicrophone();
@@ -744,14 +958,39 @@ function initializeVoice(userId: string): () => void {
 
   if (networkOnlineHandler) window.removeEventListener("online", networkOnlineHandler);
   networkOnlineHandler = () => {
-    // Network/VPN changes can invalidate an ICE pair after a call has connected.
-    if (useVoice.getState().activeConversationId && peerConnection?.connectionState !== "connected") {
-      restartAttempted = false;
-      void attemptIceRestart();
+    void loadVoiceDiscovery();
+    void sendHeartbeat();
+    if (useVoice.getState().activeConversationId) {
+      if (peerConnection?.connectionState !== "connected") {
+        restartAttempted = false;
+        peerRebuildAttempts = 0;
+        relayRecoveryAttempts = 0;
+        relayRecoveryRetryAfter = 0;
+        void attemptIceRestart();
+      }
+      void recoverScreens();
     }
   };
   window.addEventListener("online", networkOnlineHandler);
+  resumeHandler = () => { if (document.visibilityState === "visible") networkOnlineHandler?.(); };
+  document.addEventListener("visibilitychange", resumeHandler);
+  window.addEventListener("pageshow", resumeHandler);
+  window.addEventListener("focus", resumeHandler);
+  deviceChangeHandler = () => {
+    if (microphone?.rawStream.getAudioTracks().some((track) => track.readyState === "ended")) void replaceMicrophone();
+  };
+  navigator.mediaDevices?.addEventListener("devicechange", deviceChangeHandler);
   return () => {
+    joinAttempt += 1;
+    desiredConversationId = null;
+    if (resumeHandler) {
+      document.removeEventListener("visibilitychange", resumeHandler);
+      window.removeEventListener("pageshow", resumeHandler);
+      window.removeEventListener("focus", resumeHandler);
+      resumeHandler = null;
+    }
+    if (deviceChangeHandler) navigator.mediaDevices?.removeEventListener("devicechange", deviceChangeHandler);
+    deviceChangeHandler = null;
     if (beforeUnloadHandler) {
       window.removeEventListener("beforeunload", beforeUnloadHandler);
       beforeUnloadHandler = null;
@@ -773,6 +1012,8 @@ function initializeVoice(userId: string): () => void {
 }
 
 async function loadVoiceDiscovery(): Promise<void> {
+  const userId = currentUserId;
+  const revision = discoveryRevision;
   const [roomsResult, participantsResult] = await Promise.all([
     supabase.from("voice_rooms").select("*"),
     // Ordered so both callers' clients agree on participant order from the
@@ -797,9 +1038,14 @@ async function loadVoiceDiscovery(): Promise<void> {
       participant,
     ];
   }
+  if (currentUserId !== userId || revision !== discoveryRevision) return;
+  const active = useVoice.getState();
+  const generationChanged = active.activeConversationId && rooms[active.activeConversationId]?.generation !== active.rooms[active.activeConversationId]?.generation;
   useVoice.setState({ rooms, participants });
+  if (active.sessionId && active.activeConversationId && generationChanged) void recoverMembership(active.sessionId, active.activeConversationId);
 }
 
+let discoveryRevision = 0;
 function subscribeToVoiceDiscovery(userId: string): void {
   if (discoveryChannel) void supabase.removeChannel(discoveryChannel);
 
@@ -835,17 +1081,28 @@ function subscribeToVoiceDiscovery(userId: string): void {
       { event: "DELETE", schema: "public", table: "voice_participants" },
       (payload) => removeParticipant(payload.old as Partial<VoiceParticipant>)
     )
-    .subscribe();
+    .subscribe((status) => {
+      if (currentUserId !== userId) return;
+      if (status === "SUBSCRIBED") {
+        void loadVoiceDiscovery().then(() => { syncRoomPresence(); });
+        void sendHeartbeat();
+      }
+    });
 }
 
 function applyRoom(room: VoiceRoom): void {
+  const previous = useVoice.getState().rooms[room.conversation_id];
+  discoveryRevision += 1;
   if (!room.conversation_id) return;
   useVoice.setState((state) => ({
     rooms: { ...state.rooms, [room.conversation_id]: room },
   }));
+  const state = useVoice.getState();
+  if (previous && previous.generation !== room.generation && state.activeConversationId === room.conversation_id && state.sessionId) void recoverMembership(state.sessionId, room.conversation_id);
 }
 
 function removeRoom(partial: Partial<VoiceRoom>): void {
+  discoveryRevision += 1;
   const conversationId = partial.conversation_id;
   if (!conversationId || disconnecting) return;
   const active = useVoice.getState().activeConversationId === conversationId;
@@ -873,6 +1130,7 @@ function applyParticipant(
   participant: VoiceParticipant,
   announce: boolean
 ): void {
+  discoveryRevision += 1;
   if (!participant.conversation_id || !participant.user_id) return;
   const existing =
     useVoice.getState().participants[participant.conversation_id] ?? [];
@@ -899,6 +1157,8 @@ function applyParticipant(
     };
   });
 
+  if (participant.conversation_id === useVoice.getState().activeConversationId) syncRoomPresence();
+
   // Removing a sender track does not reliably fire `ended` on the remote
   // WebRTC track. The room heartbeat is the authoritative share-state signal,
   // so clear the preview as soon as the active partner reports it is off.
@@ -909,7 +1169,7 @@ function applyParticipant(
     !participant.sharing_screen &&
     state.remoteScreenStream
   ) {
-    useVoice.setState({ remoteScreenStream: null });
+    clearRemoteScreen();
   }
 
   if (
@@ -923,6 +1183,7 @@ function applyParticipant(
 }
 
 function removeParticipant(partial: Partial<VoiceParticipant>): void {
+  discoveryRevision += 1;
   const conversationId = partial.conversation_id;
   const userId = partial.user_id;
   if (!conversationId || !userId) return;
@@ -963,9 +1224,7 @@ function removeParticipant(partial: Partial<VoiceParticipant>): void {
     void disconnectLocal(false);
     useAlerts.getState().show({ severity: "danger", message: "Your voice session expired." });
   } else {
-    closePeerConnection();
-    playAppSound("voice_leave");
-    useVoice.setState({ status: "solo", error: null });
+    void reconcileRemoteParticipant(conversationId, userId);
   }
 }
 
@@ -974,7 +1233,8 @@ async function createPreferredMicrophone(): Promise<MicrophonePipeline> {
   const pipeline = await createMicrophonePipeline(
     preferences.inputDeviceId,
     preferences.inputVolume,
-    preferences.noiseSuppression
+    preferences.noiseSuppression,
+    preferences.echoCancellation
   );
   if (pipeline.fellBackToDefault) {
     useAlerts.getState().show({ severity: "warning", message: "The selected microphone is unavailable; using the Windows default." });
@@ -982,16 +1242,26 @@ async function createPreferredMicrophone(): Promise<MicrophonePipeline> {
   return pipeline;
 }
 
-async function replaceMicrophone(): Promise<void> {
-  if (!useVoice.getState().activeConversationId) return;
-  try {
-    const replacement = await createPreferredMicrophone();
-    const old = microphone;
-    microphone = replacement;
-    applyLocalMuteState();
-    localVoiceActivity?.stop();
-    localVoiceActivity = startLocalVoiceActivity(replacement);
+function replaceMicrophone(): Promise<void> {
+  const sessionId = useVoice.getState().sessionId;
+  const result = microphoneQueue.then(async () => {
+    if (useVoice.getState().sessionId === sessionId) await replaceMicrophoneNow();
+  });
+  microphoneQueue = result.catch(() => undefined);
+  return result;
+}
 
+async function replaceMicrophoneNow(): Promise<void> {
+  const { sessionId, activeConversationId: conversationId } = useVoice.getState();
+  if (!sessionId || !conversationId) return;
+  const attempt = ++microphoneAttempt;
+  let replacement: MicrophonePipeline | null = null;
+  try {
+    replacement = await createPreferredMicrophone();
+    if (attempt !== microphoneAttempt || !sameVoiceSession(sessionId, conversationId)) { await stopMicrophonePipeline(replacement); return; }
+    const old = microphone;
+
+    for (const track of replacement.outputStream.getAudioTracks()) track.enabled = !useVoice.getState().muted && !useVoice.getState().deafened;
     const nextTrack = replacement.outputStream.getAudioTracks()[0] ?? null;
     const sender = peerConnection
       ?.getSenders()
@@ -1001,9 +1271,16 @@ async function replaceMicrophone(): Promise<void> {
     } else if (peerConnection && nextTrack) {
       peerConnection.addTrack(nextTrack, replacement.outputStream);
     }
-
+    if (attempt !== microphoneAttempt || !sameVoiceSession(sessionId, conversationId)) { await stopMicrophonePipeline(replacement); return; }
+    microphone = replacement;
+    watchMicrophone(replacement);
+    applyLocalMuteState();
+    localVoiceActivity?.stop();
+    localVoiceActivity = startLocalVoiceActivity(replacement);
     await stopMicrophonePipeline(old);
   } catch (error) {
+    if (replacement !== microphone) await stopMicrophonePipeline(replacement);
+    if (attempt !== microphoneAttempt || !sameVoiceSession(sessionId, conversationId)) return;
     useAlerts.getState().show({
       severity: "danger",
       message: error instanceof Error ? error.message : "The microphone could not be changed.",
@@ -1019,9 +1296,10 @@ async function connectRoomChannel(
   roomChannel = null;
   roomSubscribed = false;
   if (previousChannel) await supabase.removeChannel(previousChannel);
+  if (!sameVoiceSession(sessionId, room.conversation_id)) throw new Error("Voice join was canceled.");
 
   const topic =
-    "voice:" + room.conversation_id + ":" + room.generation;
+    "voice:" + room.conversation_id + ":" + room.generation + ":" + activeChannelToken;
   const channel = supabase.channel(topic, {
     config: {
       private: true,
@@ -1036,7 +1314,7 @@ async function connectRoomChannel(
 
   channel
     .on("broadcast", { event: "signal" }, (message) => {
-      void receiveVoiceSignal(message.payload);
+      if (roomChannel === channel && sameVoiceSession(sessionId, room.conversation_id)) void receiveVoiceSignal(message.payload);
     })
     .on("broadcast", { event: "soundboard" }, (message) => {
       handleRemoteSoundboardPlay(message.payload);
@@ -1071,8 +1349,11 @@ async function connectRoomChannel(
           if (roomChannel !== channel) return;
           clearSignalingRecovery();
           startHeartbeat();
+          recordVoiceEvent("signaling_subscribed");
           void flushPendingVoiceSignals();
           syncRoomPresence();
+          if (publishedScreen) sendScreenPublished(publishedScreen.sessionId, publishedScreen.trackNames);
+          void recoverScreens();
           if (!settled) {
             settled = true;
             window.clearTimeout(timeout);
@@ -1095,6 +1376,7 @@ async function connectRoomChannel(
         status === "CLOSED"
       ) {
         roomSubscribed = false;
+        recordVoiceEvent("signaling_unavailable", { state: status });
         if (!settled) {
           settled = true;
           window.clearTimeout(timeout);
@@ -1137,32 +1419,55 @@ function clearSignalingRecovery(): void {
 function syncRoomPresence(): void {
   if (!roomChannel || !currentUserId) return;
   const entries = Object.values(roomChannel.presenceState()).flat() as unknown[];
+  const state = useVoice.getState();
+  const conversationId = state.activeConversationId;
+  const authoritativeRemote = conversationId ? state.participants[conversationId]?.find((participant) => participant.user_id !== currentUserId) : null;
   const remote = entries
     .map((entry) => entry as Partial<VoicePresence>)
     .find(
       (entry) =>
         entry.userId &&
         entry.sessionId &&
-        entry.userId !== currentUserId
+        entry.userId !== currentUserId && entry.userId === authoritativeRemote?.user_id && entry.sessionId === authoritativeRemote?.session_id
     );
 
   if (!remote?.userId || !remote.sessionId) {
-    if (peerConnection) closePeerConnection();
-    if (useVoice.getState().activeConversationId) {
+    if (peerConnection && conversationId) {
+      if (!presenceGraceTimer) presenceGraceTimer = setTimeout(() => {
+        presenceGraceTimer = null;
+        const userId = voicePartnerId(conversationId);
+        if (userId) void reconcileRemoteParticipant(conversationId, userId);
+      }, 10_000);
+    } else if (useVoice.getState().activeConversationId) {
       useVoice.setState({ status: "solo", error: null });
     }
     return;
   }
 
+  if (presenceGraceTimer) clearTimeout(presenceGraceTimer);
+  presenceGraceTimer = null;
   useVoice.setState((state) => ({
     remoteMuted: { ...state.remoteMuted, [remote.userId!]: Boolean(remote.muted) },
     remoteDeafened: { ...state.remoteDeafened, [remote.userId!]: Boolean(remote.deafened) },
   }));
 
   const changedSession = remoteSessionId !== remote.sessionId;
-  if (changedSession && peerConnection) closePeerConnection(false);
+  if (changedSession && peerConnection) { closePeerConnection(false); clearRemoteScreen(); }
   remoteSessionId = remote.sessionId;
   ensurePeerConnection(remote.userId);
+  if (changedSession && publishedScreen) sendScreenPublished(publishedScreen.sessionId, publishedScreen.trackNames);
+}
+
+async function reconcileRemoteParticipant(conversationId: string, userId: string): Promise<void> {
+  const sessionId = useVoice.getState().sessionId;
+  if (!sessionId) return;
+  const { data, error } = await supabase.from("voice_participants").select("*").eq("conversation_id", conversationId).eq("user_id", userId).abortSignal(AbortSignal.timeout(5_000)).maybeSingle();
+  if (error || !sameVoiceSession(sessionId, conversationId)) return;
+  if (data) { applyParticipant(data as VoiceParticipant, false); return; }
+  closePeerConnection();
+  clearRemoteScreen();
+  playAppSound("voice_leave");
+  useVoice.setState({ status: "solo", error: null });
 }
 
 function ensurePeerConnection(remoteUserId: string): void {
@@ -1207,29 +1512,33 @@ function ensurePeerConnection(remoteUserId: string): void {
     configureSoundboardDataChannel(connection.createDataChannel("dislight-soundboard", { ordered: true }));
   }
   connection.onicecandidate = (event) => {
+    if (peerConnection !== connection) return;
     if (event.candidate) sendCandidate(event.candidate.toJSON());
   };
 
   connection.onnegotiationneeded = async () => {
+    if (peerConnection !== connection) return;
     try {
       makingOffer = true;
       await connection.setLocalDescription();
+      if (peerConnection !== connection) return;
       if (connection.localDescription) {
         sendDescription(connection.localDescription.toJSON());
       }
     } catch (error) {
       console.error("Voice negotiation failed", error);
     } finally {
-      makingOffer = false;
+      if (peerConnection === connection) makingOffer = false;
     }
   };
 
   connection.ontrack = (event) => {
-    handleRemoteTrack(event);
+    if (peerConnection === connection) handleRemoteTrack(event);
   };
 
   connection.oniceconnectionstatechange = () => {
     if (peerConnection !== connection) return;
+    recordVoiceEvent("voice_ice", { state: connection.iceConnectionState });
     if (
       connection.iceConnectionState === "connected" ||
       connection.iceConnectionState === "completed"
@@ -1249,6 +1558,7 @@ function ensurePeerConnection(remoteUserId: string): void {
 
   connection.onconnectionstatechange = () => {
     if (peerConnection !== connection) return;
+    recordVoiceEvent("voice_transport", { state: connection.connectionState });
     if (connection.connectionState === "connected") {
       clearDisconnectTimer();
       restartAttempted = false;
@@ -1298,18 +1608,17 @@ async function handleSignal(raw: unknown): Promise<void> {
     return;
   }
 
+  const partner = state.participants[conversationId]?.find((participant) => participant.user_id !== currentUserId);
+  if (!partner || signal.fromSessionId !== partner.session_id) return;
   if (signal.type === "screen-published") {
-    try {
-      cloudflareScreenConnection?.close();
-      cloudflareScreenConnection = await createCloudflareScreenSubscriber(conversationId, signal.cloudflareSessionId, signal.trackNames, (stream) => useVoice.setState({ remoteScreenStream: stream }));
-    } catch {
-      // The matching P2P screen track remains available as a compatibility fallback.
-    }
+    if (!Array.isArray(signal.trackNames) || signal.trackNames.length > 4 || !signal.trackNames.every((name) => typeof name === "string" && name.length <= 160)) return;
+    if (remoteScreen?.sessionId === signal.cloudflareSessionId && screenSubscriber?.connectionState === "connected") return;
+    remoteScreen = { sessionId: signal.cloudflareSessionId, trackNames: signal.trackNames, voiceSessionId: signal.fromSessionId };
+    await subscribeRemoteScreen(remoteScreen);
     return;
   }
   if (signal.type === "screen-stopped") {
-    useVoice.setState({ remoteScreenStream: null });
-    cloudflareScreenConnection?.close(); cloudflareScreenConnection = null;
+    clearRemoteScreen();
     return;
   }
   remoteSessionId = signal.fromSessionId;
@@ -1319,7 +1628,10 @@ async function handleSignal(raw: unknown): Promise<void> {
   const connection = peerConnection;
   if (!connection) return;
 
-  if (signal.type === "ready") return;
+  if (signal.type === "ready") {
+    if (publishedScreen) sendScreenPublished(publishedScreen.sessionId, publishedScreen.trackNames);
+    return;
+  }
 
   if (signal.type === "description") {
     const readyForOffer =
@@ -1336,24 +1648,26 @@ async function handleSignal(raw: unknown): Promise<void> {
       signal.description.type === "answer";
     try {
       await connection.setRemoteDescription(signal.description);
+      if (peerConnection !== connection || !sameVoiceSession(sessionId, conversationId)) return;
       isSettingRemoteAnswerPending = false;
       await flushPendingCandidates(connection);
+      if (peerConnection !== connection || !sameVoiceSession(sessionId, conversationId)) return;
 
       if (signal.description.type === "offer") {
         await connection.setLocalDescription();
-        if (connection.localDescription) {
+        if (peerConnection === connection && sameVoiceSession(sessionId, conversationId) && connection.localDescription) {
           sendDescription(connection.localDescription.toJSON());
         }
       }
     } finally {
-      isSettingRemoteAnswerPending = false;
+      if (peerConnection === connection) isSettingRemoteAnswerPending = false;
     }
     return;
   }
 
   if (signal.type === "ice-candidate") {
     if (!connection.remoteDescription) {
-      pendingCandidates.push(signal.candidate);
+      if (pendingCandidates.length < 256) pendingCandidates.push(signal.candidate);
       return;
     }
     try {
@@ -1370,6 +1684,7 @@ async function flushPendingCandidates(
   const candidates = pendingCandidates;
   pendingCandidates = [];
   for (const candidate of candidates) {
+    if (peerConnection !== connection) return;
     await connection.addIceCandidate(candidate);
   }
 }
@@ -1617,6 +1932,7 @@ function voicePartnerId(conversationId: string): string | null {
 
 function startHeartbeat(): void {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
+  void sendHeartbeat();
   heartbeatTimer = setInterval(() => {
     void sendHeartbeat();
   }, HEARTBEAT_MS);
@@ -1645,7 +1961,7 @@ async function verifyActiveLease(conversationId: string): Promise<void> {
     const { data, error } = await supabase.rpc("heartbeat_voice_room", {
       p_session_id: expectedSessionId,
       p_sharing_screen: state.sharingScreen,
-    });
+    }).abortSignal(AbortSignal.timeout(8_000));
     if (error || (data as RpcStatus).status !== "not_found") return;
 
     const latest = useVoice.getState();
@@ -1654,8 +1970,7 @@ async function verifyActiveLease(conversationId: string): Promise<void> {
       latest.sessionId === expectedSessionId &&
       !disconnecting
     ) {
-      await disconnectLocal(false);
-      useAlerts.getState().show({ severity: "danger", message: "Your voice session expired." });
+      await recoverMembership(expectedSessionId, conversationId);
     }
   })().finally(() => {
     activeLeaseVerification = null;
@@ -1666,20 +1981,62 @@ async function verifyActiveLease(conversationId: string): Promise<void> {
 async function sendHeartbeat(): Promise<void> {
   const state = useVoice.getState();
   if (!state.sessionId || !state.activeConversationId) return;
-
-  const { data, error } = await supabase.rpc("heartbeat_voice_room", {
-    p_session_id: state.sessionId,
-    p_sharing_screen: state.sharingScreen,
+  const { sessionId, activeConversationId: conversationId } = state;
+  if (leaseRequest?.sessionId === sessionId) return leaseRequest.promise;
+  const promise = (async () => {
+    const { data, error } = await supabase.rpc("heartbeat_voice_room", {
+      p_session_id: sessionId, p_sharing_screen: state.sharingScreen,
+    }).abortSignal(AbortSignal.timeout(8_000));
+    if (!sameVoiceSession(sessionId, conversationId)) return;
+    recordVoiceEvent("lease", { outcome: error ? "unavailable" : (data as RpcStatus)?.status ?? "unknown" });
+    if (error) return;
+    if ((data as RpcStatus)?.status === "not_found") await recoverMembership(sessionId, conversationId);
+    else if (useVoice.getState().status === "failed") {
+      restartAttempted = false;
+      peerRebuildAttempts = 0;
+      relayRecoveryAttempts = 0;
+      useVoice.setState({ status: "reconnecting", error: null });
+      void attemptIceRestart();
+    }
+  })().catch(() => recordVoiceEvent("lease", { outcome: "timeout" })).finally(() => {
+    if (leaseRequest?.promise === promise) leaseRequest = null;
   });
-  if (error) {
-    console.warn("Voice heartbeat failed", error);
-    return;
-  }
-  const response = data as RpcStatus;
-  if (response.status === "not_found") {
-    await disconnectLocal(false);
-    useAlerts.getState().show({ severity: "danger", message: "Your voice session expired." });
-  }
+  leaseRequest = { sessionId, promise };
+  return promise;
+}
+
+async function recoverMembership(sessionId: string, conversationId: string): Promise<void> {
+  await queueMembership(async () => {
+    if (!sameVoiceSession(sessionId, conversationId)) return;
+    const { data, error } = await supabase.rpc("join_voice_room", {
+      p_conversation_id: conversationId, p_session_id: sessionId, p_takeover: false,
+    }).abortSignal(AbortSignal.timeout(10_000));
+    if (!sameVoiceSession(sessionId, conversationId)) {
+      if ((data as VoiceJoinResponse | null)?.status === "joined") await supabase.rpc("leave_voice_room", { p_session_id: sessionId });
+      return;
+    }
+    if (error) { recordVoiceEvent("lease_recovery", { outcome: "unavailable" }); return; }
+    const result = data as VoiceJoinResponse;
+    if (result.status === "conflict") {
+      desiredConversationId = null;
+      await disconnectLocal(false);
+      useAlerts.getState().show({ severity: "warning", message: "Voice moved to another device." });
+      return;
+    }
+    if (!result.generation || !result.started_at || !result.started_by || !result.channel_token) return;
+    activeChannelToken = result.channel_token;
+    const room: VoiceRoom = { conversation_id: conversationId, generation: result.generation, started_at: result.started_at, started_by: result.started_by, updated_at: new Date().toISOString() };
+    const changedGeneration = useVoice.getState().rooms[conversationId]?.generation !== room.generation;
+    if (changedGeneration) { closePeerConnection(false); clearRemoteScreen(); }
+    useVoice.setState((current) => ({
+      rooms: { ...current.rooms, [conversationId]: room },
+      participants: { ...current.participants, [conversationId]: (result.participants ?? []).map((participant) => ({ ...participant, conversation_id: conversationId })) },
+      status: peerConnection?.connectionState === "connected" ? "connected" : "reconnecting", error: null,
+    }));
+    recordVoiceEvent("lease_recovery", { outcome: "renewed", changedGeneration });
+    try { await connectRoomChannel(room, sessionId); }
+    catch { if (sameVoiceSession(sessionId, conversationId)) scheduleSignalingRecovery(room, sessionId); }
+  });
 }
 
 async function updateRoomPresence(): Promise<void> {
@@ -1729,21 +2086,26 @@ function applyRemoteAudioPreferences(): void {
 }
 
 async function stopLocalScreen(updateServer: boolean): Promise<void> {
+  screenPublishAttempt += 1;
+  screenPublisherAbort?.abort();
+  screenPublisherAbort = null;
+  if (publisherRenewalTimer) clearTimeout(publisherRenewalTimer);
+  publisherRenewalTimer = null;
+  screenPublisher?.close();
+  screenPublisher = null;
+  publishedScreen = null;
   const track = localScreenTrack;
-  if (!track) return;
 
   screenAudioCleanup?.();
   screenAudioCleanup = null;
 
-  track.onended = null;
+  if (track) track.onended = null;
   for (const mediaTrack of localScreenStream?.getTracks() ?? []) {
     mediaTrack.stop();
   }
   localScreenStream = null;
   localScreenTrack = null;
-  cloudflareScreenConnection?.close();
-  cloudflareScreenConnection = null;
-  sendScreenStopped();
+  if (track) sendScreenStopped();
   useVoice.setState({ sharingScreen: false, localScreenStream: null });
 
   if (updateServer) {
@@ -1776,13 +2138,15 @@ async function attemptRelayRecovery(reason: "audio quality" | "connection failur
     return false;
   }
 
+  const recoverySessionId = useVoice.getState().sessionId;
   relayRecoveryInProgress = true;
   relayRecoveryAttempts += 1;
   const wasConnected = connection.connectionState === "connected";
   if (!wasConnected) useVoice.setState({ status: "reconnecting", error: null });
   try {
     const relayAvailable = await refreshTurnCredentials(true);
-    if (!relayAvailable || peerConnection !== connection) {
+    if (peerConnection !== connection || useVoice.getState().sessionId !== recoverySessionId) return false;
+    if (!relayAvailable) {
       const retryDelay = Math.min(30_000, 2_000 * 2 ** (relayRecoveryAttempts - 1));
       relayRecoveryRetryAfter = Date.now() + retryDelay;
       console.warn(`Voice ${reason} recovery could not obtain Cloudflare TURN credentials.`);
@@ -1830,7 +2194,7 @@ async function attemptRelayRecovery(reason: "audio quality" | "connection failur
     }
     return false;
   } finally {
-    relayRecoveryInProgress = false;
+    if (useVoice.getState().sessionId === recoverySessionId) relayRecoveryInProgress = false;
   }
 }
 
@@ -1845,6 +2209,7 @@ async function attemptIceRestart(): Promise<void> {
     (connection.connectionState === "connected" && !isRecovering) ||
     disconnecting
   ) return;
+  const recoverySessionId = useVoice.getState().sessionId;
   connectionRecoveryInProgress = true;
   try {
     if (!restartAttempted) {
@@ -1925,13 +2290,15 @@ async function attemptIceRestart(): Promise<void> {
     }
     markConnectionFailed();
   } finally {
-    connectionRecoveryInProgress = false;
+    if (useVoice.getState().sessionId === recoverySessionId) connectionRecoveryInProgress = false;
   }
 }
 
 async function rebuildPeerConnection(): Promise<void> {
   const state = useVoice.getState();
   const conversationId = state.activeConversationId;
+  const expectedSessionId = state.sessionId;
+  const expectedConnection = peerConnection;
   const preservedRemoteSessionId = remoteSessionId;
   const remoteUserId = conversationId ? voicePartnerId(conversationId) : null;
   if (!conversationId || !preservedRemoteSessionId || !remoteUserId) {
@@ -1944,6 +2311,7 @@ async function rebuildPeerConnection(): Promise<void> {
     ? await refreshTurnCredentials()
     : hasTurnRelay();
   if (!wasForcingRelay) void refreshTurnCredentials();
+  if (!expectedSessionId || !sameVoiceSession(expectedSessionId, conversationId) || peerConnection !== expectedConnection) return;
   if (wasForcingRelay && !relayAvailable) {
     forceRelayTransport = false;
     relayRecoveryAttempted = false;
@@ -1957,7 +2325,8 @@ async function rebuildPeerConnection(): Promise<void> {
 function markConnectionFailed(): void {
   clearDisconnectTimer();
   const message =
-    "Direct connection failed. This network may require a TURN relay.";
+    "Voice could not reconnect. Automatic recovery will retry; you can also reconnect now.";
+  recordVoiceEvent("recovery_exhausted");
   useVoice.setState({ status: "failed", error: message });
   useAlerts.getState().show({
     severity: "danger",
@@ -1995,6 +2364,8 @@ function closePeerConnection(setSolo = true): void {
   if (remoteAudio) {
     remoteAudio.pause();
     remoteAudio.srcObject = null;
+    void disposeRemoteAudio(remoteAudio);
+    remoteAudio = null;
   }
   remoteAudioStream = null;
   remoteVoiceActivity?.stop();
@@ -2006,7 +2377,6 @@ function closePeerConnection(setSolo = true): void {
   isSettingRemoteAnswerPending = false;
   restartAttempted = false;
   useVoice.setState({
-    remoteScreenStream: null,
     ...(setSolo && useVoice.getState().activeConversationId
       ? { status: "solo" as const, error: null }
       : {}),
@@ -2016,6 +2386,18 @@ function closePeerConnection(setSolo = true): void {
 async function disconnectLocal(notifyServer: boolean): Promise<void> {
   if (disconnecting) return;
   disconnecting = true;
+  recordVoiceEvent("left", { notifyServer });
+  for (const pipeline of pendingJoinMicrophones.values()) void stopMicrophonePipeline(pipeline);
+  pendingJoinMicrophones.clear();
+  microphoneAttempt += 1;
+  turnCredentialRequestId += 1;
+  if (presenceGraceTimer) clearTimeout(presenceGraceTimer);
+  presenceGraceTimer = null;
+  if (screenRecoveryTimer) clearTimeout(screenRecoveryTimer);
+  screenRecoveryTimer = null;
+  if (turnRefreshTimer) clearTimeout(turnRefreshTimer);
+  turnRefreshTimer = null;
+  clearRemoteScreen();
 
   const state = useVoice.getState();
   const sessionId = state.sessionId;
@@ -2038,6 +2420,7 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
   relayRecoveryRetryAfter = 0;
   directFallbackAttempted = false;
   forceRelayTransport = false;
+  connectionRecoveryInProgress = false;
   await stopLocalScreen(false);
   closePeerConnection(false);
 

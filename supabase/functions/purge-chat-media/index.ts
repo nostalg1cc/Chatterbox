@@ -1,5 +1,6 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
+import { allowRequest } from "../_shared/quota.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.110.2";
 
 const CHAT_BUCKET = "chat-media";
@@ -28,7 +29,7 @@ type StorageObject = { name: string; created_at?: string | null; metadata?: { si
 type MediaKind = "image" | "video";
 type Provider = "storage" | "cloudinary";
 type RequestBody = {
-  mode?: "scheduled" | "capability" | "reserve" | "discard" | "finalize";
+  mode?: "scheduled" | "capability" | "reserve" | "discard" | "finalize" | "delivery" | "revoke";
   provider?: Provider;
   conversationId?: string;
   messageId?: string;
@@ -37,6 +38,8 @@ type RequestBody = {
   mimeType?: "image/webp" | "video/webm" | "video/mp4";
   uploadMimeType?: string;
   sizeBytes?: number;
+  /** Service-only read probe; authorized by the scheduled cleanup secret. */
+  probePath?: string;
 };
 
 type CloudMessage = {
@@ -45,6 +48,7 @@ type CloudMessage = {
   media_kind: MediaKind;
   media_size_bytes: number;
   media_expires_at: string | null;
+  deleted_at: string | null;
   created_at: string;
 };
 
@@ -77,16 +81,29 @@ async function destroyCloudinaryAsset(kind: MediaKind, conversationId: string, m
   if (!cloudinaryReady()) return false;
   const timestamp = Math.floor(Date.now() / 1000);
   const publicId = cloudinaryPublicId(conversationId, messageId);
-  const signature = await cloudinarySignature({ invalidate: "true", public_id: publicId, timestamp });
+  const signature = await cloudinarySignature({ invalidate: "true", public_id: publicId, timestamp, type: "authenticated" });
   const form = new FormData();
   form.set("api_key", Deno.env.get("CLOUDINARY_API_KEY")!);
   form.set("public_id", publicId);
   form.set("timestamp", String(timestamp));
   form.set("invalidate", "true");
+  form.set("type", "authenticated");
   form.set("signature", signature);
   const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${kind}/destroy`, { method: "POST", body: form });
   const body = await response.json().catch(() => null) as { result?: string } | null;
   return response.ok && (body?.result === "ok" || body?.result === "not found");
+}
+
+async function signedDeliveryUrl(asset: { kind: MediaKind; conversationId: string; messageId: string }, expiresAt = Math.floor(Date.now()/1000)+300): Promise<string> {
+    const parameters = {
+      public_id: cloudinaryPublicId(asset.conversationId, asset.messageId), format: asset.kind === "image" ? "webp" : "mp4",
+      type: "authenticated", attachment: "false", timestamp: Math.floor(Date.now()/1000), expires_at: expiresAt,
+      transformation: asset.kind === "image" ? "c_limit,w_1920/f_webp/q_auto:good" : "c_limit,h_720,w_1280/f_mp4,vc_h264,ac_aac,fps_30,q_auto:good",
+    };
+    const query = new URLSearchParams(Object.entries(parameters).map(([key,value]) => [key,String(value)]));
+    query.set("signature", await cloudinarySignature(parameters));
+    query.set("api_key", Deno.env.get("CLOUDINARY_API_KEY")!);
+    return `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${asset.kind}/download?${query}`;
 }
 
 function createAdminClient() {
@@ -134,10 +151,10 @@ async function cleanupStorageChatMedia(supabaseAdmin: any, reserveBytes: number)
 }
 
 async function cleanupCloudinaryChatMedia(supabaseAdmin: any, reserveBytes: number) {
-  const { data, error } = await supabaseAdmin.from("messages").select("id,media_path,media_kind,media_size_bytes,media_expires_at,created_at").like("media_path", "cloudinary:%").is("media_deleted_at", null).order("created_at", { ascending: true });
+  const { data, error } = await supabaseAdmin.from("messages").select("id,media_path,media_kind,media_size_bytes,media_expires_at,created_at,deleted_at").like("media_path", "cloudinary:%").is("media_deleted_at", null).order("created_at", { ascending: true });
   if (error) throw new Error(`Unable to inspect Cloudinary media: ${error.message}`);
   const records = (data ?? []) as CloudMessage[]; const remove = new Set<string>(); let remainingBytes = 0; const now = Date.now();
-  for (const record of records) { if (!record.media_expires_at || Date.parse(record.media_expires_at) <= now) remove.add(record.id); else remainingBytes += Number(record.media_size_bytes) || 0; }
+  for (const record of records) { if (record.deleted_at || (record.media_expires_at && Date.parse(record.media_expires_at) <= now)) remove.add(record.id); else remainingBytes += Number(record.media_size_bytes) || 0; }
   if (remainingBytes + reserveBytes > CLOUDINARY_CHAT_MEDIA_BUDGET_BYTES) {
     let bytesToFree = remainingBytes + reserveBytes - CLOUDINARY_CHAT_MEDIA_BUDGET_BYTES;
     for (const record of records) { if (bytesToFree <= 0) break; if (remove.has(record.id)) continue; remove.add(record.id); bytesToFree -= Number(record.media_size_bytes) || 0; remainingBytes -= Number(record.media_size_bytes) || 0; }
@@ -164,7 +181,32 @@ const authenticatedHandler = withSupabase({ auth: "user" }, async (req, ctx) => 
   if (!ctx.userClaims?.id) return json({ error: "A signed-in user is required" }, 401);
   if (body.mode === "capability") return json({ provider: cloudinaryReady() ? "cloudinary" : "storage" });
 
+  if (body.mode === "revoke") {
+    if (typeof body.path !== "string") return json({ error: "Invalid attachment" }, 400);
+    const asset = parseCloudinaryPath(body.path);
+    if (!asset) return json({ error: "Invalid attachment" }, 400);
+    const { data: message } = await (ctx.supabase as any).from("messages").select("id,deleted_at,sender_id").eq("id", asset.messageId).eq("media_path", body.path).maybeSingle();
+    if (!message?.deleted_at || message.sender_id !== ctx.userClaims.id) return json({ error: "Attachment not found" }, 404);
+    if (!(await allowRequest(supabaseAdmin, ctx.userClaims.id, "media-revoke", 30))) return json({ error: "Too many requests" }, 429);
+    if (!(await destroyCloudinaryAsset(asset.kind, asset.conversationId, asset.messageId))) return json({ error: "Attachment cleanup will retry later" }, 503);
+    const { error } = await supabaseAdmin.from("messages").update({ media_path: null, media_deleted_at: new Date().toISOString() }).eq("id", asset.messageId).eq("media_path", body.path);
+    if (error) return json({ error: "Attachment cleanup will retry later" }, 503);
+    return json({ revoked: true });
+  }
+
+  if (body.mode === "delivery") {
+    if (typeof body.path !== "string") return json({ error: "Invalid attachment" }, 400);
+    const asset = parseCloudinaryPath(body.path);
+    if (!asset || !(await userCanAccessConversation(ctx.supabase, asset.conversationId))) return json({ error: "Attachment not found" }, 404);
+    const { data: message } = await (ctx.supabase as any).from("messages").select("id,deleted_at,media_deleted_at").eq("id", asset.messageId).eq("conversation_id", asset.conversationId).eq("media_path", body.path).maybeSingle();
+    if (!message || message.deleted_at || message.media_deleted_at) return json({ error: "Attachment not found" }, 404);
+    if (!(await allowRequest(supabaseAdmin, ctx.userClaims.id, "media-delivery", 300))) return json({ error: "Too many attachment requests" }, 429);
+    const url = await signedDeliveryUrl(asset);
+    return json({ url, expiresIn: 300 });
+  }
+
   if (body.mode === "reserve") {
+    if (!(await allowRequest(supabaseAdmin, ctx.userClaims.id, "media-upload", 20))) return json({ error: "Too many uploads" }, 429);
     const validMedia = uuid(body.conversationId) && uuid(body.messageId) && Number.isFinite(body.sizeBytes) && Number(body.sizeBytes) >= 1 && (body.kind === "image" || body.kind === "video");
     if (!validMedia) return json({ error: "Invalid media reservation" }, 400);
     if (!(await userCanAccessConversation(ctx.supabase, body.conversationId!))) return json({ error: "Conversation not found" }, 404);
@@ -180,8 +222,8 @@ const authenticatedHandler = withSupabase({ auth: "user" }, async (req, ctx) => 
       if (reserveError) return json({ error: reserveError.message }, 500);
       if (!reserved) return json({ error: "Chat media storage is full. The oldest attachments are being cleared; try again shortly." }, 409);
       const timestamp = Math.floor(Date.now() / 1000); const publicId = cloudinaryPublicId(body.conversationId!, body.messageId!);
-      const signature = await cloudinarySignature({ public_id: publicId, timestamp });
-      return json({ provider: "cloudinary", path, publicId, uploadUrl: `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${body.kind}/upload`, fields: { api_key: Deno.env.get("CLOUDINARY_API_KEY")!, public_id: publicId, timestamp: String(timestamp), signature }, maxFileBytes: maxBytes });
+      const signature = await cloudinarySignature({ public_id: publicId, timestamp, type: "authenticated", overwrite: "false" });
+      return json({ provider: "cloudinary", path, publicId, uploadUrl: `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${body.kind}/upload`, fields: { api_key: Deno.env.get("CLOUDINARY_API_KEY")!, public_id: publicId, timestamp: String(timestamp), type: "authenticated", overwrite: "false", signature }, maxFileBytes: maxBytes });
     }
 
     if (!((body.kind === "image" && body.mimeType === "image/webp") || (body.kind === "video" && body.mimeType === "video/webm")) || Number(body.sizeBytes) > LEGACY_MAX_UPLOAD_BYTES) return json({ error: "Invalid legacy media upload" }, 400);
@@ -221,6 +263,23 @@ export default {
     const body = await req.clone().json().catch(() => null) as RequestBody | null;
     if (body?.mode === "scheduled") {
       const admin = createAdminClient();
+      const cleanupKey = req.headers.get("x-cleanup-key");
+      if (!cleanupKey || cleanupKey.length !== 64) return json({ error: "Forbidden" }, 403);
+      const { data: authorized, error } = await admin.rpc("validate_media_cleanup_key", { p_key: cleanupKey });
+      if (error || authorized !== true) return json({ error: "Forbidden" }, 403);
+      if (body.probePath) {
+        const asset = parseCloudinaryPath(body.probePath);
+        if (!asset) return json({ error: "Invalid probe path" }, 400);
+        const check = async (url: string) => {
+          const response = await fetch(url, { headers: { Range: "bytes=0-0" }, redirect: "manual", signal: AbortSignal.timeout(8_000) });
+          await response.body?.cancel();
+          return { status: response.status, contentType: response.headers.get("content-type") };
+        };
+        const validUrl = await signedDeliveryUrl(asset);
+        const expiredUrl = await signedDeliveryUrl(asset, Math.floor(Date.now()/1000)-3600);
+        const badUrl = new URL(validUrl); badUrl.searchParams.set("signature", "0".repeat(40));
+        return json({ delivery: await check(validUrl), expired: await check(expiredUrl), forged: await check(badUrl.href) });
+      }
       const storage = await cleanupStorageChatMedia(admin, 0);
       const cloudinary = cloudinaryReady() ? await cleanupCloudinaryChatMedia(admin, 0) : { deletedObjects: 0, remainingBytes: 0, budgetBytes: CLOUDINARY_CHAT_MEDIA_BUDGET_BYTES };
       return json({ storage, cloudinary });

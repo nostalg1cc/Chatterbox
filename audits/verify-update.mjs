@@ -1,0 +1,13 @@
+import {readFileSync} from 'node:fs';
+import {createHash,createPublicKey,verify} from 'node:crypto';
+import assert from 'node:assert/strict';
+const config=JSON.parse(readFileSync('src-tauri/tauri.conf.json','utf8'));
+const key=Buffer.from(Buffer.from(config.plugins.updater.pubkey,'base64').toString().split('\n')[1],'base64');
+const signature=Buffer.from(readFileSync('src-tauri/target/release/bundle/nsis/Nitro_0.1.70_x64-setup.exe.sig','utf8').trim(),'base64').toString().split('\n');
+const signed=Buffer.from(signature[1],'base64');assert(key.subarray(2,10).equals(signed.subarray(2,10)));
+const publicKey=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),key.subarray(10)]),format:'der',type:'spki'});
+const bytes=readFileSync('src-tauri/target/release/bundle/nsis/Nitro_0.1.70_x64-setup.exe');
+const message=signed.subarray(0,2).toString()==='ED'?createHash('blake2b512').update(bytes).digest():bytes;
+assert(verify(null,message,publicKey,signed.subarray(10)));
+assert(verify(null,Buffer.concat([signed.subarray(10),Buffer.from(signature[2].replace(/^trusted comment: /,''))]),publicKey,Buffer.from(signature[3],'base64')));
+console.log('PASS: installer and trusted signature verify against the configured updater public key');

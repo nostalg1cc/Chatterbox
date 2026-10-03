@@ -41,3 +41,4 @@ stuff/new deco/
 .dislight-updater.key.local
 .dislight-updater.key.local.pub
 UPDATER-RECOVERY.local.txt
+.release-workspace/

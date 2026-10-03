@@ -94,6 +94,18 @@ export function V3MediaSidebar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidateMessages]);
 
+  const [attachmentUrls, setAttachmentUrls] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      const entries = await Promise.all(candidateMessages.filter((message) => message.media_path && !message.media_deleted_at).map(async (message) => [message.id, await remoteMediaUrl(message.media_path)]));
+      if (!cancelled) setAttachmentUrls(Object.fromEntries(entries));
+    };
+    void refresh();
+    const timer = setInterval(() => { void refresh(); }, 240_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [candidateMessages]);
+
   // One entry per message, not per photo - a tweet with a 4-photo grid is
   // one thing you scrolled past in chat, so it should jump back to one
   // place, with all its photos shown together the same way the tweet embed
@@ -102,7 +114,7 @@ export function V3MediaSidebar() {
     const items = [];
     for (const message of candidateMessages) {
       if (message.media_kind) {
-        const url = remoteMediaUrl(message.media_path);
+        const url = attachmentUrls[message.id];
         if (!url) continue;
         items.push({
           id: message.id,
@@ -132,7 +144,7 @@ export function V3MediaSidebar() {
       }
     }
     return items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  }, [candidateMessages, tweetPreviews]);
+  }, [candidateMessages, tweetPreviews, attachmentUrls]);
 
   return (
     <aside className="v3-media-sidebar" aria-label="Shared media">

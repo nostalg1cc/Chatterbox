@@ -79,7 +79,7 @@ interface ChatState {
   openConversation: (id: string) => void;
   openConversationChannel: (id: string, channel: ConversationChannel) => void;
   loadConversations: () => Promise<void>;
-  loadMessages: (convId: string) => Promise<void>;
+  loadMessages: (convId: string, refresh?: boolean) => Promise<void>;
   loadOlder: (convId: string) => Promise<void>;
   sendMessage: (
     convId: string,
@@ -170,6 +170,8 @@ export const useChat = create<ChatState>()((set, get) => ({
   },
 
   loadConversations: async () => {
+    const expectedUser = useAuth.getState().userId;
+    if (!expectedUser) return;
     const [convRes, overviewRes] = await Promise.all([
       supabase.from("conversations").select("*"),
       supabase.rpc("conversation_overview"),
@@ -179,6 +181,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       set({ loaded: true });
       return;
     }
+    if (useAuth.getState().userId !== expectedUser) return;
     const conversations = sortConversations((convRes.data ?? []) as Conversation[]);
     const myId = useAuth.getState().userId ?? "";
     await useProfiles.getState().ensure(conversations.map((c) => counterpartId(c, myId)));
@@ -194,11 +197,12 @@ export const useChat = create<ChatState>()((set, get) => ({
       };
       unread[o.conversation_id] = Number(o.unread_count) || 0;
     }
+    if (useAuth.getState().userId !== expectedUser) return;
     set({ conversations, overviews, unread, loaded: true });
 
     const lastConversationId = getLastConversationId();
     if (
-      lastConversationId &&
+      !get().activeId && lastConversationId &&
       conversations.some((conversation) => conversation.id === lastConversationId)
     ) {
       get().openConversation(lastConversationId);
@@ -206,24 +210,37 @@ export const useChat = create<ChatState>()((set, get) => ({
 
   },
 
-  loadMessages: async (convId) => {
-    if (get().messages[convId]) return;
-    const { data, error } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", convId)
-      .order("created_at", { ascending: false })
-      .limit(PAGE_SIZE);
-    if (error) {
-      useAlerts.getState().show({ severity: "danger", message: "Couldn't load messages." });
-      return;
+  loadMessages: async (convId, refresh = false) => {
+    const userId = useAuth.getState().userId;
+    if (!userId || (get().messages[convId] && !refresh)) return;
+    const before = get().messages[convId] ?? [];
+    let list: Message[] = [];
+    if (refresh && before.length) {
+      // Reload the whole cached window, including edits/deletes/reactions, and
+      // paginate all messages missed during a long offline interval.
+      for (let offset = 0; ; offset += 200) {
+        const { data, error } = await supabase.from("messages").select("*").eq("conversation_id", convId)
+          .gte("created_at", before[0].created_at).order("created_at").order("id").range(offset, offset + 199);
+        if (useAuth.getState().userId !== userId || error) return;
+        list.push(...(data ?? []) as Message[]);
+        if ((data?.length ?? 0) < 200) break;
+      }
+    } else {
+      const { data, error } = await supabase.from("messages").select("*").eq("conversation_id", convId)
+        .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(PAGE_SIZE);
+      if (useAuth.getState().userId !== userId) return;
+      if (error) { useAlerts.getState().show({ severity: "danger", message: "Couldn't load messages." }); return; }
+      list = [...((data ?? []) as Message[])].reverse();
     }
-    const page = (data ?? []) as Message[];
-    const list = [...page].reverse();
-    set((s) => ({
-      messages: { ...s.messages, [convId]: list },
-      hasMore: { ...s.hasMore, [convId]: page.length === PAGE_SIZE },
-    }));
+    if (useAuth.getState().userId !== userId) return;
+    set((state) => {
+      // Realtime events received during the snapshot win over its older rows.
+      const baseline = new Map(before.map((message) => [message.id, message]));
+      const merged = new Map(list.map((message) => [message.id, message]));
+      for (const message of state.messages[convId] ?? []) if (message !== baseline.get(message.id)) merged.set(message.id, message);
+      const messages = [...merged.values()].sort((a,b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+      return { messages: { ...state.messages, [convId]: messages }, hasMore: { ...state.hasMore, [convId]: refresh && before.length ? state.hasMore[convId] : list.length === PAGE_SIZE } };
+    });
     await loadReactionsFor(list.map((m) => m.id), set);
     await loadReplyTargets(list.map((m) => m.reply_to_message_id), set);
   },
@@ -453,6 +470,7 @@ export const useChat = create<ChatState>()((set, get) => ({
       return;
     }
     applyMessage(data as Message, set);
+    if (data.media_path?.startsWith("cloudinary:")) void supabase.functions.invoke("purge-chat-media", { body: { mode: "revoke", path: data.media_path }, timeout: 10_000 });
   },
 
   toggleReaction: async (message, emoji) => {
@@ -514,6 +532,7 @@ export const useChat = create<ChatState>()((set, get) => ({
   },
 
   subscribe: () => {
+    const userId = useAuth.getState().userId;
     const channel = supabase
       .channel("chat-changes")
       .on(
@@ -600,7 +619,11 @@ export const useChat = create<ChatState>()((set, get) => ({
           }));
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status !== "SUBSCRIBED" || useAuth.getState().userId !== userId) return;
+        void get().loadConversations();
+        for (const convId of Object.keys(get().messages)) void get().loadMessages(convId, true);
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -779,7 +802,10 @@ function removeReaction(id: string, messageId: string, set: SetChat) {
 
 async function loadReactionsFor(messageIds: string[], set: SetChat) {
   if (messageIds.length === 0) return;
+  const userId = useAuth.getState().userId;
+  if (messageIds.length > 200) { for (let i=0;i<messageIds.length;i+=200) { if (useAuth.getState().userId !== userId) return; await loadReactionsFor(messageIds.slice(i,i+200),set); } return; }
   const { data } = await supabase.from("reactions").select("*").in("message_id", messageIds);
+  if (useAuth.getState().userId !== userId) return;
   if (!data) return;
   set((s) => {
     const reactions = { ...s.reactions };
@@ -794,7 +820,10 @@ async function loadReactionsFor(messageIds: string[], set: SetChat) {
 async function loadReplyTargets(replyIds: Array<string | null>, set: SetChat) {
   const ids = [...new Set(replyIds.filter((id): id is string => Boolean(id)))];
   if (ids.length === 0) return;
+  const userId = useAuth.getState().userId;
+  if (ids.length > 200) { for (let i=0;i<ids.length;i+=200) { if (useAuth.getState().userId !== userId) return; await loadReplyTargets(ids.slice(i,i+200),set); } return; }
   const { data, error } = await supabase.from("messages").select("*").in("id", ids);
+  if (useAuth.getState().userId !== userId) return;
   if (error || !data) return;
   const targets = data as Message[];
   set((s) => ({

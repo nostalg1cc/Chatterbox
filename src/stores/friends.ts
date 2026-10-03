@@ -4,6 +4,7 @@ import { useAlerts } from "./alerts";
 import { supabase } from "@/lib/supabase";
 import type { Friendship } from "@/lib/types";
 import { useProfiles } from "./profiles";
+import { useAuth } from "./auth";
 import { useChat } from "./chat";
 
 interface FriendsState {
@@ -31,6 +32,8 @@ export const useFriends = create<FriendsState>()((set, get) => ({
   loaded: false,
 
   load: async () => {
+    const expectedUser = useAuth.getState().userId;
+    if (!expectedUser) return;
     const { data, error } = await supabase
       .from("friendships")
       .select("*")
@@ -43,6 +46,7 @@ export const useFriends = create<FriendsState>()((set, get) => ({
     await useProfiles
       .getState()
       .ensure(friendships.flatMap((f) => [f.requester_id, f.addressee_id]));
+    if (useAuth.getState().userId !== expectedUser) return;
     set({ friendships, loaded: true });
   },
 
@@ -162,7 +166,7 @@ export const useFriends = create<FriendsState>()((set, get) => ({
           set((s) => ({ friendships: s.friendships.filter((f) => f.id !== old.id) }));
         }
       )
-      .subscribe();
+      .subscribe((status) => { if (status === "SUBSCRIBED" && useAuth.getState().userId === myId) void get().load(); });
 
     return () => {
       supabase.removeChannel(channel);

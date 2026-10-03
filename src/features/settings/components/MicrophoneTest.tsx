@@ -13,12 +13,14 @@ export function MicrophoneTest({
   inputDeviceId,
   inputVolume,
   noiseSuppression,
+  echoCancellation,
   outputDeviceId,
   outputVolume,
 }: {
   inputDeviceId: string;
   inputVolume: number;
   noiseSuppression: boolean;
+  echoCancellation: boolean;
   outputDeviceId: string;
   outputVolume: number;
 }) {
@@ -52,7 +54,7 @@ export function MicrophoneTest({
     }
 
     try {
-      const pipeline = await createMicrophonePipeline(inputDeviceId, inputVolume, noiseSuppression);
+      const pipeline = await createMicrophonePipeline(inputDeviceId, inputVolume, noiseSuppression, echoCancellation);
       const audio = createRemoteAudioElement();
       monitorRef.current = { pipeline, audio };
       await configureRemoteAudio(audio, {

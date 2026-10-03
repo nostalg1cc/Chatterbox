@@ -1,5 +1,6 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
+import { allowRequest } from "../_shared/quota.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,18 +27,20 @@ function validTurnUrl(value: unknown): value is string {
 
 const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
-  const body = await req.json().catch(() => null) as { conversationId?: unknown } | null;
+  const body = await req.json().catch(() => null) as { voiceSessionId?: unknown; conversationId?: unknown } | null;
   const userId = ctx.userClaims?.id;
-  if (!userId || !isUuid(body?.conversationId)) return json({ error: "Invalid voice room" }, 400);
+  if (!userId || !isUuid(body?.voiceSessionId) || !isUuid(body?.conversationId)) return json({ error: "Invalid voice room" }, 400);
 
   const admin = ctx.supabaseAdmin as any;
   const [{ data: participant }, { data: conversation }] = await Promise.all([
-    admin.from("voice_participants").select("session_id").eq("conversation_id", body.conversationId).eq("user_id", userId).maybeSingle(),
+    admin.from("voice_participants").select("session_id").eq("session_id", body.voiceSessionId).gt("last_seen_at", new Date(Date.now() - 120_000).toISOString()).eq("conversation_id", body.conversationId).eq("user_id", userId).maybeSingle(),
     admin.from("conversations").select("user1_id,user2_id").eq("id", body.conversationId).maybeSingle(),
   ]);
   if (!participant || !conversation || (conversation.user1_id !== userId && conversation.user2_id !== userId)) {
     return json({ error: "Join this voice channel before requesting relay credentials." }, 403);
   }
+
+  if (!(await allowRequest(admin, userId, "realtime-credentials", 8))) return json({ error: "Too many requests. Try again shortly." }, 429);
 
   const keyId = Deno.env.get("CLOUDFLARE_TURN_KEY_ID");
   const keySecret = Deno.env.get("CLOUDFLARE_TURN_KEY_SECRET");

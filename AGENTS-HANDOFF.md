@@ -981,3 +981,31 @@ npx tsc --noEmit      # typecheck
 - [x] Verified the public latest updater endpoint reports v0.1.69 with a 416-character signature and the installer URL returns HTTP 200.
 - [x] Deployed `realtime-credentials` Edge Function v9 to the production Supabase project; status is ACTIVE and JWT verification remains enabled.
 - [ ] Still requires a real two-client call test. No MSI or temporary/test artifacts were included in the release.
+
+### Phase 149 - Local workspace size cleanup (October 3)
+- [x] Removed ignored, reproducible `src-tauri/target/debug` Rust artifacts (about 11.46 GB) and the ignored Vite `dist/` output (about 26 MB). These regenerate through the existing development/build commands.
+- [x] Removed ignored root-level development logs. Preserved `src-tauri/target/release` because it contains local MSI/NSIS installer outputs, along with `node_modules`, generated Tauri schema hints, ignored source archives/backups, and alternate UI folders.
+- [x] No source code, configuration, credentials, release bundles, or database files were removed. Build was not run as part of this directory-size review.
+### Phase 150 - Read-only project and voice audit (October 3)
+- [x] Audited local v0.1.69 voice join/leave, lease maintenance, signaling, ICE/TURN recovery, screen-share lifecycle, and general backend authorization.
+- [x] Checked deployed Supabase voice functions/policies/triggers/cron, edge sources, security advisors; Vercel production deployment; Cloudinary usage/asset metadata. Cloudflare direct account analytics were unavailable.
+- [x] Production TypeScript/Vite build passes. Five isolated source-extracted reproductions confirm canceled join resurrection, stale heartbeat teardown, healthy voice teardown on absent signaling presence, viewer subscriber cleanup omission, and IPv6 preview-guard bypass.
+- [x] Recorded severity, evidence, fix proposals, test matrix and access limits in audits/2026-10-03-project-audit.md; reproduction harness in audits/2026-10-03-voice-repro.mjs.
+- [ ] Fix audit findings; no application/backend changes or deployments were made. Priority: session cancellation/identity checks, friendship identity immutability, preview destination safety, lease/presence reconciliation, and separate screen publisher/subscriber ownership.
+- [ ] Align Vercel production v0.1.65 (805dd21) with desktop/local v0.1.69; current web deployment misses newer voice fixes.
+- [ ] Run real two-client direct/relay/network-switch/signaling-outage/sleep-resume tests. Isolated reproductions and compilation do not establish end-to-end recovery reliability.
+
+### Phase 151 - Nitro v0.1.70 audit remediation and release (October 3)
+- [x] Fixed join/capture cancellation, stale heartbeat/recovery ownership, immediate pending-media cleanup, presence/lease reconciliation and recovery after extended outages.
+- [x] Separated screen publisher/subscriber lifecycles; added provider-request cancellation, recovery, late-join replay, TURN ICE support and renewal before the two-hour screen ownership deadline.
+- [x] Added live capture preference/device recovery, echo cancellation, proactive relay renewal, and bounded local connection/quality diagnostics.
+- [x] Added Realtime resubscription snapshots for chat/friends/voice, including cached-window message/reaction/reply reconciliation.
+- [x] Applied three production migrations for immutable friendship identity, current-seat secret signaling topics with departure/takeover rotation, private privileged join implementation, service quotas, Vault-protected scheduled cleanup, and undeleted legacy attachment reads.
+- [x] Deployed realtime-credentials v10, cloudflare-realtime v9, link-preview v9, purge-chat-media v11, and tweet-video-proxy v4 to Nitro's production Supabase project. JWT checks remain enabled except the existing explicitly public, host-scoped, now rate/byte/time-limited video proxy.
+- [x] Fixed preview private/reserved/mapped IP guards and DNS rebinding through a checked socket with verified TLS hostname. Existing provider-backed previews now send only public post/video IDs, not original URL query/path details.
+- [x] Moved all 13 Cloudinary chat attachments to authenticated delivery with invalidation. Broker issues authorized five-minute downloads and revokes deleted attachments; valid image/video probes return 206, expired/forged signatures return 401. Public-key-only scheduled cleanup probe returns 403.
+- [x] Excluded signing/recovery files and local experiments from deployment inputs. Release builds use `.release-workspace` with only tracked/task sources; signing identity is the ignored root `.dislight-updater.key.local`, whose public key matches the configured updater. The similarly named user-profile key has a different public identity and must not be used for this app's updates.
+- [x] Passed TypeScript, Edge Function checks, eight isolated lifecycle regressions, private/mapped-address checks, SQL authorization/rotation/quota checks, Vite and signed NSIS build. Verified the signature against the configured updater public key.
+- [ ] Publish/push v0.1.70 installer, signature and no-BOM manifest; verify public updater delivery.
+- [ ] Real two-client direct/TURN/IP-switch/signaling-outage/sleep-resume/packet-loss testing remains required. Supabase leaked-password protection needs dashboard/account configuration; no Auth-management credential is available in this session. Cloudflare direct account controls remain uninspected.
+- Details and residual limitations: audits/2026-10-03-project-audit.md and audits/v0.1.70-release-notes.md. Both participants must update for tightened voice authorization.

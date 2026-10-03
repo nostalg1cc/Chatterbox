@@ -1,4 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.110.2";
+import { allowRequest } from "../_shared/quota.ts";
 
 // video.twimg.com 403s a plain client-side fetch/<video src> - it checks
 // for a Referer the browser Fetch API forbids scripts from ever setting,
@@ -13,7 +15,7 @@ const ALLOWED_HOSTS = new Set(["video.twimg.com", "pbs.twimg.com"]);
 const UPSTREAM_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 
-function corsHeaders(extra: Record<string, string> = {}) {
+function corsHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "range, content-type",
@@ -29,6 +31,12 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405, headers: corsHeaders() });
   }
 
+  const secrets = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}");
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, secrets.default ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+  const address = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(address));
+  const key = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2,"0")).join("");
+  if (!(await allowRequest(admin, key, "tweet-video", 60)) || !(await allowRequest(admin, "global", "tweet-video", 5000, 86400))) return new Response("Rate limit exceeded", { status: 429, headers: corsHeaders({ "retry-after": "60" }) });
   const target = new URL(req.url).searchParams.get("url");
   if (!target) return new Response("Missing url", { status: 400, headers: corsHeaders() });
 
@@ -38,7 +46,7 @@ Deno.serve(async (req) => {
   } catch {
     return new Response("Invalid url", { status: 400, headers: corsHeaders() });
   }
-  if (parsed.protocol !== "https:" || !ALLOWED_HOSTS.has(parsed.hostname)) {
+  if (parsed.protocol !== "https:" || !ALLOWED_HOSTS.has(parsed.hostname) || parsed.username || parsed.password || (parsed.port && parsed.port !== "443")) {
     return new Response("Host not allowed", { status: 400, headers: corsHeaders() });
   }
 
@@ -51,7 +59,7 @@ Deno.serve(async (req) => {
 
   let upstream: Response;
   try {
-    upstream = await fetch(parsed, { headers: upstreamHeaders, method: req.method });
+    upstream = await fetch(parsed, { headers: upstreamHeaders, method: req.method, redirect: "error", signal: AbortSignal.timeout(30_000) });
   } catch {
     return new Response("Upstream fetch failed", { status: 502, headers: corsHeaders() });
   }
@@ -71,11 +79,19 @@ Deno.serve(async (req) => {
     "cache-control": "public, max-age=604800, immutable",
   });
   const contentLength = upstream.headers.get("content-length");
+  if (Number(contentLength) > 100 * 1024 * 1024) { await upstream.body?.cancel(); return new Response("Media too large", { status: 413, headers: corsHeaders() }); }
   if (contentLength) headers["content-length"] = contentLength;
   const contentRange = upstream.headers.get("content-range");
   if (contentRange) headers["content-range"] = contentRange;
   const acceptRanges = upstream.headers.get("accept-ranges");
   if (acceptRanges) headers["accept-ranges"] = acceptRanges;
 
-  return new Response(upstream.body, { status: upstream.status, headers });
+  let transferred = 0;
+  const boundedBody = upstream.body?.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      transferred += chunk.byteLength;
+      if (transferred > 100 * 1024 * 1024) controller.error(new Error("Media exceeds transfer limit")); else controller.enqueue(chunk);
+    },
+  }));
+  return new Response(boundedBody, { status: upstream.status, headers });
 });

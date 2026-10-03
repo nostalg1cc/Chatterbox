@@ -7,6 +7,7 @@ import { MicrophoneTest } from "../components/MicrophoneTest";
 import { playAppSound } from "@/lib/app-sounds";
 import { isTauri } from "@/lib/tauri";
 import { usePreferences } from "@/stores/preferences";
+import { voiceDiagnosticSnapshot } from "@/lib/voice-diagnostics";
 
 export function VoiceTab() {
   const preferences = usePreferences();
@@ -15,7 +16,11 @@ export function VoiceTab() {
 
   useEffect(() => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
-    void navigator.mediaDevices.enumerateDevices().then(setDevices).catch(() => setDevices([]));
+    let disposed = false;
+    const refresh = () => { void navigator.mediaDevices.enumerateDevices().then((next) => { if (!disposed) setDevices(next); }).catch(() => { if (!disposed) setDevices([]); }); };
+    refresh();
+    navigator.mediaDevices.addEventListener("devicechange", refresh);
+    return () => { disposed = true; navigator.mediaDevices.removeEventListener("devicechange", refresh); };
   }, []);
 
   const microphones = devices.filter((device) => device.kind === "audioinput");
@@ -48,7 +53,7 @@ export function VoiceTab() {
           <div className="v3-settings__row v3-settings__row--tight">
             <div className="v3-settings__row-copy">
               <p className="v3-settings__row-title">Noise suppression</p>
-              <p className="v3-settings__row-desc">Off by default. Echo cancellation and automatic gain are always disabled.</p>
+              <p className="v3-settings__row-desc">Off by default. Changes apply to the current call.</p>
             </div>
             <Toggle checked={preferences.noiseSuppression} onChange={(value) => setPreference("noiseSuppression", value)} label="Noise suppression" />
           </div>
@@ -61,10 +66,20 @@ export function VoiceTab() {
           )}
         </div>
         <div className="v3-settings__panel-section">
+          <div className="v3-settings__row">
+            <div className="v3-settings__row-copy">
+              <p className="v3-settings__row-title">Echo cancellation</p>
+              <p className="v3-settings__row-desc">Reduces feedback when using speakers.</p>
+            </div>
+            <Toggle checked={preferences.echoCancellation} onChange={(value) => setPreference("echoCancellation", value)} label="Echo cancellation" />
+          </div>
+        </div>
+        <div className="v3-settings__panel-section">
           <MicrophoneTest
             inputDeviceId={preferences.inputDeviceId}
             inputVolume={preferences.inputVolume}
             noiseSuppression={preferences.noiseSuppression}
+            echoCancellation={preferences.echoCancellation}
             outputDeviceId={preferences.outputDeviceId}
             outputVolume={preferences.outputVolume}
           />
@@ -72,6 +87,12 @@ export function VoiceTab() {
       </div>
 
       <p className="v3-settings__section-label">Speaker</p>
+      <button type="button" className="v3-settings__ghost-button" onClick={() => {
+        const url = URL.createObjectURL(new Blob([voiceDiagnosticSnapshot()], { type: "application/json" }));
+        const anchor = document.createElement("a");
+        anchor.href = url; anchor.download = "nitro-voice-diagnostics.json"; anchor.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }}>Save connection diagnostics</button>
       <div className="v3-settings__panel">
         <div className="v3-settings__panel-section">
           <DeviceSelect
@@ -158,7 +179,7 @@ export function VoiceTab() {
 
       <p className="v3-settings__footnote">
         Microphone permission is requested only when you join voice. Native suppression uses WebRTC's microphone
-        constraint; echo cancellation and automatic gain stay off. Device names appear after the first join;
+        constraint; echo cancellation follows your setting and automatic gain stays off. Device names appear after the first join;
         unsupported output routing uses Windows default.
       </p>
     </div>

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { getCachedMedia, putCachedMedia } from "@/lib/media-cache";
 import { remoteMediaUrl } from "@/lib/media";
 import { useAuth } from "@/stores/auth";
@@ -52,10 +51,8 @@ export function V3MediaAttachment({ message }) {
           setFailed(true);
           return;
         }
-        const cloudinaryUrl = remoteMediaUrl(message.media_path);
-        const signed = cloudinaryUrl ? null : await supabase.storage.from("chat-media").createSignedUrl(message.media_path, 60 * 60);
+        const remoteUrl = await remoteMediaUrl(message.media_path);
         if (disposed) return;
-        const remoteUrl = cloudinaryUrl ?? signed?.data?.signedUrl;
         if (!remoteUrl) {
           setFailed(true);
           return;

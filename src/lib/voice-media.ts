@@ -57,24 +57,24 @@ function queueRemoteAudioTask(
   return next;
 }
 
-function audioConstraints(deviceId: string, noiseSuppression: boolean): MediaTrackConstraints {
+function audioConstraints(deviceId: string, noiseSuppression: boolean, echoCancellation: boolean): MediaTrackConstraints {
   return {
     deviceId: deviceId === "default" ? undefined : { exact: deviceId },
-    echoCancellation: false,
+    echoCancellation,
     noiseSuppression,
     autoGainControl: false,
     channelCount: 1,
   };
 }
 
-async function captureMicrophone(deviceId: string, noiseSuppression: boolean): Promise<{
+async function captureMicrophone(deviceId: string, noiseSuppression: boolean, echoCancellation: boolean): Promise<{
   stream: MediaStream;
   fellBackToDefault: boolean;
 }> {
   try {
     return {
       stream: await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints(deviceId, noiseSuppression),
+        audio: audioConstraints(deviceId, noiseSuppression, echoCancellation),
         video: false,
       }),
       fellBackToDefault: false,
@@ -83,7 +83,7 @@ async function captureMicrophone(deviceId: string, noiseSuppression: boolean): P
     if (deviceId === "default") throw error;
     return {
       stream: await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints("default", noiseSuppression),
+        audio: audioConstraints("default", noiseSuppression, echoCancellation),
         video: false,
       }),
       fellBackToDefault: true,
@@ -94,13 +94,14 @@ async function captureMicrophone(deviceId: string, noiseSuppression: boolean): P
 export async function createMicrophonePipeline(
   deviceId: string,
   inputVolume: number,
-  noiseSuppression = false
+  noiseSuppression = false,
+  echoCancellation = true
 ): Promise<MicrophonePipeline> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error("Microphone capture is unavailable in this WebView.");
   }
 
-  const { stream, fellBackToDefault } = await captureMicrophone(deviceId, noiseSuppression);
+  const { stream, fellBackToDefault } = await captureMicrophone(deviceId, noiseSuppression, echoCancellation);
   const rawTrack = stream.getAudioTracks()[0];
   if (!rawTrack) {
     for (const track of stream.getTracks()) track.stop();

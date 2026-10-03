@@ -7,8 +7,8 @@ type CallsResponse = { sessionId?: string; sessionDescription?: Sdp; requiresImm
 const CLOUDFLARE_ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.cloudflare.com:3478" }];
 const CONNECTION_TIMEOUT_MS = 8_000;
 
-async function call(conversationId: string, body: Record<string, unknown>): Promise<CallsResponse> {
-  const { data, error } = await supabase.functions.invoke("cloudflare-realtime", { body: { conversationId, ...body } });
+async function call(conversationId: string, voiceSessionId: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<CallsResponse> {
+  const { data, error } = await supabase.functions.invoke("cloudflare-realtime", { body: { conversationId, voiceSessionId, ...body }, timeout: 10_000, signal });
   if (error || !data || typeof data !== "object") throw new Error("Cloudflare screen sharing is unavailable.");
   return data as CallsResponse;
 }
@@ -50,14 +50,18 @@ async function waitForConnection(connection: RTCPeerConnection): Promise<void> {
 // live voice audio (and screen audio was indistinguishable from voice audio
 // on the receiving end). If this fails, screen sharing just isn't available
 // this session - see startScreenShare in stores/voice.ts.
-export async function createCloudflareScreenPublisher(conversationId: string, stream: MediaStream) {
-  const connection = new RTCPeerConnection({ iceServers: CLOUDFLARE_ICE_SERVERS });
+export async function createCloudflareScreenPublisher(conversationId: string, stream: MediaStream, voiceSessionId: string, iceServers = CLOUDFLARE_ICE_SERVERS, signal?: AbortSignal) {
+  const connection = new RTCPeerConnection({ iceServers });
+  const cancel = () => connection.close();
+  signal?.addEventListener("abort", cancel, { once: true });
+  try {
+  signal?.throwIfAborted();
   // Cloudflare's documented lifecycle is create session -> publish tracks ->
   // establish media. Waiting for connection before publication can deadlock a
   // session which has no media section yet.
   await connection.setLocalDescription(await connection.createOffer());
   await waitForIceComplete(connection);
-  const created = await call(conversationId, { action: "create", sessionDescription: connection.localDescription?.toJSON() });
+  const created = await call(conversationId, voiceSessionId, { action: "create", sessionDescription: connection.localDescription?.toJSON() }, signal);
   if (!created.sessionId || !created.sessionDescription) throw new Error("Cloudflare did not create a screen session.");
   await connection.setRemoteDescription(created.sessionDescription);
 
@@ -84,14 +88,20 @@ export async function createCloudflareScreenPublisher(conversationId: string, st
     if (!transceiver.mid) throw new Error("Cloudflare could not prepare the screen track.");
     return { mid: transceiver.mid, trackName: tracks[index].id };
   });
-  const published = await call(conversationId, { action: "publish", sessionId: created.sessionId, tracks: trackRefs, sessionDescription: connection.localDescription?.toJSON() });
+  const published = await call(conversationId, voiceSessionId, { action: "publish", sessionId: created.sessionId, tracks: trackRefs, sessionDescription: connection.localDescription?.toJSON() }, signal);
   if (published.sessionDescription) await connection.setRemoteDescription(published.sessionDescription);
   await waitForConnection(connection);
   return { connection, sessionId: created.sessionId, trackNames: trackRefs.map((ref) => ref.trackName) };
+  } catch (error) { connection.close(); throw error; }
+  finally { signal?.removeEventListener("abort", cancel); }
 }
 
-export async function createCloudflareScreenSubscriber(conversationId: string, remoteSessionId: string, trackNames: string[], onTrack: (stream: MediaStream) => void) {
-  const connection = new RTCPeerConnection({ iceServers: CLOUDFLARE_ICE_SERVERS });
+export async function createCloudflareScreenSubscriber(conversationId: string, remoteSessionId: string, trackNames: string[], onTrack: (stream: MediaStream) => void, voiceSessionId: string, iceServers = CLOUDFLARE_ICE_SERVERS, signal?: AbortSignal) {
+  const connection = new RTCPeerConnection({ iceServers });
+  const cancel = () => connection.close();
+  signal?.addEventListener("abort", cancel, { once: true });
+  try {
+  signal?.throwIfAborted();
   // Every published track lands in its own ontrack firing - accumulate them
   // into one live MediaStream and hand it off once, rather than resetting
   // whatever <video>/<audio> element consumes it on each additional track.
@@ -106,16 +116,18 @@ export async function createCloudflareScreenSubscriber(conversationId: string, r
   };
   await connection.setLocalDescription(await connection.createOffer());
   await waitForIceComplete(connection);
-  const created = await call(conversationId, { action: "create", sessionDescription: connection.localDescription?.toJSON() });
+  const created = await call(conversationId, voiceSessionId, { action: "create", sessionDescription: connection.localDescription?.toJSON() }, signal);
   if (!created.sessionId || !created.sessionDescription) throw new Error("Cloudflare did not create a viewing session.");
   await connection.setRemoteDescription(created.sessionDescription);
 
-  const subscribed = await call(conversationId, { action: "subscribe", sessionId: created.sessionId, remoteSessionId, trackNames });
+  const subscribed = await call(conversationId, voiceSessionId, { action: "subscribe", sessionId: created.sessionId, remoteSessionId, trackNames }, signal);
   if (subscribed.requiresImmediateRenegotiation && subscribed.sessionDescription) {
     await connection.setRemoteDescription(subscribed.sessionDescription);
     await connection.setLocalDescription(await connection.createAnswer());
-    await call(conversationId, { action: "renegotiate", sessionId: created.sessionId, sessionDescription: connection.localDescription?.toJSON() });
+    await call(conversationId, voiceSessionId, { action: "renegotiate", sessionId: created.sessionId, sessionDescription: connection.localDescription?.toJSON() }, signal);
   }
   await waitForConnection(connection);
   return connection;
+  } catch (error) { connection.close(); throw error; }
+  finally { signal?.removeEventListener("abort", cancel); }
 }

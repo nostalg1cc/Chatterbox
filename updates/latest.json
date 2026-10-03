@@ -1,11 +1,11 @@
 {
-  "version": "0.1.69",
-  "notes": "Voice reliability improvements: faster call setup, more resilient signaling, and improved TURN recovery.",
-  "pub_date": "2026-09-27T04:22:00Z",
+  "version": "0.1.70",
+  "notes": "Voice recovery and security update: safer join/leave, recovery after outages and network changes, independent screen-share recovery, protected attachments, and backend authorization fixes. Both participants should update.",
+  "pub_date": "2026-10-03T05:22:32.241394Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErME1kVGcxRmVoc0UrcTVGcEF4dE5kRFBpVlh2UGZZMzhWdE5Kd0xBNW8rYmV4UUZEZU1yQUpzZ3FuUGhnR21Gb2VZUEorRi9iNElDSXprdXNZOThHT3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNDgyOTA2CWZpbGU6Tml0cm9fMC4xLjY5X3g2NC1zZXR1cC5leGUKcmVKMTJXY2doUlNzUzJiUGw2QTNJNlFaTzhldDJoZkNOQUN5U2NSVFFvUC91M1Z4a0t2VWEzbkl4VmdMSlNVMmliZDAvM0kyMW1oaGV4SHpvME1mQnc9PQo=",
-      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.69/Nitro_0.1.69_x64-setup.exe"
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.70/Nitro_0.1.70_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMEdDRURyQTd0QUhhT0pmc2JpRk5YOGZvUjhib3NxMGpTWFMwcEt1NWZmVEI2OUV4U1ZXQkNpdElhQzE3dnNUcnNlbjUxZlNVT3IzYThJTmcrU1JJTkFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDA0NzcwCWZpbGU6Tml0cm9fMC4xLjcwX3g2NC1zZXR1cC5leGUKM1BiNVR1N0gyVUl2NmlHN2RMdG9RYTB4dERtaEhwL284d2lBUkR0K0xQRDlidTBELzE2L2FMSTBkOVB0RFg5SDIrNVBKWW10UTNscHRXZ0xwS0VqRFE9PQo="
     }
   }
 }

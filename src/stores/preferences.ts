@@ -32,6 +32,7 @@ interface PreferencesState {
   grainSize: number;
   grainIntensity: number;
   noiseSuppression: boolean;
+  echoCancellation: boolean;
   noiseSuppressionEngine: "native" | "rnnoise";
 acrylicDim: number;
   experimentalV2: boolean;
@@ -70,6 +71,7 @@ const defaults: PreferencesData = {
   grainSize: 65,
   grainIntensity: 12,
   noiseSuppression: false,
+  echoCancellation: true,
   noiseSuppressionEngine: "native",
 acrylicDim: 55,
   experimentalV2: false,

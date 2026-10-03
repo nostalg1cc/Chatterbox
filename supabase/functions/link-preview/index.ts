@@ -1,5 +1,7 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
+import { safeHttpUrl as isSafeHttpUrl, fetchPublicDocument } from "../_shared/safe-http.ts";
+import { allowRequest } from "../_shared/quota.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,27 +51,6 @@ function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: corsHeaders });
 }
 
-function isPrivateIpv4(hostname: string) {
-  const parts = hostname.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
-  return parts[0] === 0 || parts[0] === 10 || parts[0] === 127 || parts[0] === 169 && parts[1] === 254 || parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31 || parts[0] === 192 && parts[1] === 168;
-}
-
-function isSafeHttpUrl(value: string, base?: string) {
-  try {
-    const url = new URL(value, base);
-    const hostname = url.hostname.toLowerCase();
-    const isIpv6 = hostname.includes(":");
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || hostname.endsWith(".internal") || hostname.endsWith(".home.arpa") || hostname === "metadata.google.internal" || isPrivateIpv4(hostname)) return null;
-    if (isIpv6 && (hostname === "::1" || hostname.startsWith("fc") || hostname.startsWith("fd") || hostname.startsWith("fe80"))) return null;
-    if (url.username || url.password) return null;
-    return url;
-  } catch {
-    return null;
-  }
-}
-
 function decodeHtml(value: string) {
   return value
     .replace(/&amp;/gi, "&")
@@ -102,50 +83,20 @@ function text(value: string, max: number) {
   return decodeHtml(value.replace(/<[^>]+>/g, "")).slice(0, max);
 }
 
-async function readHtml(response: Response) {
-  const length = Number(response.headers.get("content-length") ?? 0);
-  if (Number.isFinite(length) && length > MAX_HTML_BYTES) throw new Error("Page is too large.");
-  if (!response.body) return "";
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > MAX_HTML_BYTES) {
-      await reader.cancel();
-      throw new Error("Page is too large.");
-    }
-    chunks.push(value);
-  }
-  const merged = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(merged);
-}
-
 async function fetchDocument(initialUrl: URL) {
   let current = initialUrl;
   for (let redirects = 0; redirects <= 3; redirects += 1) {
-    const response = await fetch(current, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: { "user-agent": "Nitro Link Preview/1.0", accept: "text/html,application/xhtml+xml" },
-    });
+    const response = await fetchPublicDocument(current, MAX_HTML_BYTES, FETCH_TIMEOUT_MS);
     if (response.status >= 300 && response.status < 400) {
-      const next = response.headers.get("location");
+      const next = response.headers["location"];
       const resolved = next ? isSafeHttpUrl(next, current.href) : null;
       if (!resolved) throw new Error("Unsafe redirect.");
       current = resolved;
       continue;
     }
-    if (!response.ok) throw new Error("Page could not be fetched.");
-    if (!response.headers.get("content-type")?.toLowerCase().includes("text/html")) throw new Error("Page is not HTML.");
-    return { url: current, html: await readHtml(response) };
+    if (response.status < 200 || response.status >= 300) throw new Error("Page could not be fetched.");
+    if (!response.headers["content-type"]?.toLowerCase().includes("text/html")) throw new Error("Page is not HTML.");
+    return { url: current, html: response.html };
   }
   throw new Error("Too many redirects.");
 }
@@ -186,7 +137,7 @@ function extractYouTubeVideoId(url: URL): string | null {
 // Referer fight, no proxy needed).
 async function fetchYouTubePreview(url: URL, videoId: string): Promise<YouTubePreview | null> {
   try {
-    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url.href)}&format=json`;
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`;
     const response = await fetch(oembedUrl, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: { "user-agent": "Nitro Link Preview/1.0", accept: "application/json" },
@@ -214,7 +165,10 @@ async function fetchYouTubePreview(url: URL, videoId: string): Promise<YouTubePr
 // off the same /user/status/id path shape - no API key needed.
 async function fetchTweetPreview(url: URL): Promise<TweetPreview | null> {
   try {
-    const apiUrl = `https://api.fxtwitter.com${url.pathname}`;
+    const statusId = url.pathname.match(/\/status\/(\d{1,25})(?:\/|$)/)?.[1];
+    if (!statusId) return null;
+    // Send only the public status identifier, never the original link, handle, query or fragment.
+    const apiUrl = `https://api.fxtwitter.com/status/${statusId}`;
     const response = await fetch(apiUrl, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: { "user-agent": "Nitro Link Preview/1.0", accept: "application/json" },
@@ -262,11 +216,12 @@ async function fetchTweetPreview(url: URL): Promise<TweetPreview | null> {
   }
 }
 
-const handler = withSupabase({ auth: "user" }, async (req) => {
+const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
   const body = await req.json().catch(() => null) as { url?: unknown } | null;
   if (typeof body?.url !== "string" || body.url.length > 2_048) return json({ error: "Invalid URL" }, 400);
+  if (!(await allowRequest(ctx.supabaseAdmin, ctx.userClaims!.id, "link-preview", 30))) return json({ error: "Too many previews" }, 429);
   const requestedUrl = isSafeHttpUrl(body.url);
   if (!requestedUrl) return json({ error: "Unsupported URL" }, 400);
 

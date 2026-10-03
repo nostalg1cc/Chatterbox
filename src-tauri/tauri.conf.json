@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Nitro",
-  "version": "0.1.69",
+  "version": "0.1.70",
   "identifier": "io.github.nostalg1cc.dislight",
   "build": {
     "frontendDist": "../dist",
@@ -54,7 +54,7 @@
         "script-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob: https:",
-        "media-src": "'self' blob: https://lapjrxdgcbdseskmyfru.supabase.co https://res.cloudinary.com https://video.twimg.com",
+        "media-src": "'self' blob: https://lapjrxdgcbdseskmyfru.supabase.co https://res.cloudinary.com https://api.cloudinary.com https://video.twimg.com",
         "font-src": "'self' data:",
         "frame-src": "https://www.youtube-nocookie.com",
         "connect-src": "'self' ipc: http://ipc.localhost https://lapjrxdgcbdseskmyfru.supabase.co wss://lapjrxdgcbdseskmyfru.supabase.co https://res.cloudinary.com https://api.cloudinary.com https://video.twimg.com"
