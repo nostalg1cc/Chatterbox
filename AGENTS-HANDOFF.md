@@ -1010,3 +1010,8 @@ npx tsc --noEmit      # typecheck
 - [x] Deployed the matching production web build at https://dislight.vercel.app (deployment `dpl_EkGPqH9yF8qVifEeecyomvWUKsGr`); login/signup browser smoke check passed with no reported browser errors.
 - [ ] Real two-client direct/TURN/IP-switch/signaling-outage/sleep-resume/packet-loss testing remains required. Supabase leaked-password protection needs dashboard/account configuration; no Auth-management credential is available in this session. Cloudflare direct account controls remain uninspected.
 - Details and residual limitations: audits/2026-10-03-project-audit.md and audits/v0.1.70-release-notes.md. Both participants must update for tightened voice authorization.
+
+### Phase 152 - Main-window shutdown follow-up (October 3)
+- [x] Found that the main close button only closes its window while the hidden `voice-hud` window remains alive. Added a native main-window Destroyed handler that exits the whole application, including HUD/WebViews and global shortcuts.
+- [x] Native `cargo check` and whitespace validation pass.
+- [ ] Validate installed-app X/Alt-F4 shutdown during idle and active voice, including disappearance of app-owned WebView2 children. This follow-up is not included in the published v0.1.70 installer.

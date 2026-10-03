@@ -204,6 +204,14 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .on_window_event(|window, event| {
+            // The hidden voice HUD outlives the main window unless we quit
+            // explicitly. Closing Nitro must also release its WebViews and
+            // global shortcuts instead of leaving a background app running.
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+            }
+        })
         .setup(|app| {
             app.manage(GlobalVoiceShortcuts(Mutex::new(Vec::new())));
             app.manage(RestartRequested(AtomicBool::new(false)));
