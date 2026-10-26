@@ -16,8 +16,10 @@ import { useFriends } from "@/stores/friends";
 import { usePreferences } from "@/stores/preferences";
 import { usePresence } from "@/stores/presence";
 import { useVoice } from "@/stores/voice";
+import { useVoiceHudBridge } from "@/features/voice-hud/use-voice-hud-bridge";
 
 export default function App() {
+  useVoiceHudBridge();
   const userId = useAuth((state) => state.userId);
   const status = useAuth((state) => state.status);
   const profile = useAuth((state) => state.profile);

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 const config=JSON.parse(readFileSync('src-tauri/tauri.conf.json','utf8'));
 const key=Buffer.from(Buffer.from(config.plugins.updater.pubkey,'base64').toString().split('\n')[1],'base64');
 const version=JSON.parse(readFileSync('package.json','utf8')).version;
-const installerPath=`src-tauri/target/release/bundle/nsis/Nitro_${version}_x64-setup.exe`;
+const installerPath=process.argv[2] ?? `src-tauri/target/release/bundle/nsis/Nitro_${version}_x64-setup.exe`;
 const signature=Buffer.from(readFileSync(`${installerPath}.sig`,'utf8').trim(),'base64').toString().split('\n');
 const signed=Buffer.from(signature[1],'base64');assert(key.subarray(2,10).equals(signed.subarray(2,10)));
 const publicKey=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),key.subarray(10)]),format:'der',type:'spki'});

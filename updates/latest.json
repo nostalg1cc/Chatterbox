@@ -1,11 +1,11 @@
 {
-  "version": "0.1.71",
-  "notes": "Shutdown patch: closing Nitro with X or Alt-F4 now exits the entire app, including its hidden voice overlay. Includes the voice recovery and security fixes from v0.1.70.",
-  "pub_date": "2026-10-03T05:36:39.4734955Z",
+  "version": "0.1.72",
+  "notes": "Repairs screen-sharing startup and ownership tracking. Adds live stream previews and ten-second message bubbles to the desktop overlay, wide-screen preview fill, soundboard search, and web Settings/media-sidebar controls. Both participants should update for streaming.",
+  "pub_date": "2026-10-26T08:03:34.950Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.71/Nitro_0.1.71_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMEFYY0xPSjYxVHlUNGJDMmRxangwZkVTbjVpSkxsQWVsMDUrajR3cmp1VEhsSG1MaUhZZkRSeGRxVWpLaWFLcEs0QURPL0pVa3duSHY2RG4vUTBjWUF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDA1NzE4CWZpbGU6Tml0cm9fMC4xLjcxX3g2NC1zZXR1cC5leGUKcXlBdEprY0JwNVJERFRTZy8rWXAwdDNYNlJkMkJTSmlHM3FrLzB1OXNJcERHd3UvZms3K0tXOWNxMVN5dEJiMzNlL2ZIbGk4RXI1bm1RTldFVHVERFE9PQo="
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.72/Nitro_0.1.72_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMEVPeWt6VENGSGoxREJvS0pZS1B2NWkzUFozS1c0RVdkSllSNWhEaWpna1hrSEpIV0pQUitlTWtreUZzMkIyS2lZTEhTVncwZ0kwWEs0b3BLdzZ2TkFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDAxNzM2CWZpbGU6Tml0cm9fMC4xLjcyX3g2NC1zZXR1cC5leGUKcEFlR2RTNGFWb3U4VzFuSkFwbkpUSG1uTEpKblRWV3VjU0lSQXdJWHRkbS9FSEZMMGNGWU1qc2dZb2pWYW9pQjB5UEZYbzV6QitJQU00QU52V2plRGc9PQo="
     }
   }
 }

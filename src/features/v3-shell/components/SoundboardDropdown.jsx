@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from "react";
-import { AudioLines, Play, Square, Star, Volume2, VolumeX } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AudioLines, Play, Search, Square, Star, Volume2, VolumeX, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/stores/auth";
 import { usePreferences } from "@/stores/preferences";
@@ -15,6 +15,7 @@ function avatarUrl(profile) {
 }
 
 export function SoundboardDropdown({ conversationId, isMenuOpen, onMenuOpenChange }) {
+  const [query, setQuery] = useState("");
   const userId = useAuth((state) => state.userId);
   const selfProfile = useAuth((state) => state.profile);
   const profiles = useProfiles((state) => state.byId);
@@ -38,6 +39,10 @@ export function SoundboardDropdown({ conversationId, isMenuOpen, onMenuOpenChang
     Number(pinnedSoundIds.includes(b.id)) - Number(pinnedSoundIds.includes(a.id)) ||
     a.created_at.localeCompare(b.created_at)
   ), [sounds, pinnedSoundIds]);
+  const search = query.trim().toLocaleLowerCase();
+  const matching = ordered.filter((sound) => sound.name.toLocaleLowerCase().includes(search));
+
+  useEffect(() => { setQuery(""); }, [conversationId]);
 
   const togglePin = (id) => setPreference(
     "pinnedSoundIds",
@@ -46,13 +51,18 @@ export function SoundboardDropdown({ conversationId, isMenuOpen, onMenuOpenChang
 
   return (
     <DropdownButton icon={AudioLines} label="Soundboard" isMenuOpen={isMenuOpen} onMenuOpenChange={onMenuOpenChange} className="soundboard-control">
+      <div className="soundboard-search">
+        <Search aria-hidden="true" />
+        <input autoFocus type="search" placeholder="Search sounds…" aria-label="Search sounds" value={query} onChange={(event) => setQuery(event.target.value)} />
+        {query && <button type="button" aria-label="Clear sound search" onClick={() => setQuery("")}><X aria-hidden="true" /></button>}
+      </div>
       <div className="soundboard-volume">
         {soundboardVolume === 0 ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
         <input type="range" min={0} max={100} value={soundboardVolume} aria-label="Your soundboard listening volume" onChange={(event) => setPreference("soundboardVolume", Number(event.target.value))} />
         <span>{soundboardVolume}%</span>
       </div>
       <div className="soundboard-menu" role="menu" aria-label="Shared soundboard">
-        {ordered.length ? ordered.map((sound) => {
+        {matching.length ? matching.map((sound) => {
           const playing = playingSoundId === sound.id;
           const pinned = pinnedSoundIds.includes(sound.id);
           const owner = sound.owner_id === userId ? selfProfile : profiles[sound.owner_id];
@@ -74,7 +84,7 @@ export function SoundboardDropdown({ conversationId, isMenuOpen, onMenuOpenChang
               </button>
             </div>
           );
-        }) : <span className="soundboard-empty">No shared sounds yet</span>}
+        }) : <span className="soundboard-empty" role="status">{sounds.length ? "No matching sounds" : "No shared sounds yet"}</span>}
       </div>
     </DropdownButton>
   );

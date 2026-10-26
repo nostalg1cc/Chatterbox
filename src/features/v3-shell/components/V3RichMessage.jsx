@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { MESSAGE_BODY_INITIAL, MESSAGE_BODY_ANIMATE, MESSAGE_BODY_TRANSITION } from "@/lib/message-motion";
 import { Play } from "lucide-react";
 import { isTauri } from "@/lib/tauri";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -261,9 +262,9 @@ export function V3RichMessage({ content }) {
       {content && (
         <motion.p
           className="message-template__body"
-          initial={{ opacity: 0, x: -30, scale: 0.92 }}
-          animate={{ opacity: [0, 1, 1], x: [-30, 3, 0], scale: [0.92, 1.01, 1] }}
-          transition={{ duration: 0.36, delay: 0.215, times: [0, 0.7, 1], ease: [0.22, 0.78, 0.3, 1] }}
+          initial={MESSAGE_BODY_INITIAL}
+          animate={MESSAGE_BODY_ANIMATE}
+          transition={MESSAGE_BODY_TRANSITION}
         >
           <LinkText content={content} hidden={preview ? url : null} />
         </motion.p>

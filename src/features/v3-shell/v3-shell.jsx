@@ -5,7 +5,6 @@ import { decorationUrl } from "@/lib/avatar-decorations";
 import { formatCallDuration } from "@/lib/format-duration";
 import { supabase } from "@/lib/supabase";
 import { isTauri } from "@/lib/tauri";
-import { hideVoiceHud, resizeVoiceHud, showVoiceHud, updateVoiceHud } from "@/lib/voice-hud";
 import { eventKeybind } from "@/lib/keybinds";
 import { prepareChatMedia } from "@/lib/media";
 import { toast } from "sonner";
@@ -41,6 +40,7 @@ import { MessageTemplate } from "./components/MessageTemplate";
 import { MicrophoneToggleDropdown } from "./components/MicrophoneToggleDropdown";
 import { MiniBadge } from "./components/MiniBadge";
 import { SoundboardDropdown } from "./components/SoundboardDropdown";
+import { WebHeaderControls } from "./components/WebHeaderControls";
 import { SoundToggleButton } from "./components/SoundToggleButton";
 import { TopAlert } from "./components/TopAlert";
 import { TypingIndicator } from "./components/TypingIndicator";
@@ -204,8 +204,7 @@ export function V3Shell() {
   const remoteMuted = useVoice((state) => state.remoteMuted);
   const remoteDeafened = useVoice((state) => state.remoteDeafened);
   const sharingScreen = useVoice((state) => state.sharingScreen);
-  const voiceHudScale = usePreferences((state) => state.voiceHudScale);
-  const voiceHudShowNames = usePreferences((state) => state.voiceHudShowNames);
+  const screenShareStarting = useVoice((state) => state.screenShareStarting);
   const voiceParticipants = activeId ? voiceParticipantsByConversation[activeId] ?? EMPTY_PARTICIPANTS : EMPTY_PARTICIPANTS;
   const voiceRoom = activeId ? voiceRooms[activeId] : undefined;
   const joinedVoice = activeVoiceId === activeId;
@@ -383,23 +382,6 @@ export function V3Shell() {
   useEffect(() => {
     if (replyTo) document.getElementById("message-composer")?.focus();
   }, [replyTo]);
-  useEffect(() => {
-    if (!isTauri) return;
-    if (joinedVoice) void showVoiceHud(voiceHudScale);
-    else void hideVoiceHud();
-    // Scale is intentionally excluded here: opening/closing the HUD should
-    // only react to joining/leaving voice, not to the slider mid-call (that's
-    // handled by the resize effect below without a hide/show flash).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [joinedVoice]);
-  useEffect(() => {
-    if (!isTauri || !joinedVoice) return;
-    void resizeVoiceHud(voiceHudScale);
-  }, [joinedVoice, voiceHudScale]);
-  useEffect(() => {
-    if (!isTauri || !joinedVoice) return;
-    void updateVoiceHud({ participants: voiceParticipantDetails, scale: voiceHudScale, showNames: voiceHudShowNames });
-  }, [joinedVoice, voiceParticipantDetails, voiceHudScale, voiceHudShowNames]);
 
   async function prepareAttachment(file) {
     if (!file) return;
@@ -930,15 +912,16 @@ export function V3Shell() {
         </div>
       </section>}
 
-      {(chatView !== "settings" || joinedVoice) && <nav className="top-audio-controls" aria-label="Audio controls">
+      {(chatView !== "settings" || joinedVoice || !isTauri) && <nav className="top-audio-controls" aria-label="Audio controls">
         <V3ChatSwitcher partnerProfile={partnerProfile} partnerPresence={partnerPresence} />
         <VoiceCallButton active={joinedVoice} roomStartedAt={voiceRoom?.started_at} participants={voiceParticipantDetails} participantCount={voiceParticipants.length} hasParticipants={voiceParticipants.length > 0} onJoin={() => activeId && useVoice.getState().join(activeId, true)} onLeave={() => useVoice.getState().leave()} />
         {joinedVoice && <>
           <SoundboardDropdown conversationId={activeId} isMenuOpen={openDropdown === "soundboard"} onMenuOpenChange={(isOpen) => handleDropdownChange("soundboard", isOpen)} />
-          <ActionButton label={sharingScreen ? "Stop streaming" : "Start streaming"} icon={ScreenShare} className={"streaming-button" + (sharingScreen ? " is-streaming" : "")} onClick={() => void (sharingScreen ? useVoice.getState().stopScreenShare() : useVoice.getState().startScreenShare())} />
+          <ActionButton label={sharingScreen ? "Stop streaming" : screenShareStarting ? "Choosing screen" : "Start streaming"} disabled={screenShareStarting && !sharingScreen} aria-busy={screenShareStarting} icon={ScreenShare} className={"streaming-button" + (sharingScreen ? " is-streaming" : "")} onClick={() => void (sharingScreen ? useVoice.getState().stopScreenShare() : useVoice.getState().startScreenShare())} />
           <MicrophoneToggleDropdown isMuted={muted} onToggle={() => useVoice.getState().toggleMute()} isMenuOpen={openDropdown === "microphone"} onMenuOpenChange={(isOpen) => handleDropdownChange("microphone", isOpen)} />
           <DeafenToggleDropdown isDeafened={deafened} onToggle={() => useVoice.getState().toggleDeafen()} isMenuOpen={openDropdown === "deafen"} onMenuOpenChange={(isOpen) => handleDropdownChange("deafen", isOpen)} />
         </>}
+        <WebHeaderControls />
       </nav>}
 
       <div className="v3-screen-previews">

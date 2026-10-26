@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useVoice } from "@/stores/voice";
 import { usePreferences } from "@/stores/preferences";
 import { configureMediaOutput } from "@/lib/voice-media";
+import { shouldFillScreenPreview } from "@/lib/screen-share-layout";
 
 type ScreenShareSource = "local" | "remote";
 
@@ -14,6 +15,7 @@ export function ScreenSharePreview({ source = "remote" }: { source?: ScreenShare
   );
   const videoRef = useRef<HTMLVideoElement>(null);
   const [expanded, setExpanded] = useState(false);
+  const [fillPreview, setFillPreview] = useState(false);
   const isLocal = source === "local";
   const label = isLocal ? "Your screen" : "Partner screen";
   const outputDeviceId = usePreferences((state) => state.outputDeviceId);
@@ -24,6 +26,9 @@ export function ScreenSharePreview({ source = "remote" }: { source?: ScreenShare
     const video = videoRef.current;
     if (!video) return;
     video.srcObject = stream;
+    const updateAspect = () => setFillPreview(shouldFillScreenPreview(video.videoWidth, video.videoHeight));
+    updateAspect();
+    video.addEventListener("resize", updateAspect);
     // muted must be settled before play() is ever called, not after - an
     // unmuted autoplay() request is what browsers actually gate behind a
     // user gesture, so setting it in a later effect (after play() already
@@ -35,6 +40,7 @@ export function ScreenSharePreview({ source = "remote" }: { source?: ScreenShare
     if (stream) void video.play().catch(() => undefined);
     return () => {
       video.srcObject = null;
+      video.removeEventListener("resize", updateAspect);
     };
   }, [isLocal, stream]);
 
@@ -88,7 +94,7 @@ export function ScreenSharePreview({ source = "remote" }: { source?: ScreenShare
         autoPlay
         playsInline
         aria-label={label}
-        className="pointer-events-none size-full object-contain"
+        className={"pointer-events-none size-full " + (fillPreview ? "object-cover" : "object-contain")}
       />
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-1.5 bg-gradient-to-b from-black/75 to-transparent px-2 py-1.5 text-[10px] text-white/85 opacity-0 transition-opacity group-hover:opacity-100">
         <MonitorUpIcon className="size-3" />

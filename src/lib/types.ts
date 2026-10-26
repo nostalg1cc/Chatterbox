@@ -144,6 +144,6 @@ export type VoiceSignal = VoiceSignalBase & (
   | { type: "ready" }
   | { type: "description"; description: RTCSessionDescriptionInit }
   | { type: "ice-candidate"; candidate: RTCIceCandidateInit }
-  | { type: "screen-published"; cloudflareSessionId: string; trackNames: string[] }
-  | { type: "screen-stopped" }
+  | { type: "screen-published"; cloudflareSessionId: string; trackNames: string[]; screenRevision?: number }
+  | { type: "screen-stopped"; screenRevision?: number }
 );

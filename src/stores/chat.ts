@@ -16,6 +16,19 @@ import { useProfiles } from "./profiles";
 
 const PAGE_SIZE = 50;
 
+export type LiveChatMessageEvent = { kind: "insert" | "update"; message: Message } | { kind: "delete"; id: string };
+const liveMessageListeners = new Set<(event: LiveChatMessageEvent) => void>();
+
+/** Live delivery only: loading history or opening a chat never emits here. */
+export function subscribeToLiveChatMessages(listener: (event: LiveChatMessageEvent) => void): () => void {
+  liveMessageListeners.add(listener);
+  return () => { liveMessageListeners.delete(listener); };
+}
+
+function emitLiveChatMessage(event: LiveChatMessageEvent): void {
+  for (const listener of liveMessageListeners) listener(event);
+}
+
 function lastConversationStorageKey(userId: string): string {
   return `dislight:last-conversation:${userId}`;
 }
@@ -542,6 +555,7 @@ export const useChat = create<ChatState>()((set, get) => ({
           const msg = payload.new as Message;
           const myId = useAuth.getState().userId;
           applyMessage(msg, set);
+          if (useAuth.getState().userId === userId) emitLiveChatMessage({ kind: "insert", message: msg });
           if (msg.reply_to_message_id) void loadReplyTargets([msg.reply_to_message_id], set);
           const { activeId, view } = get();
           const isViewing =
@@ -566,6 +580,7 @@ export const useChat = create<ChatState>()((set, get) => ({
         { event: "UPDATE", schema: "public", table: "messages" },
         (payload) => {
           applyMessage(payload.new as Message, set, { bump: false });
+          if (useAuth.getState().userId === userId) emitLiveChatMessage({ kind: "update", message: payload.new as Message });
         }
       )
       .on(
@@ -574,6 +589,7 @@ export const useChat = create<ChatState>()((set, get) => ({
         (payload) => {
           const old = payload.old as Partial<Message>;
           if (old.id) removeMessage(old.id, set);
+          if (old.id && useAuth.getState().userId === userId) emitLiveChatMessage({ kind: "delete", id: old.id });
         }
       )
       .on(

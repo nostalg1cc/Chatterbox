@@ -17,6 +17,14 @@ export interface VoiceHudParticipant {
   speaking: boolean;
   level: number;
   muted: boolean;
+  screenId?: string | null;
+  message?: VoiceHudMessage | null;
+}
+
+export interface VoiceHudMessage {
+  id: string;
+  text: string;
+  expiresAt: number;
 }
 
 const HUD_LABEL = "voice-hud";
@@ -29,6 +37,14 @@ const HUD_MARGIN_X = 24;
 
 let hudWindowPromise: Promise<WebviewWindow | null> | null = null;
 let lastScale = 100;
+let lastStreamCount = 0;
+let lastMessageCount = 0;
+let layoutQueue: Promise<void> = Promise.resolve();
+
+function queueHudLayout(task: () => Promise<void>): Promise<void> {
+  layoutQueue = layoutQueue.then(task, task);
+  return layoutQueue;
+}
 
 function getHudWindow(): Promise<WebviewWindow | null> {
   if (!isTauri) return Promise.resolve(null);
@@ -38,8 +54,8 @@ function getHudWindow(): Promise<WebviewWindow | null> {
 
 async function sizeAndPositionHud(hud: WebviewWindow, scale: number): Promise<void> {
   try {
-    const width = Math.round(HUD_BASE_WIDTH * (scale / 100));
-    const height = Math.round(HUD_BASE_HEIGHT * (scale / 100));
+    const width = Math.round((lastStreamCount || lastMessageCount ? 354 : HUD_BASE_WIDTH) * (scale / 100));
+    const height = Math.round((HUD_BASE_HEIGHT + lastStreamCount * 190 + lastMessageCount * 100) * (scale / 100));
     await hud.setSize(new LogicalSize(width, height));
 
     const monitor = await primaryMonitor();
@@ -56,6 +72,7 @@ async function sizeAndPositionHud(hud: WebviewWindow, scale: number): Promise<vo
 }
 
 export async function showVoiceHud(scale = 100): Promise<void> {
+  return queueHudLayout(async () => {
   const hud = await getHudWindow();
   if (!hud) return;
   try {
@@ -68,15 +85,20 @@ export async function showVoiceHud(scale = 100): Promise<void> {
   } catch {
     // Never let HUD window failures affect the actual voice call.
   }
+  });
 }
 
 export async function hideVoiceHud(): Promise<void> {
+  return queueHudLayout(async () => {
   const hud = await getHudWindow();
   if (!hud) return;
   await hud.hide().catch(() => undefined);
+  await emitTo(HUD_LABEL, "voice-hud:update", { participants: [], scale: lastScale, showNames: false }).catch(() => undefined);
+  });
 }
 
 export async function resizeVoiceHud(scale: number): Promise<void> {
+  return queueHudLayout(async () => {
   if (scale === lastScale) return;
   const hud = await getHudWindow();
   if (!hud) return;
@@ -84,6 +106,7 @@ export async function resizeVoiceHud(scale: number): Promise<void> {
   if (!visible) return;
   lastScale = scale;
   await sizeAndPositionHud(hud, scale);
+  });
 }
 
 export interface VoiceHudUpdate {
@@ -95,4 +118,14 @@ export interface VoiceHudUpdate {
 export async function updateVoiceHud(update: VoiceHudUpdate): Promise<void> {
   if (!isTauri) return;
   await emitTo(HUD_LABEL, "voice-hud:update", update).catch(() => undefined);
+  const streamCount = update.participants.filter((participant) => participant.screenId).length;
+  const messageCount = update.participants.filter((participant) => participant.message && participant.message.expiresAt > Date.now()).length;
+  if (streamCount !== lastStreamCount || messageCount !== lastMessageCount) {
+    lastStreamCount = streamCount;
+    lastMessageCount = messageCount;
+    await queueHudLayout(async () => {
+      const hud = await getHudWindow();
+      if (hud) await sizeAndPositionHud(hud, lastScale);
+    });
+  }
 }

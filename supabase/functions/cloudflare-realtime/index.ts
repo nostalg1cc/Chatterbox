@@ -81,8 +81,23 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
   const secret = Deno.env.get("CLOUDFLARE_CALLS_APP_SECRET");
   if (!appId || !secret) return json({ error: "Cloudflare screen sharing is not configured." }, 503);
 
-  const sessions = admin.schema("private").from("cloudflare_screen_sessions");
-  await sessions.delete().lte("expires_at", new Date().toISOString());
+  // PostgREST does not expose private, even to service_role. Narrow invoker
+  // RPCs provide server-only access without exposing the schema to clients.
+  const readSession = async (sessionId: string) => {
+    const { data, error } = await admin.rpc("read_cloudflare_screen_session", {
+      p_session_id: sessionId, p_conversation_id: body.conversationId,
+    });
+    if (error) {
+      console.error(JSON.stringify({ event: "cloudflare_screen_session_read_failed", code: error.code }));
+      throw new Error("Could not read the screen-share session.");
+    }
+    return data as { owner_id: string; voice_session_id: string; track_name: string | null } | null;
+  };
+  const ownedSession = (session: Awaited<ReturnType<typeof readSession>>) => session?.owner_id === userId && session.voice_session_id === body.voiceSessionId;
+  const saveSession = (sessionId: string, trackName: string | null = null) => admin.rpc("save_cloudflare_screen_session", {
+    p_session_id: sessionId, p_conversation_id: body.conversationId,
+    p_owner_id: userId, p_voice_session_id: body.voiceSessionId, p_track_name: trackName,
+  });
 
   let path = "";
   let method = "POST";
@@ -90,14 +105,16 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
   let createdSession = false;
   let publishedTrackNames: string[] | null = null;
 
-  if (body.action === "create" && sdp(body.sessionDescription)) {
+  if (body.action === "create" && (body.sessionDescription === undefined || sdp(body.sessionDescription))) {
     path = "/sessions/new";
-    payload = { sessionDescription: body.sessionDescription };
+    // An SDP-less session is intentional: media negotiation happens in
+    // tracks/new. Keep accepting a valid offer for older clients.
+    payload = body.sessionDescription === undefined ? {} : { sessionDescription: body.sessionDescription };
     createdSession = true;
   } else if (body.action === "publish" && opaqueId(body.sessionId) && sdp(body.sessionDescription) && publishTracks(body.tracks)) {
     const tracks = publishTracks(body.tracks)!;
-    const { data: session } = await sessions.select("session_id").eq("session_id", body.sessionId).eq("conversation_id", body.conversationId).eq("owner_id", userId).eq("voice_session_id", body.voiceSessionId).gt("expires_at", new Date().toISOString()).maybeSingle();
-    if (!session) return json({ error: "That screen-share session is no longer active." }, 403);
+    const session = await readSession(body.sessionId);
+    if (!ownedSession(session)) return json({ error: "That screen-share session is no longer active." }, 403);
     path = `/sessions/${body.sessionId}/tracks/new`;
     payload = { sessionDescription: body.sessionDescription, tracks: tracks.map((track) => ({ location: "local", mid: track.mid, trackName: track.trackName })) };
     // A screen share can publish more than one track (video, and audio when
@@ -106,12 +123,11 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
     publishedTrackNames = tracks.map((track) => track.trackName);
   } else if (body.action === "subscribe" && opaqueId(body.sessionId) && opaqueId(body.remoteSessionId) && trackNameList(body.trackNames)) {
     const names = trackNameList(body.trackNames)!;
-    const [{ data: viewer }, { data: remote }] = await Promise.all([
-      sessions.select("session_id").eq("session_id", body.sessionId).eq("conversation_id", body.conversationId).eq("owner_id", userId).eq("voice_session_id", body.voiceSessionId).gt("expires_at", new Date().toISOString()).maybeSingle(),
-      sessions.select("track_name,owner_id,voice_session_id").eq("session_id", body.remoteSessionId).eq("conversation_id", body.conversationId).neq("owner_id", userId).gt("expires_at", new Date().toISOString()).maybeSingle(),
+    const [viewer, remote] = await Promise.all([
+      readSession(body.sessionId), readSession(body.remoteSessionId),
     ]);
     const availableNames = new Set(String(remote?.track_name ?? "").split(","));
-    if (!viewer || !remote || !names.every((name) => availableNames.has(name))) {
+    if (!ownedSession(viewer) || !remote || remote.owner_id === userId || !names.every((name) => availableNames.has(name))) {
 
       return json({ error: "The shared screen is no longer available." }, 404);
     }
@@ -120,8 +136,8 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
     path = `/sessions/${body.sessionId}/tracks/new`;
     payload = { tracks: names.map((trackName) => ({ location: "remote", sessionId: body.remoteSessionId, trackName })) };
   } else if (body.action === "renegotiate" && opaqueId(body.sessionId) && sdp(body.sessionDescription)) {
-    const { data: session } = await sessions.select("session_id").eq("session_id", body.sessionId).eq("conversation_id", body.conversationId).eq("owner_id", userId).eq("voice_session_id", body.voiceSessionId).gt("expires_at", new Date().toISOString()).maybeSingle();
-    if (!session) return json({ error: "That viewing session is no longer active." }, 403);
+    const session = await readSession(body.sessionId);
+    if (!ownedSession(session)) return json({ error: "That viewing session is no longer active." }, 403);
     path = `/sessions/${body.sessionId}/renegotiate`;
     method = "PUT";
     payload = { sessionDescription: body.sessionDescription };
@@ -129,14 +145,18 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
     return json({ error: "Invalid screen-share operation" }, 400);
   }
 
+  // Cloudflare distinguishes no body from {}: sending an empty JSON object
+  // selects the offer-create schema and fails validation of sessionDescription.
+  const hasBody = !(body.action === "create" && body.sessionDescription === undefined);
   const response = await fetch(`https://rtc.live.cloudflare.com/v1/apps/${appId}${path}`, {
     method,
-    headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload), signal: AbortSignal.timeout(8_000),
+    headers: { Authorization: `Bearer ${secret}`, ...(hasBody ? { "Content-Type": "application/json" } : {}) },
+    ...(hasBody ? { body: JSON.stringify(payload) } : {}), signal: AbortSignal.timeout(8_000),
   });
   const result = await response.json().catch(() => null);
-  const upstreamError = conciseCloudflareError(result);
-  if (!response.ok || (result && typeof result === "object" && "errorCode" in result)) {
+  const trackError = result && Array.isArray(result.tracks) ? result.tracks.find((track: Record<string, unknown>) => track.errorCode) : null;
+  const upstreamError = conciseCloudflareError(trackError ?? result);
+  if (!response.ok || trackError || (result && typeof result === "object" && "errorCode" in result)) {
     console.error(JSON.stringify({ event: "cloudflare_screen_request_failed", action: body.action, status: response.status, code: upstreamError?.code, message: upstreamError?.message }));
     return json({ error: "Cloudflare screen-share request failed.", code: upstreamError?.code ?? `http_${response.status}` }, 502);
   }
@@ -149,26 +169,19 @@ const handler = withSupabase({ auth: "user" }, async (req, ctx) => {
       console.error(JSON.stringify({ event: "cloudflare_screen_missing_session_id" }));
       return json({ error: "Cloudflare did not return a usable screen-share session." }, 502);
     }
-    const { error } = await sessions.upsert({
-      session_id: sessionId,
-      conversation_id: body.conversationId,
-      owner_id: userId,
-      voice_session_id: body.voiceSessionId,
-      expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    if (error) {
-      console.error(JSON.stringify({ event: "cloudflare_screen_session_persist_failed", code: error.code }));
+    const { data: saved, error } = await saveSession(sessionId);
+    if (error || saved !== true) {
+      console.error(JSON.stringify({ event: "cloudflare_screen_session_persist_failed", code: error?.code ?? "lease_expired" }));
       return json({ error: "Could not secure the screen-share session." }, 500);
     }
   }
 
   if (publishedTrackNames) {
-    await sessions.update({
-      track_name: publishedTrackNames.join(","),
-      updated_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-    }).eq("session_id", body.sessionId);
+    const { data: saved, error } = await saveSession(body.sessionId as string, publishedTrackNames.join(","));
+    if (error || saved !== true) {
+      console.error(JSON.stringify({ event: "cloudflare_screen_tracks_persist_failed", code: error?.code ?? "lease_expired" }));
+      return json({ error: "Could not register the published screen tracks." }, 500);
+    }
   }
 
   return json(result);

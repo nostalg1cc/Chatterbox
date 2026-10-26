@@ -70,8 +70,10 @@ interface VoiceState {
   muted: boolean;
   deafened: boolean;
   sharingScreen: boolean;
+  screenShareStarting: boolean;
   localScreenStream: MediaStream | null;
   remoteScreenStream: MediaStream | null;
+  remoteScreenSessionId: string | null;
   error: string | null;
   init: (userId: string) => () => void;
   join: (conversationId: string, takeover?: boolean) => Promise<void>;
@@ -135,10 +137,11 @@ let publishedScreen: { sessionId: string; trackNames: string[] } | null = null;
 let remoteScreen: { sessionId: string; trackNames: string[]; voiceSessionId: string } | null = null;
 let screenPublishAttempt = 0;
 let screenSubscribeAttempt = 0;
+let remoteScreenRevision: { voiceSessionId: string; revision: number } | null = null;
 let screenRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
 let presenceGraceTimer: ReturnType<typeof setTimeout> | null = null;
 let turnRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-let leaseRequest: { sessionId: string; promise: Promise<void> } | null = null;
+let leaseRequest: { sessionId: string; sharingScreen: boolean; promise: Promise<void> } | null = null;
 let membershipQueue: Promise<unknown> = Promise.resolve();
 let activeChannelToken: string | null = null;
 let desiredConversationId: string | null = null;
@@ -412,8 +415,10 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   muted: false,
   deafened: false,
   sharingScreen: false,
+  screenShareStarting: false,
   localScreenStream: null,
   remoteScreenStream: null,
+  remoteScreenSessionId: null,
   error: null,
 
   init: (userId) => initializeVoice(userId),
@@ -603,10 +608,11 @@ export const useVoice = create<VoiceState>()((set, get) => ({
   },
 
   startScreenShare: async () => {
-    if (!get().activeConversationId || localScreenTrack) return;
+    if (!get().activeConversationId || !get().sessionId || localScreenTrack || get().screenShareStarting) return;
     const conversationId = get().activeConversationId!;
     const sessionId = get().sessionId;
     const attempt = ++screenPublishAttempt;
+    set({ screenShareStarting: true });
     const isCurrent = () => screenPublishAttempt === attempt && get().activeConversationId === conversationId && get().sessionId === sessionId;
     try {
       const stream = await captureScreen();
@@ -624,6 +630,10 @@ export const useVoice = create<VoiceState>()((set, get) => ({
         void stopLocalScreen(true);
       };
       set({ sharingScreen: true, localScreenStream: stream });
+      // Publish capture state before signaling tracks; a later stop/failure
+      // always sends the corresponding false state, including during setup.
+      void updateRoomPresence();
+      void sendHeartbeat();
 
       // What actually gets sent - same video, boosted audio (raw captured
       // system/window audio is commonly much quieter than what's audible;
@@ -651,26 +661,28 @@ export const useVoice = create<VoiceState>()((set, get) => ({
           screenPublisher = cloudflare.connection;
           publishedScreen = { sessionId: cloudflare.sessionId, trackNames: cloudflare.trackNames };
           watchScreenConnection(cloudflare.connection);
-          sendScreenPublished(cloudflare.sessionId, cloudflare.trackNames);
           published = true;
           break;
-        } catch {
+        } catch (error) {
           if (!isCurrent()) return;
+          recordVoiceEvent("screen_publish_failed", { reason: error instanceof Error ? error.name : "unknown" });
           // Retried once above; falls through to the failure branch below.
         }
       }
       if (!published) {
         throw new Error("Screen sharing isn't available right now. Try again shortly.");
       }
+      set({ screenShareStarting: false });
 
       if (!stream.getAudioTracks().length) {
         useAlerts.getState().show({ severity: "warning", message: "This source did not include audio. Enable Share system audio in the capture picker when available." });
       }
       await updateRoomPresence();
       await sendHeartbeat();
+      if (isCurrent() && publishedScreen) sendScreenPublished(publishedScreen.sessionId, publishedScreen.trackNames);
     } catch (error) {
       if (!isCurrent()) return;
-      await stopLocalScreen(false);
+      await stopLocalScreen(true);
       if (error instanceof DOMException && error.name === "NotAllowedError") return;
       useAlerts.getState().show({
         severity: "danger",
@@ -724,7 +736,7 @@ function clearRemoteScreen(): void {
   subscriberRenewalTimer = null;
   screenSubscriber?.close();
   screenSubscriber = null;
-  useVoice.setState({ remoteScreenStream: null });
+  useVoice.setState({ remoteScreenStream: null, remoteScreenSessionId: null });
 }
 
 function renewScreenConnection(connection: RTCPeerConnection): void {
@@ -743,7 +755,10 @@ function watchScreenConnection(connection: RTCPeerConnection): void {
   connection.onconnectionstatechange = () => {
     if (connection !== screenPublisher && connection !== screenSubscriber) return;
     recordVoiceEvent("screen_transport", { state: connection.connectionState });
-    if (["failed", "disconnected"].includes(connection.connectionState)) scheduleScreenRecovery();
+    if (["failed", "disconnected", "closed"].includes(connection.connectionState)) {
+      if (connection === screenSubscriber) useVoice.setState({ remoteScreenStream: null });
+      scheduleScreenRecovery();
+    }
   };
 }
 
@@ -772,14 +787,23 @@ async function subscribeRemoteScreen(screen: NonNullable<typeof remoteScreen>): 
   screenSubscriberAbort = controller;
   try {
     const connection = await createCloudflareScreenSubscriber(conversationId, screen.sessionId, screen.trackNames, (stream) => {
-      if (isCurrent()) useVoice.setState({ remoteScreenStream: stream });
+      if (isCurrent()) {
+        useVoice.setState({ remoteScreenStream: stream });
+        for (const track of stream.getVideoTracks()) track.addEventListener("ended", () => {
+          if (isCurrent()) clearRemoteScreen();
+        }, { once: true });
+      }
     }, sessionId, activeIceServers, controller.signal);
     if (!isCurrent()) { connection.close(); return; }
     screenSubscriber = connection;
     watchScreenConnection(connection);
-  } catch {
+  } catch (error) {
     if (screenSubscriberAbort === controller) screenSubscriberAbort = null;
-    if (isCurrent()) scheduleScreenRecovery();
+    if (isCurrent()) {
+      useVoice.setState({ remoteScreenStream: null });
+      recordVoiceEvent("screen_subscribe_failed", { reason: error instanceof Error ? error.name : "unknown" });
+      scheduleScreenRecovery();
+    }
   }
 }
 
@@ -1167,7 +1191,7 @@ function applyParticipant(
     participant.user_id !== currentUserId &&
     participant.conversation_id === state.activeConversationId &&
     !participant.sharing_screen &&
-    state.remoteScreenStream
+    remoteScreen?.voiceSessionId === participant.session_id
   ) {
     clearRemoteScreen();
   }
@@ -1611,13 +1635,16 @@ async function handleSignal(raw: unknown): Promise<void> {
   const partner = state.participants[conversationId]?.find((participant) => participant.user_id !== currentUserId);
   if (!partner || signal.fromSessionId !== partner.session_id) return;
   if (signal.type === "screen-published") {
-    if (!Array.isArray(signal.trackNames) || signal.trackNames.length > 4 || !signal.trackNames.every((name) => typeof name === "string" && name.length <= 160)) return;
-    if (remoteScreen?.sessionId === signal.cloudflareSessionId && screenSubscriber?.connectionState === "connected") return;
+    if (typeof signal.cloudflareSessionId !== "string" || !/^[A-Za-z0-9_-]{8,160}$/.test(signal.cloudflareSessionId) || !Array.isArray(signal.trackNames) || !signal.trackNames.length || signal.trackNames.length > 4 || !signal.trackNames.every((name) => typeof name === "string" && /^[A-Za-z0-9_-]{8,160}$/.test(name))) return;
+    if (!acceptScreenRevision(signal)) return;
+    if (remoteScreen?.sessionId === signal.cloudflareSessionId && (screenSubscriber?.connectionState === "connected" || (screenSubscriberAbort && !screenSubscriberAbort.signal.aborted && !screenSubscriber))) return;
     remoteScreen = { sessionId: signal.cloudflareSessionId, trackNames: signal.trackNames, voiceSessionId: signal.fromSessionId };
+    useVoice.setState({ remoteScreenSessionId: signal.cloudflareSessionId });
     await subscribeRemoteScreen(remoteScreen);
     return;
   }
   if (signal.type === "screen-stopped") {
+    if (!acceptScreenRevision(signal)) return;
     clearRemoteScreen();
     return;
   }
@@ -1725,12 +1752,12 @@ function handleRemoteTrack(event: RTCTrackEvent): void {
 }
 
 function sendScreenPublished(cloudflareSessionId: string, trackNames: string[]): void {
-  const signal = buildSignal({ type: "screen-published", cloudflareSessionId, trackNames });
+  const signal = buildSignal({ type: "screen-published", cloudflareSessionId, trackNames, screenRevision: screenPublishAttempt });
   if (signal) sendSignal(signal);
 }
 
 function sendScreenStopped(): void {
-  const signal = buildSignal({ type: "screen-stopped" });
+  const signal = buildSignal({ type: "screen-stopped", screenRevision: screenPublishAttempt });
   if (signal) sendSignal(signal);
 }
 
@@ -1754,8 +1781,8 @@ function buildSignal(
     | { type: "ready" }
     | { type: "description"; description: RTCSessionDescriptionInit }
     | { type: "ice-candidate"; candidate: RTCIceCandidateInit }
-    | { type: "screen-published"; cloudflareSessionId: string; trackNames: string[] }
-    | { type: "screen-stopped" }
+    | { type: "screen-published"; cloudflareSessionId: string; trackNames: string[]; screenRevision?: number }
+    | { type: "screen-stopped"; screenRevision?: number }
 ): VoiceSignal | null {
   const state = useVoice.getState();
   const conversationId = state.activeConversationId;
@@ -1776,10 +1803,19 @@ function buildSignal(
   }
   if (payload.type === "ice-candidate") return { ...base, type: "ice-candidate", candidate: payload.candidate };
   if (payload.type === "screen-published") return { ...base, ...payload };
-  return { ...base, type: "screen-stopped" };
+  return { ...base, ...payload };
+}
+
+function acceptScreenRevision(signal: Extract<VoiceSignal, { type: "screen-published" | "screen-stopped" }>): boolean {
+  if (signal.screenRevision === undefined) return remoteScreenRevision?.voiceSessionId !== signal.fromSessionId;
+  if (!Number.isSafeInteger(signal.screenRevision) || signal.screenRevision < 0) return false;
+  if (remoteScreenRevision?.voiceSessionId === signal.fromSessionId && signal.screenRevision < remoteScreenRevision.revision) return false;
+  remoteScreenRevision = { voiceSessionId: signal.fromSessionId, revision: signal.screenRevision };
+  return true;
 }
 
 function isCurrentVoiceSignal(signal: VoiceSignal): boolean {
+  if ((signal.type === "screen-published" || signal.type === "screen-stopped") && signal.screenRevision !== undefined && signal.screenRevision !== screenPublishAttempt) return false;
   const state = useVoice.getState();
   const conversationId = state.activeConversationId;
   const room = conversationId ? state.rooms[conversationId] : undefined;
@@ -1982,7 +2018,15 @@ async function sendHeartbeat(): Promise<void> {
   const state = useVoice.getState();
   if (!state.sessionId || !state.activeConversationId) return;
   const { sessionId, activeConversationId: conversationId } = state;
-  if (leaseRequest?.sessionId === sessionId) return leaseRequest.promise;
+  if (leaseRequest?.sessionId === sessionId) {
+    const pending = leaseRequest;
+    if (pending.sharingScreen === state.sharingScreen) return pending.promise;
+    // Do not swallow a stop/start state change behind an older in-flight
+    // heartbeat. Send the latest state once that request has finished.
+    return pending.promise.then(() => {
+      if (sameVoiceSession(sessionId, conversationId) && useVoice.getState().sharingScreen !== pending.sharingScreen) return sendHeartbeat();
+    });
+  }
   const promise = (async () => {
     const { data, error } = await supabase.rpc("heartbeat_voice_room", {
       p_session_id: sessionId, p_sharing_screen: state.sharingScreen,
@@ -2001,7 +2045,7 @@ async function sendHeartbeat(): Promise<void> {
   })().catch(() => recordVoiceEvent("lease", { outcome: "timeout" })).finally(() => {
     if (leaseRequest?.promise === promise) leaseRequest = null;
   });
-  leaseRequest = { sessionId, promise };
+  leaseRequest = { sessionId, sharingScreen: state.sharingScreen, promise };
   return promise;
 }
 
@@ -2106,7 +2150,7 @@ async function stopLocalScreen(updateServer: boolean): Promise<void> {
   localScreenStream = null;
   localScreenTrack = null;
   if (track) sendScreenStopped();
-  useVoice.setState({ sharingScreen: false, localScreenStream: null });
+  useVoice.setState({ sharingScreen: false, screenShareStarting: false, localScreenStream: null });
 
   if (updateServer) {
     await updateRoomPresence();
@@ -2411,6 +2455,7 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
   signalFlushRetryTimer = null;
   pendingVoiceSignals = [];
   receivedVoiceSignalIds.clear();
+  remoteScreenRevision = null;
   signalFlushRunId += 1;
   flushingVoiceSignals = false;
   peerRebuildAttempts = 0;
@@ -2458,8 +2503,10 @@ async function disconnectLocal(notifyServer: boolean): Promise<void> {
       activeConversationId: null,
       sessionId: null,
       sharingScreen: false,
+      screenShareStarting: false,
       localScreenStream: null,
       remoteScreenStream: null,
+      remoteScreenSessionId: null,
       error: null,
     };
   });
