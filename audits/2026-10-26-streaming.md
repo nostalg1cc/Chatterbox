@@ -3,6 +3,31 @@
 Scope: normal Tauri/React Nitro. GPUI/native beta directories are experimental
 and excluded unless the user explicitly mentions them (recorded in AGENTS.md).
 
+## Current published status
+
+Normal Nitro desktop and web are now published as v0.1.72 from stable-base
+commit 141a5413e8060f601c2f3e496c7183c9bc1a3b66. The desktop installer,
+signature and updater manifest are on the public GitHub release; uploaded
+asset SHA-256/size match the verified local files. The public latest updater
+serves 0.1.72 with the matching 416-character signature and no BOM; installer
+delivery is HTTP 200. Vercel production deployment
+dpl_43X8BkNQQg188JCJ7Pz5iKP4mTcA is READY at dislight.vercel.app with that
+commit; public bundle verification confirms version/search/web header code.
+
+The second live retest found PGRST106 on ownership persistence: PostgREST does
+not expose private, including to service_role. Migration
+20261026074414 adds narrowly granted SECURITY INVOKER read/save RPCs; private
+stays unexposed, anon/authenticated cannot execute them, and a rollback-only
+service-role fixture passed create, track save, readback and stale-lease
+rejection. Advisors remain unchanged. Broker v12 uses these RPCs.
+The user then reported sharing appears to stay active. Full partner reception
+and adverse-network acceptance remain unverified.
+
+The final bubbles use opaque #171717, 15px/22px text, and no stroke. Web-only
+Settings/media-sidebar controls use existing app actions; browser checks
+confirm both behaviors and absence of duplicate controls in native mode.
+The normal dev app was rebuilt/restarted on 0.1.72. GPUI remains excluded.
+
 ## Follow-up: immediate failure, wide previews, search and message bubbles
 
 The user's live test exposed a further broker defect in v10. October 26 logs
@@ -123,8 +148,8 @@ cannot be sent directly through serialized Tauri events to another webview.
 
 Both users need the corrected frontend to test both sending and receiving.
 The installed v0.1.71 client still sends empty create offers; the server change
-alone cannot repair that client's WebRTC negotiation. No desktop update was
-published by this task.
+alone cannot repair that client's WebRTC negotiation. The corrected v0.1.72
+desktop update and matching production web version are now published.
 
 The headless tests use synthetic media and a local mock provider, not a real
 two-account Cloudflare call. Verify that live flow in the dev app: each user
