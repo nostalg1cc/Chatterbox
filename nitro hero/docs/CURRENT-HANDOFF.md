@@ -231,3 +231,9 @@ Known problem: a second peer connection inside one engine connects and receives 
 Not tested: a real two-person call or the robot voice by ear. Streaming to the other side still fails with a "server unavailable" style message; the user set this aside.
 
 Tests: `scripts/voice_transport_smoke.py`, `scripts/voice_recovery_smoke.py`, `scripts/voice_route_check.py`.
+
+## 0.2.3 (2026-11-06)
+
+One-way audio, where you hear them and they can't hear you: most likely a partner still on 0.2.1 whose engine got a second connection in one process, which never plays (see the known problem above). 0.2.2 and later use a new engine there. A 0.2.1 client can't be fixed remotely, so it has to update. Not confirmed in a real call, because the partner's version can't be read. `scripts/voice_oneway_check.py` covers one side coming back on a new engine, and the real mic reaching the other side.
+
+Added: update checks every 30 minutes, not only at launch, and the impolite side re-offers immediately when the partner signals `ready` while not connected.

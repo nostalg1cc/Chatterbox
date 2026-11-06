@@ -1306,6 +1306,11 @@ fn run(
                 }
             }
             if signal["type"] == "ready" {
+                // They've just come up and missed any offer already sent. Offers from them
+                // are ignored while this side's own is unanswered, so this side goes again.
+                if c.user <= c.partner && state.status != "connected" {
+                    next_recovery = Instant::now();
+                }
                 for effect in screen.on_partner_ready() {
                     if let crate::screen_share::Effect::Signal(body) = effect {
                         outbox.push_back((

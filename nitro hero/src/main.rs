@@ -315,6 +315,7 @@ pub struct Preview {
     pub screen_notice_id: u64,
     pub typing: Option<realtime::TypingChannel>,
     pub presence: Option<realtime::PresenceChannel>,
+    pub update_checked_at: std::time::Instant,
     pub hotkeys: Option<hotkeys::Hotkeys>,
     pub sound_draft: Option<SoundDraft>,
     pub sound_draft_name: Entity<InputState>,
@@ -676,6 +677,14 @@ impl Preview {
                     this.pump_voice(cx);
                     this.pump_typing(cx);
                     this.pump_presence(cx);
+                    // People leave this app open for days, and both sides of a call need
+                    // to be on a compatible version.
+                    if this.update_checked_at.elapsed() >= Duration::from_secs(1800) {
+                        this.update_checked_at = std::time::Instant::now();
+                        if matches!(this.update, UpdateState::Idle) {
+                            this.check_for_update(false, cx);
+                        }
+                    }
                     this.pump_hotkeys(cx);
                     if let Some(path) = this.lightbox_request.borrow_mut().take() {
                         this.lightbox = Some(path);
@@ -807,6 +816,7 @@ impl Preview {
             screen_notice_id: 0,
             typing: None,
             presence: None,
+            update_checked_at: std::time::Instant::now(),
             hotkeys: None,
             sound_draft: None,
             sound_draft_name,

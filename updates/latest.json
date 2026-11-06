@@ -1,11 +1,11 @@
 {
-  "version": "0.2.2",
-  "notes": "Voice is much steadier. A failing connection now keeps retrying instead of ending your call, and calls pick themselves back up after a fault. The output device you choose is now actually used, and Default means your Windows default. Microphone processing now matches the old app, which should help with sounding robotic. Online dots now work.",
-  "pub_date": "2026-11-06T19:32:05.000Z",
+  "version": "0.2.3",
+  "notes": "Fixes one-way calls where the other person could not hear you: if this happens, both of you should be on this version. Nitro now also checks for updates while it is open, not only when it starts.",
+  "pub_date": "2026-11-06T21:08:40.000Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.2/Nitro_0.2.2_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErME9lc3EwaGZpTDZ0aERIK3ZrcHFlL1B6a0NuSUh4ekw0VDM5UmpWTnp1NVJnWStrR1ppQ1hTRk9DQkhsRTJSeHhVc2dESVdEWERxdm95VCtSMWRmV1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzOTkzNTI1CWZpbGU6Tml0cm9fMC4yLjJfeDY0LXNldHVwLmV4ZQpKczR5b1lqVVUzaVM4TTVsS2JSQUZuZ3daNSs3Mk9SQ1BmbmE4ZyswRnRHeGZIWnJ5eHV3UC9FYnJnaVpBa3JmSURJNDJYcEpTN3MxWHZOdFJjYnZEQT09Cg=="
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.3/Nitro_0.2.3_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErME1kbkVJR3hIaWJSSVQvWUtmOGlnVGc3RlJUaGxsZU16QWIyd1I0TVc3TjFWaDR4ODB0MUVqR2hsTkdQRE1RY0xwVU1UVkRLRXJRNDVFd1BvOUR2UlFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzOTk5MzIwCWZpbGU6Tml0cm9fMC4yLjNfeDY0LXNldHVwLmV4ZQpiR1RORUxGMDlIcllQWHJZdGZqT0JERmJqUFNkSkY0YTNGZEQyeXRBVTdaQU0wY3ZjUUpBVTYvVlY2QmUrdW8zd1oxSHVGWlprNHRPOEQ5WCtEVFdDZz09Cg=="
     }
   }
 }
