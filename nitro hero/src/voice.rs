@@ -290,6 +290,22 @@ impl Api {
         self.request(&format!("rest/v1/rpc/{name}"), Some(body), &[])
     }
 }
+impl Api {
+    fn new(c: &Start) -> Result<Self, String> {
+        Ok(Api {
+            url: c.url.clone(),
+            key: c.key.clone(),
+            token: Arc::new(std::sync::Mutex::new(c.token.clone())),
+            http: reqwest::blocking::Client::builder()
+                .timeout(Duration::from_secs(8))
+                .connect_timeout(Duration::from_secs(4))
+                .https_only(true)
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .map_err(|_| "Voice HTTPS initialization failed")?,
+        })
+    }
+}
 struct Lease {
     api: Api,
     session: String,
@@ -319,13 +335,35 @@ fn poll(
     session: String,
     conversation: String,
     sharing: Arc<AtomicBool>,
+    poke: Arc<AtomicBool>,
 ) -> (Poller, mpsc::Receiver<Poll>) {
     let stop = Arc::new(AtomicBool::new(false));
     let end = stop.clone();
     let (tx, rx) = mpsc::sync_channel(8);
+    // On its own thread so the relay credentials never wait behind membership requests,
+    // or the other way around. They last 12 hours, so they're rarely asked for.
+    let (turn_api, turn_tx, turn_end) = (api.clone(), tx.clone(), stop.clone());
+    let (turn_session, turn_conversation) = (session.clone(), conversation.clone());
+    std::thread::spawn(move || {
+        let mut next = Instant::now();
+        while !turn_end.load(Ordering::Acquire) {
+            if Instant::now() >= next {
+                let reply = turn_api.request(
+                    "functions/v1/realtime-credentials",
+                    Some(json!({"conversationId":turn_conversation,"voiceSessionId":turn_session})),
+                    &[],
+                );
+                let delivered = reply.is_ok_and(|v| {
+                    v["iceServers"].is_array() && turn_tx.try_send(Poll::Turn(v)).is_ok()
+                });
+                next = Instant::now()
+                    + Duration::from_secs(if delivered { 6 * 3600 } else { 15 });
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    });
     std::thread::spawn(move || {
         let mut lease = Instant::now() - Duration::from_secs(45);
-        let mut turn = Instant::now() - Duration::from_secs(3600);
         while !end.load(Ordering::Acquire) {
             if lease.elapsed() >= Duration::from_secs(30) {
                 if let Ok(v) = api.rpc(
@@ -348,19 +386,12 @@ fn poll(
             ) {
                 let _ = tx.try_send(Poll::Members(v));
             }
-            if turn.elapsed() >= Duration::from_secs(300) {
-                if let Ok(v) = api.request(
-                    "functions/v1/realtime-credentials",
-                    Some(json!({"conversationId":conversation,"voiceSessionId":session})),
-                    &[],
-                ) {
-                    let _ = tx.try_send(Poll::Turn(v));
-                }
-                turn = Instant::now();
-            }
             for _ in 0..20 {
                 if end.load(Ordering::Acquire) {
                     return;
+                }
+                if poke.swap(false, Ordering::AcqRel) {
+                    break;
                 }
                 std::thread::sleep(Duration::from_millis(100));
             }
@@ -369,6 +400,32 @@ fn poll(
     (Poller(stop), rx)
 }
 type Socket = tungstenite::WebSocket<MaybeTlsStream<std::net::TcpStream>>;
+/// Ends this engine so the same call carries on with a new one. A second connection inside
+/// one engine connects and receives packets but never decodes them, so anything that
+/// needs a new connection gets a new engine, under the same seat.
+const FRESH_ENGINE: &str = "fresh-engine";
+/// What to try next while a call has no audio path. It never gives up on its own: the
+/// call lasts until someone leaves, and a partner who's gone drops off the member list.
+#[derive(Debug, PartialEq)]
+enum Recovery {
+    Restart { relay: bool },
+    Rebuild,
+}
+fn recovery_step(attempt: u32) -> Recovery {
+    match attempt % 3 {
+        0 => Recovery::Restart { relay: false },
+        1 => Recovery::Restart { relay: true },
+        _ => Recovery::Rebuild,
+    }
+}
+fn recovery_delay(attempt: u32) -> Duration {
+    Duration::from_secs((6 + 2 * attempt as u64).min(20))
+}
+/// Same limits as main Nitro: enough lost packets or jitter to sound robotic.
+fn unhealthy(received: u64, lost: i64, jitter: f64) -> bool {
+    let total = received as i64 + lost.max(0);
+    total >= 40 && (lost.max(0) as f64 / total as f64 >= 0.08 || jitter >= 0.08)
+}
 fn connect(api: &Api, topic: &str, session: &str) -> Result<Socket, String> {
     let mut endpoint = reqwest::Url::parse(&api.url).map_err(|_| "Invalid voice endpoint")?;
     endpoint
@@ -468,43 +525,85 @@ pub fn start(config: Start, events: mpsc::Sender<State>) -> Handle {
             let _ = events.send(s.clone());
         };
         emit(&state);
-        if let Err(error) = run(&config, &rx, &mut state, &emit) {
-            state.status = "failed".into();
-            state.error = Some(error);
+        let api = match Api::new(&config) {
+            Ok(api) => api,
+            Err(error) => {
+                state.status = "failed".into();
+                state.error = Some(error);
+                emit(&state);
+                return;
+            }
+        };
+        // Anything that goes wrong after joining picks the same call back up with a fresh
+        // engine, under the same seat, so one fault doesn't throw anyone out. A call that
+        // really has moved to another device is refused by the join and ends here.
+        let mut retries = 0;
+        let error = loop {
+            let mut helper = None::<Helper>;
+            let mut lease = None::<Lease>;
+            let began = Instant::now();
+            let result = run(&config, &api, &rx, &mut state, &emit, &mut helper, &mut lease);
+            if began.elapsed() > Duration::from_secs(60) {
+                retries = 0;
+            }
+            let error = match result {
+                Ok(()) => break None,
+                Err(error) => error,
+            };
+            let fresh = error == FRESH_ENGINE;
+            if lease.is_none() || (retries >= 5 && !fresh) {
+                break Some(error);
+            }
+            if let Some(helper) = helper.as_mut() {
+                let _ = helper.send(json!({"command":"forget-lease"}));
+            }
+            drop(helper);
+            std::mem::forget(lease);
+            retries += u32::from(!fresh);
+            state.status = "reconnecting".into();
+            state.receiving = false;
+            state.screen = Default::default();
             emit(&state);
-        } else {
-            state.status = "idle".into();
-            emit(&state);
+            let wait = Instant::now();
+            let mut stopped = false;
+            let pause = Duration::from_millis(if fresh { 200 } else { 2000 });
+            while wait.elapsed() < pause && !stopped {
+                std::thread::sleep(Duration::from_millis(50));
+                stopped = !setup_controls(&rx, &mut state, &api, None).unwrap_or(false);
+            }
+            if stopped {
+                drop(Lease { api: api.clone(), session: config.session.clone() });
+                break None;
+            }
+        };
+        match error {
+            Some(error) => {
+                state.status = "failed".into();
+                state.error = Some(error);
+            }
+            None => state.status = "idle".into(),
         }
+        emit(&state);
     });
     Handle { tx }
 }
 fn run(
     c: &Start,
+    api: &Api,
     controls: &mpsc::Receiver<Control>,
     state: &mut State,
     emit: &impl Fn(&State),
+    helper_slot: &mut Option<Helper>,
+    lease_slot: &mut Option<Lease>,
 ) -> Result<(), String> {
-    let api = Api {
-        url: c.url.clone(),
-        key: c.key.clone(),
-        token: Arc::new(std::sync::Mutex::new(c.token.clone())),
-        http: reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(8))
-            .connect_timeout(Duration::from_secs(4))
-            .https_only(true)
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|_| "Voice HTTPS initialization failed")?,
-    };
-    let mut helper = Helper::start()?;
+    let helper = helper_slot.insert(Helper::start()?);
     helper.send(json!({"command":"prepare","input":c.input,"output":c.output}))?;
     let ready = Instant::now();
     loop {
         // The helper processes stdin sequentially: controls received during preparation
         // run immediately afterwards, before membership/signaling starts. Never discard
         // a route selection merely because the prepared event has not arrived yet.
-        if !setup_controls(controls, state, &api, Some(&mut helper))? {
+        if !setup_controls(controls, state, api, Some(&mut *helper))? {
             return Ok(());
         }
         match helper.events.recv_timeout(Duration::from_millis(50)) {
@@ -548,8 +647,8 @@ fn run(
         });
         let _ = membership_tx.send(result);
     });
-    let (joined, _lease) = loop {
-        if !setup_controls(controls, state, &api, Some(&mut helper))? {
+    let (joined, lease) = loop {
+        if !setup_controls(controls, state, api, Some(&mut *helper))? {
             return Ok(());
         }
         match membership_rx.recv_timeout(Duration::from_millis(50)) {
@@ -563,7 +662,8 @@ fn run(
             "Voice is active on another device. Leave that call before joining here.".into(),
         );
     }
-    if !setup_controls(controls, state, &api, Some(&mut helper))? {
+    *lease_slot = lease;
+    if !setup_controls(controls, state, api, Some(&mut *helper))? {
         return Ok(());
     }
     helper.send(json!({"command":"lease","url":api.url,"key":api.key,"token":api.token.lock().map_err(|_|"Voice authentication unavailable")?.clone(),"session":c.session}))?;
@@ -579,11 +679,13 @@ fn run(
     }
     let topic = format!("realtime:voice:{}:{generation}:{secret}", c.conversation);
     let sharing_screen = Arc::new(AtomicBool::new(false));
+    let poke = Arc::new(AtomicBool::new(false));
     let (_poller, polls) = poll(
         api.clone(),
         c.session.clone(),
         c.conversation.clone(),
         sharing_screen.clone(),
+        poke.clone(),
     );
     let mut screen = crate::screen_share::ScreenFlow::default();
     let mut sound_count = 0u64;
@@ -599,14 +701,30 @@ fn run(
             .map(String::from);
     }
     let mut socket = None::<Socket>;
+    let mut dialing = None::<mpsc::Receiver<Result<Socket, String>>>;
+    let mut ever_subscribed = false;
     let mut subscribed = false;
     let mut reconnect = Instant::now();
     let mut backoff = 1u64;
     let mut sequence = 1;
     let mut heartbeat = Instant::now();
     let mut last_ack = Instant::now();
-    let mut connection_started = Instant::now();
-    let mut restarts = 0;
+    let started = Instant::now();
+    let mut turn_ready = false;
+    let mut attempt = 0u32;
+    let mut next_recovery = Instant::now();
+    let mut relay_preferred = false;
+    let mut health_at = Instant::now();
+    let mut health_last = None::<(u64, i64)>;
+    let mut health_bad = 0;
+    let mut membership_misses = 0;
+    let mut slow_acks = 0;
+    let mut last_rebuild = Instant::now();
+    let mut had_peer = false;
+    // Signals from someone the member list hasn't shown yet. Dropping them left both
+    // sides waiting: the other side ignores offers while its own offer is unanswered.
+    let mut early = VecDeque::<(Value, Instant)>::new();
+    let mut incoming = VecDeque::<Value>::new();
     let mut outbox = VecDeque::<(Value, Instant)>::new();
     let mut in_flight = None::<(String, Value, Instant)>;
     let mut seen = VecDeque::<String>::new();
@@ -705,17 +823,23 @@ fn run(
                 Poll::Turn(v) => {
                     if v["iceServers"].is_array() {
                         helper.send(json!({"command":"ice","servers":v["iceServers"]}))?;
+                        turn_ready = true;
                     }
                 }
                 Poll::Members(rows) => {
-                    let rows = rows
-                        .as_array()
-                        .ok_or("Invalid voice participant response")?;
-                    if !rows
+                    let Some(rows) = rows.as_array() else { continue };
+                    // One odd read isn't enough to end somebody's call.
+                    if rows
                         .iter()
                         .any(|r| r["user_id"] == c.user && r["session_id"] == c.session)
                     {
-                        return Err("Call membership ended or moved to another device".into());
+                        membership_misses = 0;
+                    } else {
+                        membership_misses += 1;
+                        if membership_misses >= 3 {
+                            return Err("Call membership ended or moved to another device".into());
+                        }
+                        continue;
                     }
                     let next = rows
                         .iter()
@@ -742,13 +866,26 @@ fn run(
                 }
             }
         }
-        if subscribed && partner_session.is_some() && peer_session != partner_session {
+        // The first offer should already include the relay, so it isn't needed as a second
+        // try. Credentials that are slow to arrive don't hold the call up for long.
+        if subscribed
+            && partner_session.is_some()
+            && peer_session != partner_session
+            && (turn_ready || started.elapsed() > Duration::from_secs(3))
+        {
+            if had_peer {
+                return Err(FRESH_ENGINE.into());
+            }
+            had_peer = true;
+            last_rebuild = Instant::now();
             helper.send(
-                json!({"command":"peer","polite":c.user>c.partner,"epoch":partner_session}),
+                json!({"command":"peer","polite":c.user>c.partner,"epoch":partner_session,"relay":relay_preferred}),
             )?;
             peer_session = partner_session.clone();
-            connection_started = Instant::now();
-            restarts = 0;
+            next_recovery = Instant::now() + Duration::from_secs(8);
+            attempt = 0;
+            health_last = None;
+            health_bad = 0;
             helper.send(
                 json!({"command":"controls","muted":state.muted,"deafened":state.deafened}),
             )?;
@@ -821,6 +958,32 @@ fn run(
                         .unwrap_or("Native audio operation failed")
                         .into());
                 }
+                // The other side rebuilt its connection in a way this one can't accept, so
+                // this one has to start fresh as well.
+                Some("warning")
+                    if v["command"] == "description"
+                        && peer_session.is_some()
+                        && last_rebuild.elapsed() > Duration::from_secs(5) =>
+                {
+                    return Err(FRESH_ENGINE.into());
+                }
+                Some("audio-health") => {
+                    let now = (v["received"].as_u64().unwrap_or(0), v["lost"].as_i64().unwrap_or(0));
+                    if let Some(before) = health_last {
+                        // Their report counts too: that's the side that hears the damage.
+                        let bad = unhealthy(
+                            now.0.saturating_sub(before.0),
+                            now.1 - before.1,
+                            v["jitter"].as_f64().unwrap_or(0.),
+                        ) || v["sentLoss"].as_f64().unwrap_or(0.) >= 0.08;
+                        health_bad = if bad { health_bad + 1 } else { 0 };
+                        if health_bad >= 2 && !relay_preferred && turn_ready {
+                            relay_preferred = true;
+                            helper.send(json!({"command":"restart","relay":true}))?;
+                        }
+                    }
+                    health_last = Some(now);
+                }
                 Some("description") => outbox.push_back((
                     signal(
                         json!({"type":"description","description":v["description"]}),
@@ -839,17 +1002,21 @@ fn run(
                     ),
                     Instant::now(),
                 )),
+                // A connection that was just replaced saying it has closed.
+                Some("state") if v["state"] == "closed" => {}
                 Some("state") => {
                     state.status = v["state"].as_str().unwrap_or("connecting").into();
                     if state.status == "new" {
                         state.status = "connecting".into();
                     }
                     if state.status == "disconnected" || state.status == "failed" {
+                        // Disconnected often heals by itself. Failed never does.
+                        let wait = if state.status == "failed" { 1 } else { 6 };
+                        next_recovery = next_recovery.min(Instant::now() + Duration::from_secs(wait));
                         state.status = "reconnecting".into();
-                        connection_started = Instant::now();
                     }
                     if state.status == "connected" {
-                        restarts = 0;
+                        attempt = 0;
                     }
                     emit(state);
                 }
@@ -888,24 +1055,50 @@ fn run(
             state.status = "solo".into();
             emit(state);
         }
-        if peer_session.is_some()
+        // Offers need signaling, so an outage there waits until it's back.
+        if subscribed
+            && peer_session.is_some()
             && state.status != "connected"
-            && connection_started.elapsed() > Duration::from_secs(8)
+            && Instant::now() >= next_recovery
         {
-            if restarts >= 3 {
-                return Err("Voice could not establish audio after relay recovery. Check your network and retry.".into());
-            }
-            helper.send(json!({"command":"restart"}))?;
-            restarts += 1;
-            connection_started = Instant::now();
-        }
-        if socket.is_none() && Instant::now() >= reconnect {
-            match connect(&api, &topic, &c.session) {
-                Ok(s) => {
-                    socket = Some(s);
-                    last_ack = Instant::now();
+            match recovery_step(attempt) {
+                Recovery::Restart { relay } => {
+                    helper.send(json!({"command":"restart","relay":relay || relay_preferred}))?;
                 }
-                Err(_) => {
+                Recovery::Rebuild => return Err(FRESH_ENGINE.into()),
+            }
+            attempt += 1;
+            next_recovery = Instant::now() + recovery_delay(attempt);
+            if state.status != "reconnecting" {
+                state.status = "reconnecting".into();
+                emit(state);
+            }
+        }
+        if state.status == "connected" && health_at.elapsed() >= Duration::from_secs(3) {
+            health_at = Instant::now();
+            helper.send(json!({"command":"stats"}))?;
+        }
+        // Connecting can hang for a long time on a bad network, and this loop also has to
+        // keep the call's audio events and controls moving.
+        if socket.is_none() && dialing.is_none() && Instant::now() >= reconnect {
+            let (done, result) = mpsc::sync_channel(1);
+            let (dial_api, dial_topic, dial_session) = (api.clone(), topic.clone(), c.session.clone());
+            std::thread::spawn(move || {
+                let _ = done.send(connect(&dial_api, &dial_topic, &dial_session));
+            });
+            dialing = Some(result);
+        }
+        if let Some(result) = &dialing {
+            match result.try_recv() {
+                Ok(Ok(s)) => {
+                    socket = Some(s);
+                    dialing = None;
+                    last_ack = Instant::now();
+                    heartbeat = Instant::now();
+                }
+                Err(mpsc::TryRecvError::Empty) => {}
+                _ => {
+                    dialing = None;
                     reconnect = Instant::now() + Duration::from_secs(backoff);
                     backoff = (backoff * 2).min(8);
                 }
@@ -913,7 +1106,7 @@ fn run(
         }
         let mut lost = false;
         if let Some(s) = socket.as_mut() {
-            if last_ack.elapsed() > Duration::from_secs(45) {
+            if last_ack.elapsed() > Duration::from_secs(if subscribed { 45 } else { 10 }) {
                 lost = true;
             }
             if heartbeat.elapsed() > Duration::from_secs(20) {
@@ -924,9 +1117,14 @@ fn run(
             if let Some((_, v, at)) = &in_flight
                 && at.elapsed() > Duration::from_secs(3)
             {
+                // A slow reply isn't a dead connection, and a repeat is ignored if both land.
                 outbox.push_front((v.clone(), Instant::now()));
                 in_flight = None;
-                lost = true;
+                slow_acks += 1;
+                if slow_acks >= 2 {
+                    slow_acks = 0;
+                    lost = true;
+                }
             }
             if subscribed
                 && in_flight.is_none()
@@ -949,19 +1147,34 @@ fn run(
             }
             match s.read() {
                 Ok(Message::Text(text)) => {
-                    let v: Value = serde_json::from_str(text.as_str())
-                        .map_err(|_| "Invalid voice signaling response")?;
+                    let Ok(v) = serde_json::from_str::<Value>(text.as_str()) else {
+                        continue;
+                    };
                     match v["event"].as_str() {
                         Some("phx_reply") if v["ref"] == "1" => {
                             if v["payload"]["status"] != "ok" {
+                                // It let this login in before, so this is a passing
+                                // problem such as a token that just expired.
+                                if ever_subscribed {
+                                    socket = None;
+                                    subscribed = false;
+                                    reconnect = Instant::now() + Duration::from_secs(backoff);
+                                    backoff = (backoff * 2).min(8);
+                                    continue;
+                                }
                                 return Err(format!(
                                     "Private voice signaling authorization failed: {}",
                                     v["payload"]["response"]["reason"].as_str().unwrap_or("no reason given")
                                 ));
                             }
                             subscribed = true;
+                            ever_subscribed = true;
                             backoff = 1;
                             last_ack = Instant::now();
+                            // Anything sent while signaling was down never arrived.
+                            if state.status != "connected" {
+                                next_recovery = next_recovery.min(Instant::now() + Duration::from_secs(1));
+                            }
                             let _ = send(
                                 s,
                                 &topic,
@@ -984,6 +1197,7 @@ fn run(
                             if in_flight.as_ref().is_some_and(|(id, _, _)| v["ref"] == *id) {
                                 if v["payload"]["status"] == "ok" {
                                     in_flight = None;
+                                    slow_acks = 0;
                                 } else {
                                     lost = true;
                                 }
@@ -1031,38 +1245,14 @@ fn run(
                         }
                         Some("broadcast") if subscribed && v["payload"]["event"] == "signal" => {
                             let signal = &v["payload"]["payload"];
-                            if accepts(signal, generation, &c.session, partner_session.as_deref()) {
-                                let id = signal["signalId"].as_str().map(String::from);
-                                if id.as_ref().is_some_and(|id| seen.contains(id)) {
-                                    continue;
+                            if accepts(signal, generation, &c.session, peer_session.as_deref()) {
+                                incoming.push_back(signal.clone());
+                            } else if accepts(signal, generation, &c.session, signal["fromSessionId"].as_str()) {
+                                early.push_back((signal.clone(), Instant::now()));
+                                while early.len() > 128 {
+                                    early.pop_front();
                                 }
-                                if let Some(id) = id {
-                                    seen.push_back(id);
-                                    while seen.len() > 256 {
-                                        seen.pop_front();
-                                    }
-                                }
-                                let screen_effects = screen.on_signal(signal);
-                                for effect in screen_effects {
-                                    match effect {
-                                        crate::screen_share::Effect::Engine(command) => helper.send(command)?,
-                                        crate::screen_share::Effect::Broker(op, body) => {
-                                            broker(&api, &screen_scope, &broker_tx, op, body);
-                                        }
-                                        crate::screen_share::Effect::Signal(_) => {}
-                                    }
-                                }
-                                if signal["type"] == "ready" {
-                                    for effect in screen.on_partner_ready() {
-                                        if let crate::screen_share::Effect::Signal(body) = effect {
-                                            outbox.push_back((
-                                                signal_body(body, generation, &c.session, partner_session.as_deref()),
-                                                Instant::now(),
-                                            ));
-                                        }
-                                    }
-                                }
-                                match signal["type"].as_str(){Some("description")=>helper.send(json!({"command":"description","description":signal["description"]}))?,Some("ice-candidate")=>helper.send(json!({"command":"candidate","candidate":signal["candidate"]}))?,_=>{}}
+                                poke.store(true, Ordering::Release);
                             }
                         }
                         Some("phx_error" | "phx_close") => lost = true,
@@ -1083,6 +1273,57 @@ fn run(
             }
         } else {
             std::thread::sleep(Duration::from_millis(50));
+        }
+        if peer_session.is_some() {
+            while let Some((signal, at)) = early.pop_front() {
+                if signal["fromSessionId"].as_str() == peer_session.as_deref()
+                    && at.elapsed() < Duration::from_secs(20)
+                {
+                    incoming.push_back(signal);
+                }
+            }
+        } else if early.front().is_some_and(|(_, at)| at.elapsed() > Duration::from_secs(20)) {
+            early.pop_front();
+        }
+        while let Some(signal) = incoming.pop_front() {
+            let id = signal["signalId"].as_str().map(String::from);
+            if id.as_ref().is_some_and(|id| seen.contains(id)) {
+                continue;
+            }
+            if let Some(id) = id {
+                seen.push_back(id);
+                while seen.len() > 256 {
+                    seen.pop_front();
+                }
+            }
+            for effect in screen.on_signal(&signal) {
+                match effect {
+                    crate::screen_share::Effect::Engine(command) => helper.send(command)?,
+                    crate::screen_share::Effect::Broker(op, body) => {
+                        broker(&api, &screen_scope, &broker_tx, op, body);
+                    }
+                    crate::screen_share::Effect::Signal(_) => {}
+                }
+            }
+            if signal["type"] == "ready" {
+                for effect in screen.on_partner_ready() {
+                    if let crate::screen_share::Effect::Signal(body) = effect {
+                        outbox.push_back((
+                            signal_body(body, generation, &c.session, partner_session.as_deref()),
+                            Instant::now(),
+                        ));
+                    }
+                }
+            }
+            match signal["type"].as_str() {
+                Some("description") => {
+                    helper.send(json!({"command":"description","description":signal["description"]}))?
+                }
+                Some("ice-candidate") => {
+                    helper.send(json!({"command":"candidate","candidate":signal["candidate"]}))?
+                }
+                _ => {}
+            }
         }
         if lost {
             socket = None;
@@ -1145,6 +1386,22 @@ fn accepts(v: &Value, generation: &str, session: &str, partner: Option<&str>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn recovery_tries_every_route_and_keeps_going() {
+        assert_eq!(recovery_step(0), Recovery::Restart { relay: false });
+        assert_eq!(recovery_step(1), Recovery::Restart { relay: true });
+        assert_eq!(recovery_step(2), Recovery::Rebuild);
+        assert_eq!(recovery_step(3), Recovery::Restart { relay: false });
+        assert!(recovery_delay(1000) <= Duration::from_secs(20));
+    }
+    #[test]
+    fn only_real_packet_trouble_counts_as_unhealthy() {
+        assert!(!unhealthy(10, 5, 0.));
+        assert!(!unhealthy(100, 2, 0.01));
+        assert!(unhealthy(90, 10, 0.01));
+        assert!(unhealthy(100, 0, 0.1));
+        assert!(!unhealthy(100, -3, 0.));
+    }
     #[test]
     fn signals_require_current_authenticated_seat() {
         let v = json!({"version":1,"generation":"g","fromSessionId":"peer","toSessionId":"me"});

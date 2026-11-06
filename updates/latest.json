@@ -1,11 +1,11 @@
 {
-  "version": "0.2.1",
-  "notes": "Nitro is now a native app: faster, lighter, and still the same account and chats, and you stay signed in when you update. Adds screen sharing with a live preview in the overlay, message editing and deleting, more reactions, typing indicators, image paste, sound upload and trim, and app icons that follow your theme. Chat videos can't be sent or played in this version yet.",
-  "pub_date": "2026-11-06T19:00:10.000Z",
+  "version": "0.2.2",
+  "notes": "Voice is much steadier. A failing connection now keeps retrying instead of ending your call, and calls pick themselves back up after a fault. The output device you choose is now actually used, and Default means your Windows default. Microphone processing now matches the old app, which should help with sounding robotic. Online dots now work.",
+  "pub_date": "2026-11-06T19:32:05.000Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.1/Nitro_0.2.1_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMER2MWUyKy81RVhOcmNUYjh5d2lRdUNEa1ZpbEkycXQyd0dMYTlhS1FzbGVKWjB0WWxXYnRWVS8wUXYrZXJqK0dRd2h3YlozM1pzMXJwT1gxUkMycmdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzOTkxNTg2CWZpbGU6Tml0cm9fMC4yLjFfeDY0LXNldHVwLmV4ZQpKWHROdFNLSXArKzBVQnpEWlFGcGtpdUZGaDB4QVZ4TEEyckx2MXdyWGk5OW15NDIyaHppcmFMZEVBZStiL25OTkk4TXlDcm5lNitoZ0N0MHN6amVCZz09Cg=="
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.2/Nitro_0.2.2_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErME9lc3EwaGZpTDZ0aERIK3ZrcHFlL1B6a0NuSUh4ekw0VDM5UmpWTnp1NVJnWStrR1ppQ1hTRk9DQkhsRTJSeHhVc2dESVdEWERxdm95VCtSMWRmV1FBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzOTkzNTI1CWZpbGU6Tml0cm9fMC4yLjJfeDY0LXNldHVwLmV4ZQpKczR5b1lqVVUzaVM4TTVsS2JSQUZuZ3daNSs3Mk9SQ1BmbmE4ZyswRnRHeGZIWnJ5eHV3UC9FYnJnaVpBa3JmSURJNDJYcEpTN3MxWHZOdFJjYnZEQT09Cg=="
     }
   }
 }

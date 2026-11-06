@@ -36,7 +36,7 @@ impl Drop for LocalMeter {
 #[cfg(windows)]
 pub fn set_output_level(endpoint: &str, level: f32) {
     use windows::{core::PCWSTR, Win32::{Media::Audio::{
-        eCommunications, eRender, IAudioSessionManager, IMMDeviceEnumerator, ISimpleAudioVolume,
+        eConsole, eRender, IAudioSessionManager, IMMDeviceEnumerator, ISimpleAudioVolume,
         MMDeviceEnumerator,
     }, System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED}}};
     let endpoint = endpoint.to_string();
@@ -48,7 +48,7 @@ pub fn set_output_level(endpoint: &str, level: f32) {
         let _ = (|| -> windows::core::Result<()> {
             let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
             let device = if endpoint.is_empty() {
-                enumerator.GetDefaultAudioEndpoint(eRender, eCommunications)?
+                enumerator.GetDefaultAudioEndpoint(eRender, eConsole)?
             } else {
                 let id: Vec<u16> = endpoint.encode_utf16().chain(Some(0)).collect();
                 enumerator.GetDevice(PCWSTR(id.as_ptr()))?
@@ -63,6 +63,48 @@ pub fn set_output_level(endpoint: &str, level: f32) {
 
 #[cfg(not(windows))]
 pub fn set_output_level(_: &str, _: f32) {}
+
+/// Test builds only: the endpoints this process has a running audio stream on, proving
+/// which device a route really reached.
+#[cfg(all(windows, debug_assertions))]
+pub fn active_endpoints() -> Value {
+    use windows::{core::Interface, Win32::{Media::Audio::{
+        eAll, AudioSessionStateActive, DEVICE_STATE_ACTIVE, IAudioSessionControl2,
+        IAudioSessionManager2, IMMDeviceEnumerator, MMDeviceEnumerator,
+    }, System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED}}};
+    std::thread::spawn(|| unsafe {
+        if CoInitializeEx(None, COINIT_MULTITHREADED).is_err() {
+            return json!([]);
+        }
+        let mine = std::process::id();
+        let found = (|| -> windows::core::Result<Vec<String>> {
+            let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+            let devices = enumerator.EnumAudioEndpoints(eAll, DEVICE_STATE_ACTIVE)?;
+            let mut found = Vec::new();
+            for index in 0..devices.GetCount()? {
+                let device = devices.Item(index)?;
+                let id = device.GetId()?.to_string().unwrap_or_default();
+                let manager: IAudioSessionManager2 = device.Activate(CLSCTX_ALL, None)?;
+                let sessions = manager.GetSessionEnumerator()?;
+                for session in 0..sessions.GetCount()? {
+                    let control = sessions.GetSession(session)?;
+                    let details: IAudioSessionControl2 = control.cast()?;
+                    if details.GetProcessId().unwrap_or(0) == mine
+                        && control.GetState()? == AudioSessionStateActive
+                    {
+                        found.push(id.clone());
+                    }
+                }
+            }
+            Ok(found)
+        })()
+        .unwrap_or_default();
+        CoUninitialize();
+        json!(found)
+    })
+    .join()
+    .unwrap_or(json!([]))
+}
 
 #[cfg(windows)]
 fn run(endpoint: String, events: SyncSender<Value>, stop: Arc<AtomicBool>) {

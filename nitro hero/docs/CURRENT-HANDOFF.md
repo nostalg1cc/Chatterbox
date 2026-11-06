@@ -212,3 +212,22 @@ Artifacts (local only):
    User authorized prior restarts; final rebuild occurred after no active call confirmed.
 5. No keys/tokens/audio stored in handoff or artifacts. Probe microphone only with new
    actual authorization; `--allow-microphone` flag by itself is not user consent.
+
+## 0.2.2 voice fixes (2026-11-06)
+
+Causes found and fixed:
+
+- A call no longer ends because connecting is failing. `src/voice.rs` cycles: ICE restart, restart through the relay, new engine. Only a mic that can't open, or a refused rejoin, ends a call.
+- Any failure after joining resumes the same call with a new engine under the same seat, without leaving first (`forget-lease`). Up to 5 tries per minute.
+- Signals from a partner the member list hadn't shown yet were dropped, which could deadlock both sides. They're now held and replayed, and the list is re-read straight away.
+- A restart rolls back an unanswered offer first. Before, the other side kept ignoring every later one.
+- Output was ignored: audio played on one fixed device whatever was picked. `update_playout` now stops, selects the device again, then opens it. `scripts/voice_route_check.py` proves this against real endpoints, silently.
+- "Default" meant list index 0, not the Windows default. It now looks up the Windows default. A saved device that's unplugged uses the default for that call and stays saved.
+- Robot voice, not confirmed by ear: the device track forced auto gain and noise suppression on, where main has both off. `tools/voice-engine/vendor/webrtc-sys` is 0.3.48 with those two lines changed. The engine also runs above normal priority, and bad loss on either side moves the call to the relay.
+- Online dots were never built. `PresenceChannel` in `src/realtime.rs` joins main's `online` channel, so Hero users also show as online to others now.
+
+Known problem: a second peer connection inside one engine connects and receives RTP but never decodes it. The cause is unknown, so a new connection always gets a new engine (`FRESH_ENGINE`). The cost is that this also ends a running screen share.
+
+Not tested: a real two-person call or the robot voice by ear. Streaming to the other side still fails with a "server unavailable" style message; the user set this aside.
+
+Tests: `scripts/voice_transport_smoke.py`, `scripts/voice_recovery_smoke.py`, `scripts/voice_route_check.py`.

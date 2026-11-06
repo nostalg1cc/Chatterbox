@@ -314,6 +314,7 @@ pub struct Preview {
     pub screen_retired: Vec<std::sync::Arc<gpui::RenderImage>>,
     pub screen_notice_id: u64,
     pub typing: Option<realtime::TypingChannel>,
+    pub presence: Option<realtime::PresenceChannel>,
     pub hotkeys: Option<hotkeys::Hotkeys>,
     pub sound_draft: Option<SoundDraft>,
     pub sound_draft_name: Entity<InputState>,
@@ -674,6 +675,7 @@ impl Preview {
                     this.flush_persist(false);
                     this.pump_voice(cx);
                     this.pump_typing(cx);
+                    this.pump_presence(cx);
                     this.pump_hotkeys(cx);
                     if let Some(path) = this.lightbox_request.borrow_mut().take() {
                         this.lightbox = Some(path);
@@ -804,6 +806,7 @@ impl Preview {
             screen_retired: Vec::new(),
             screen_notice_id: 0,
             typing: None,
+            presence: None,
             hotkeys: None,
             sound_draft: None,
             sound_draft_name,

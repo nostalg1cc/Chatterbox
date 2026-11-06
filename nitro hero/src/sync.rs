@@ -1019,26 +1019,13 @@ impl Preview {
         self.call_started = std::time::Instant::now();
         crate::audio::play(crate::audio::UiSound::VoiceJoin);
         cx.notify();
+        // A saved device is passed as it is: the engine falls back to the Windows default for
+        // this call if it's unplugged, and it's still remembered for when it comes back.
+        let route = |saved: String| (saved != "default").then_some(saved);
+        let (input, output) = (route(saved_input), route(saved_output));
         cx.spawn(async move |view, cx| {
-            let (credentials, devices) = cx
-                .background_spawn(async move {
-                    (backend::voice_credentials(), crate::voice::devices().ok())
-                })
-                .await;
+            let credentials = cx.background_spawn(async move { backend::voice_credentials() }).await;
             let _ = view.update(cx, |this, cx| {
-                // A saved device that's gone falls back to the system default.
-                let pick = |saved: &str, list: Option<&Vec<crate::voice::Device>>| {
-                    list.and_then(|list| list.iter().find(|device| device.id == saved))
-                        .map(|device| device.id.clone())
-                };
-                let input = pick(&saved_input, devices.as_ref().map(|found| &found.inputs));
-                let output = pick(&saved_output, devices.as_ref().map(|found| &found.outputs));
-                if input.is_none() {
-                    this.state.preferences.input_device_id = "default".into();
-                }
-                if output.is_none() {
-                    this.state.preferences.output_device_id = "default".into();
-                }
                 let (url, key, token) = match credentials {
                     Ok(credentials) => credentials,
                     Err(error) => {
@@ -1947,6 +1934,35 @@ impl Preview {
         let user = self.state.profile.id.clone();
         if let Some(channel) = &mut self.typing {
             channel.send_typing(&user);
+        }
+    }
+
+    /// Keeps every conversation's online dot current, including lists loaded since.
+    pub fn pump_presence(&mut self, cx: &mut Context<Self>) {
+        if !matches!(self.state.auth_status, crate::state::AuthStatus::SignedIn)
+            || self.state.profile.id.is_empty()
+        {
+            self.presence = None;
+            return;
+        }
+        let user = self.state.profile.id.clone();
+        let channel = self
+            .presence
+            .get_or_insert_with(|| crate::realtime::PresenceChannel::start(user));
+        channel.refresh();
+        if self.window_active {
+            channel.note_active();
+        }
+        let mut changed = false;
+        for conversation in &mut self.state.conversations {
+            let status = channel.status(&conversation.partner_id);
+            if conversation.presence != status {
+                conversation.presence = status.to_string();
+                changed = true;
+            }
+        }
+        if changed {
+            cx.notify();
         }
     }
 

@@ -4,7 +4,8 @@ use libwebrtc::{
     ice_candidate::IceCandidate,
     peer_connection::{AnswerOptions, OfferOptions, PeerConnection, SignalingState},
     peer_connection_factory::{
-        IceServer, PeerConnectionFactory, RtcConfiguration, native::PeerConnectionFactoryExt,
+        IceServer, IceTransportsType, PeerConnectionFactory, RtcConfiguration,
+        native::PeerConnectionFactoryExt,
     },
     session_description::{SdpType, SessionDescription},
 };
@@ -72,9 +73,15 @@ impl Engine {
         if !self.acquired { return Ok(()); } // Synthetic transport tests have no hardware sink.
         let ready = self.acquired && !self.deafened
             && self.remote_audio.load(std::sync::atomic::Ordering::Acquire);
-        self.factory.set_adm_playout_enabled(ready);
         // Disabled platform output uses libwebrtc's synthetic pump. Do not stop
         // that pump: decoding must continue so first-decoded can open this gate.
+        if ready && !self.factory.adm_playout_enabled() {
+            // Stopped first, so turning the output on doesn't start it by itself, and with
+            // the device chosen again right before it opens.
+            self.factory.stop_playout();
+            routes::output(&self.factory, &self.output_route)?;
+        }
+        self.factory.set_adm_playout_enabled(ready);
         if ready {
             if !self.factory.playout_is_initialized() && !self.factory.init_playout() {
                 return Err("Audio output initialization failed".into());
@@ -83,6 +90,35 @@ impl Engine {
             local_meter::set_output_level(&self.output_route, self.output_level);
         }
         Ok(())
+    }
+    /// Selects devices and starts capture on them. Returns which endpoints were used.
+    fn apply_routes(&mut self, input: &str, output: &str) -> Result<(), String> {
+        let input = routes::input(&self.factory, input)?;
+        self.output_route = routes::output(&self.factory, output)?;
+        if !self.factory.recording_is_initialized() && !self.factory.init_recording() {
+            return Err("Microphone initialization failed".into());
+        }
+        if !self.factory.start_recording() {
+            return Err("Microphone capture failed".into());
+        }
+        self.local_meter = Some(local_meter::LocalMeter::start(input, self.events.clone()));
+        Ok(())
+    }
+    fn set_relay(&mut self, relay: bool) -> Result<(), String> {
+        self.config.ice_transport_type =
+            if relay { IceTransportsType::Relay } else { IceTransportsType::All };
+        if let Some(peer) = &self.peer {
+            peer.set_configuration(self.config.clone())
+                .map_err(|_| "ICE configuration failed")?;
+        }
+        Ok(())
+    }
+    async fn rollback(peer: &PeerConnection) -> Result<(), String> {
+        peer.set_local_description(
+            SessionDescription::parse("", SdpType::Rollback).map_err(|_| "Rollback parse failed")?,
+        )
+        .await
+        .map_err(|_| "Voice rollback failed".into())
     }
     /// Cloudflare's SFU is reached directly. Screen media never goes through TURN.
     fn screen_config(&self) -> RtcConfiguration {
@@ -120,8 +156,9 @@ impl Engine {
         self.ignored_offer = false;
         // The peer's gone, so nothing is left to play until the next remote track.
         self.remote_audio.store(false, std::sync::atomic::Ordering::Release);
+        // Back to the silent pump. It must keep running: stopped, a later connection in this
+        // same call connects but never decodes anything.
         self.factory.set_adm_playout_enabled(false);
-        self.factory.stop_playout();
     }
     fn stop(&mut self) {
         self.screen_publisher = None;
@@ -178,6 +215,8 @@ impl Engine {
                         .into(),
                 });
             }
+            // The call is being picked back up, so leaving on the way out would undo that.
+            "forget-lease" => self.lease = None,
             "token" => {
                 if let Some(lease) = &mut self.lease {
                     lease.token = zeroize::Zeroizing::new(
@@ -223,40 +262,13 @@ impl Engine {
                     return Err("Audio device manager unavailable".into());
                 }
                 self.acquired = true;
-                let input = v["input"].as_str().unwrap_or("");
-                let output = v["output"].as_str().unwrap_or("");
-                self.output_route = output.to_string();
-                routes::input(
-                    &self.factory,
-                    if input.is_empty() {
-                        routes::Route::SystemDefault
-                    } else {
-                        routes::Route::DeviceGuid(input)
-                    },
-                )?;
-                routes::output(
-                    &self.factory,
-                    if output.is_empty() {
-                        routes::Route::SystemDefault
-                    } else {
-                        routes::Route::DeviceGuid(output)
-                    },
-                )?;
-                // The ADM can start automatically; removing explicit StartPlayout alone
-                // did not gate it. Keep output disabled until decoded remote PCM exists.
                 self.factory.set_adm_playout_enabled(false);
                 self.factory.set_adm_recording_enabled(true);
                 self.track = Some(self.factory.create_device_audio_track("nitro-microphone"));
-                if !self.factory.recording_is_initialized() && !self.factory.init_recording() {
-                    return Err("Microphone initialization failed".into());
-                }
-                if !self.factory.start_recording() {
-                    return Err("Microphone capture failed".into());
-                }
-                self.local_meter = Some(local_meter::LocalMeter::start(
-                    if input.is_empty() { self.factory.recording_device_guid(0) } else { input.to_string() },
-                    self.events.clone(),
-                ));
+                self.apply_routes(
+                    v["input"].as_str().unwrap_or(""),
+                    v["output"].as_str().unwrap_or(""),
+                )?;
                 self.events
                     .send(json!({"event":"prepared"}))
                     .map_err(|_| "Voice control closed")?;
@@ -282,32 +294,12 @@ impl Engine {
                 self.local_meter = None;
                 self.factory.stop_recording();
                 self.factory.stop_playout();
-                let input = v["input"].as_str().unwrap_or("");
-                let output = v["output"].as_str().unwrap_or("");
-                self.output_route = output.to_string();
-                routes::input(
-                    &self.factory,
-                    if input.is_empty() {
-                        routes::Route::SystemDefault
-                    } else {
-                        routes::Route::DeviceGuid(input)
-                    },
-                )?;
-                routes::output(
-                    &self.factory,
-                    if output.is_empty() {
-                        routes::Route::SystemDefault
-                    } else {
-                        routes::Route::DeviceGuid(output)
-                    },
-                )?;
-                if !self.factory.init_recording() || !self.factory.start_recording() {
-                    return Err("Microphone change failed".into());
+                // A device that refuses to open must not leave the call without a microphone.
+                let (input, output) = (v["input"].as_str().unwrap_or(""), v["output"].as_str().unwrap_or(""));
+                if let Err(error) = self.apply_routes(input, output) {
+                    self.factory.stop_recording();
+                    self.apply_routes("", "").map_err(|_| error)?;
                 }
-                self.local_meter = Some(local_meter::LocalMeter::start(
-                    if input.is_empty() { self.factory.recording_device_guid(0) } else { input.to_string() },
-                    self.events.clone(),
-                ));
                 // Restart for any peer, even before its first audio: while output is gated
                 // this runs the silent pump, and without it the first decode never arrives.
                 if self.peer.is_some()
@@ -315,6 +307,7 @@ impl Engine {
                 {
                     return Err("Output change failed".into());
                 }
+                local_meter::set_output_level(&self.output_route, self.output_level);
             }
             "peer" => {
                 self.epoch = v["epoch"].as_str().ok_or("Missing peer epoch")?.into();
@@ -323,6 +316,7 @@ impl Engine {
                 }
                 self.clear_peer();
                 self.polite = v["polite"].as_bool().ok_or("Missing peer role")?;
+                self.set_relay(v["relay"].as_bool().unwrap_or(false))?;
                 self.ignored_offer = false;
                 self.pending.clear();
                 let peer = self
@@ -374,6 +368,10 @@ impl Engine {
                     Self::adopt_sound_channel(channel, &self.sound_channel, self.events.clone());
                 }
                 self.peer = Some(peer);
+                // Replacing a connection stopped the silent pump that decoding runs on.
+                if !self.factory.init_playout() || !self.factory.start_playout() {
+                    return Err("Audio output failed".into());
+                }
                 // Both original clients offer. Match perfect-negotiation role on collision.
                 self.description(true, false).await?;
             }
@@ -387,6 +385,10 @@ impl Engine {
                     "answer" => SdpType::Answer,
                     _ => return Err("Invalid description type".into()),
                 };
+                // An answer to an offer that has since been replaced or rolled back.
+                if typ == SdpType::Answer && peer.signaling_state() != SignalingState::HaveLocalOffer {
+                    return Ok(());
+                }
                 let collision =
                     typ == SdpType::Offer && peer.signaling_state() != SignalingState::Stable;
                 self.ignored_offer = collision && !self.polite;
@@ -394,23 +396,22 @@ impl Engine {
                     return Ok(());
                 }
                 if collision {
-                    peer.set_local_description(
-                        SessionDescription::parse("", SdpType::Rollback)
-                            .map_err(|_| "Rollback parse failed")?,
-                    )
-                    .await
-                    .map_err(|_| "Voice rollback failed")?;
+                    Self::rollback(peer).await?;
                 }
-                let desc = SessionDescription::parse(
-                    v["description"]["sdp"].as_str().ok_or("Missing SDP")?,
-                    typ,
-                )
+                let sdp = v["description"]["sdp"].as_str().ok_or("Missing SDP")?;
+                // The parser takes the whole process down on text that isn't SDP at all.
+                if !sdp.starts_with("v=0") || !sdp.contains("
+m=") {
+                    return Err("Invalid voice description".into());
+                }
+                let desc = SessionDescription::parse(sdp, typ)
                 .map_err(|_| "Invalid voice description")?;
                 peer.set_remote_description(desc)
                     .await
                     .map_err(|_| "Remote voice description failed")?;
+                // Some may belong to an offer that was replaced. Those mustn't stop this answer.
                 for candidate in std::mem::take(&mut self.pending) {
-                    self.candidate(candidate).await?;
+                    let _ = self.candidate(candidate).await;
                 }
                 if typ == SdpType::Offer {
                     self.description(false, false).await?;
@@ -476,7 +477,48 @@ impl Engine {
                 }
             }
             "restart" => {
+                if self.peer.is_none() {
+                    return Ok(());
+                }
+                if let Some(relay) = v["relay"].as_bool() {
+                    self.set_relay(relay)?;
+                }
+                // An offer nobody answered would otherwise block every later one on the
+                // other side, which ignores offers while it waits on its own.
+                let peer = self.peer.as_ref().ok_or("Peer is not ready")?;
+                if peer.signaling_state() == SignalingState::HaveLocalOffer {
+                    Self::rollback(peer).await?;
+                }
                 self.description(true, true).await?;
+            }
+            "stats" => {
+                let Some(peer) = &self.peer else { return Ok(()) };
+                let stats = peer.get_stats().await.map_err(|_| "Voice stats unavailable")?;
+                let (mut received, mut lost, mut jitter) = (0u64, 0i64, 0f64);
+                // What the other side reports about this side's audio.
+                let mut sent_loss = 0f64;
+                for entry in stats {
+                    match entry {
+                        libwebrtc::stats::RtcStats::InboundRtp(rtp) if rtp.stream.kind == "audio" => {
+                            received += rtp.received.packets_received;
+                            lost += rtp.received.packets_lost;
+                            jitter = jitter.max(rtp.received.jitter);
+                        }
+                        libwebrtc::stats::RtcStats::RemoteInboundRtp(rtp) if rtp.stream.kind == "audio" => {
+                            sent_loss = sent_loss.max(rtp.remote_inbound.fraction_lost);
+                        }
+                        _ => {}
+                    }
+                }
+                self.events
+                    .send(json!({"event":"audio-health","epoch":self.epoch,"received":received,"lost":lost,"jitter":jitter,"sentLoss":sent_loss}))
+                    .map_err(|_| "Voice control closed")?;
+            }
+            #[cfg(all(windows, debug_assertions))]
+            "route-check" => {
+                self.events
+                    .send(json!({"event":"route-check","active":local_meter::active_endpoints()}))
+                    .map_err(|_| "Voice control closed")?;
             }
             "stop" => {
                 self.stop();
@@ -611,7 +653,19 @@ fn monitor(
         }
     })
 }
+/// Voice has to keep up while a game holds every core, or it comes out robotic.
+#[cfg(windows)]
+fn raise_priority() {
+    use windows::Win32::System::Threading::{
+        ABOVE_NORMAL_PRIORITY_CLASS, GetCurrentProcess, SetPriorityClass,
+    };
+    let _ = unsafe { SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS) };
+}
+#[cfg(not(windows))]
+fn raise_priority() {}
+
 fn main() {
+    raise_priority();
     if !cfg!(debug_assertions) && std::env::args().any(|a| a == "--self-test-source") {
         std::process::exit(2);
     }
@@ -660,6 +714,7 @@ fn main() {
         config,
         events: tx.clone(),
     };
+    let mut timeouts = 0;
     // Parent owns lifetime; EOF releases microphone, output and peer.
     for line in io::stdin().lock().lines() {
         let Ok(line) = line else { break };
@@ -669,10 +724,14 @@ fn main() {
         let Ok(v) = serde_json::from_str::<Value>(&line) else {
             break;
         };
-        let screen_command = v["command"].as_str().is_some_and(|c| c.starts_with("screen"));
+        let name = v["command"].as_str().unwrap_or("").to_string();
+        let screen_command = name.starts_with("screen");
         let result = rt.block_on(async {
             tokio::time::timeout(Duration::from_secs(10), engine.command(v)).await
         });
+        if result.is_ok() {
+            timeouts = 0;
+        }
         match result {
             Ok(Ok(())) => {}
             // Its own connections, so a failed share must not end the voice call.
@@ -682,12 +741,21 @@ fn main() {
             Err(_) if screen_command => {
                 let _ = tx.send(json!({"event":"screen-error","message":"Screen sharing timed out."}));
             }
-            Ok(Err(error)) => {
+            // Only a call that can't get a microphone is over. Everything else is a step
+            // in connecting, which the supervisor keeps retrying.
+            Ok(Err(error)) if name == "prepare" => {
                 let _ = tx.send(json!({"event":"error","message":error}));
             }
+            Ok(Err(error)) => {
+                let _ = tx.send(json!({"event":"warning","command":name,"message":error}));
+            }
             Err(_) => {
-                let _ = tx.send(json!({"event":"error","message":"Voice operation timed out"}));
-                break;
+                timeouts += 1;
+                if name == "prepare" || timeouts >= 3 {
+                    let _ = tx.send(json!({"event":"error","message":"Voice operation timed out"}));
+                    break;
+                }
+                let _ = tx.send(json!({"event":"warning","command":name,"message":"Voice operation timed out"}));
             }
         }
     }
