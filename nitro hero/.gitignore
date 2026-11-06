@@ -1,0 +1,11 @@
+/target/
+/reference/node_modules/
+/nitro-hero-state.json
+/tools/voice-engine/target/
+# Local test output, which can show private chats.
+/*.png
+/*.log
+/audits/
+/release/out/
+/reference/heroui-source/
+/release/out/

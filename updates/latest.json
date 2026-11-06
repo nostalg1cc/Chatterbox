@@ -1,11 +1,11 @@
 {
-  "version": "0.1.72",
-  "notes": "Repairs screen-sharing startup and ownership tracking. Adds live stream previews and ten-second message bubbles to the desktop overlay, wide-screen preview fill, soundboard search, and web Settings/media-sidebar controls. Both participants should update for streaming.",
-  "pub_date": "2026-10-26T08:03:34.950Z",
+  "version": "0.2.1",
+  "notes": "Nitro is now a native app: faster, lighter, and still the same account and chats, and you stay signed in when you update. Adds screen sharing with a live preview in the overlay, message editing and deleting, more reactions, typing indicators, image paste, sound upload and trim, and app icons that follow your theme. Chat videos can't be sent or played in this version yet.",
+  "pub_date": "2026-11-06T19:00:10.000Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.1.72/Nitro_0.1.72_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMEVPeWt6VENGSGoxREJvS0pZS1B2NWkzUFozS1c0RVdkSllSNWhEaWpna1hrSEpIV0pQUitlTWtreUZzMkIyS2lZTEhTVncwZ0kwWEs0b3BLdzZ2TkFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDAxNzM2CWZpbGU6Tml0cm9fMC4xLjcyX3g2NC1zZXR1cC5leGUKcEFlR2RTNGFWb3U4VzFuSkFwbkpUSG1uTEpKblRWV3VjU0lSQXdJWHRkbS9FSEZMMGNGWU1qc2dZb2pWYW9pQjB5UEZYbzV6QitJQU00QU52V2plRGc9PQo="
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.1/Nitro_0.2.1_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMER2MWUyKy81RVhOcmNUYjh5d2lRdUNEa1ZpbEkycXQyd0dMYTlhS1FzbGVKWjB0WWxXYnRWVS8wUXYrZXJqK0dRd2h3YlozM1pzMXJwT1gxUkMycmdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzOTkxNTg2CWZpbGU6Tml0cm9fMC4yLjFfeDY0LXNldHVwLmV4ZQpKWHROdFNLSXArKzBVQnpEWlFGcGtpdUZGaDB4QVZ4TEEyckx2MXdyWGk5OW15NDIyaHppcmFMZEVBZStiL25OTkk4TXlDcm5lNitoZ0N0MHN6amVCZz09Cg=="
     }
   }
 }

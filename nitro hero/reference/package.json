@@ -1,0 +1,9 @@
+{
+  "name": "nitro-hero-reference",
+  "private": true,
+  "description": "HeroUI source reference for native GPUI component recreations; not part of the app runtime.",
+  "dependencies": {
+    "@gravity-ui/icons": "2.23.0",
+    "@heroui/react": "3.2.7"
+  }
+}

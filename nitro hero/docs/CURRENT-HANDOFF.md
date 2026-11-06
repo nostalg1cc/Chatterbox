@@ -1,0 +1,214 @@
+# Nitro Hero — authoritative current handoff, November 6, 2026
+
+## Audit of this document (Claude, same day). Read before trusting anything below
+
+Checked against the code. The tests, hashes, theme generator, overlay geometry, upgrade contract
+and "no production changes" claims all hold. These did not:
+
+- **False: "GPUI decodes APNG / decorations animate."** `gpui-0.2.2/src/elements/img.rs` plays
+  only GIF and WebP and reduces PNG to one frame. The 60 frames were counted in the file, never
+  in what GPUI loaded, so decorations were still static in the app and overlay. Fixed:
+  `components::art_animation` decodes on a background thread, reduced to 192px, and the shared
+  20 fps tick repaints only while one is visible and the window is focused. Confirmed by pixel
+  differences between screenshots. About 30% of one core in a debug build with eight on screen.
+- **Misattributed: "tlgf and waatq already matched, no update needed."** They matched because of
+  an earlier SQL update by Claude in the same project.
+- **Tabs took clicks through anything covering them.** The press was a window-wide capture with
+  only a bounds check. It's now on the bar itself.
+- **A slider or tab drag could stick** if closed mid-drag, so later mouse moves changed the value.
+- **Changing devices before the partner's first audio left the call silent.** `routes` stopped the
+  silent pump that the output gate waits on. It now restarts for any peer.
+- **Preferences synced a file on every slider mouse move**, on the UI thread. Saves now wait for
+  400 ms of quiet, and flush on quit.
+- **Test screenshots were not ignored by git** and can show private chats. `.gitignore` now
+  covers them.
+
+Worth knowing: apps launched from the Claude or Codex desktop packages have `%LOCALAPPDATA%`
+redirected to `Packages\<app>\LocalCache\Local`. Each has its own Hero session and cache, separate
+from a Hero the user starts themselves. Don't conclude a cached file is missing from one view.
+
+Screen sharing below is out of date: see `SCREEN-SHARE-GUARDS.md`. The static fix is still
+unconfirmed by ear.
+
+## Added after the audit
+
+- Message tray as in main Nitro: react (six quick reactions), reply, and for your own messages edit
+  and delete. A condensed burst deletes as a whole. Edited and deleted labels show.
+- Typing indicator on main Nitro's `typing:<conversation>` channel (`src/realtime.rs`). Shows the
+  partner first, then yourself. Checked both ways against the live channel, with a script standing
+  in for the partner. The composer row now only appears for typing or slash commands, and call
+  status messages no longer show there.
+- Joining while the app thinks it's in a call now ends that call and joins, instead of refusing.
+- Theme audit: every neutral colour literal now follows the theme, enforced by
+  `every_neutral_colour_in_the_source_follows_the_theme`. Status colours are checked for contrast
+  on each theme, and red text lightens where it would be hard to read. Warning and danger banners
+  are vivid and no longer mix with the theme. All 29 were checked by eye in screenshots.
+- Soundboard in calls, compatible with main Nitro: the `dislight-soundboard` data channel with the
+  room broadcast as fallback. Not yet heard with a real second person.
+- Global shortcuts (`src/hotkeys.rs`), only held during a call. A bare key is never registered.
+- Call volume: partner and output volume combine into this process's session volume on the output
+  device, up to 100%. **Boost above 100% and input volume aren't possible** with this WebRTC build's
+  API, and noise and echo settings can't be changed either, because the library fixes them on.
+- Image viewer: click a chat image to see it full size. Click to close. No zoom or next/previous,
+  which main's lightbox has.
+- OTA: see `STABLE-UPGRADE-SKELETON.md`. Updater and installer are built, nothing is released.
+
+- Sound upload and trim (`src/sound_file.rs`, Settings, Soundboard): MP3, AAC/M4A, FLAC, Ogg Vorbis, WAV and Nitro's own WebM, trimmed, normalized, 48 kHz mono Opus at 96 kbps. A sample was decoded by ffprobe and Chromium. The upload to the server hasn't been run, because the dev MCP may not write there.
+- Sharing to a call uses the server's in-call `play` and `list` modes, so the partner's sounds are included.
+- Images: attach button and Ctrl+V (image or a file copied in Explorer). The original goes to Cloudinary as in main Nitro. One test image sent to the tlgf chat and displayed. Videos aren't accepted yet.
+- Clip volume follows a squared curve, and the slider is also in Settings, Soundboard.
+- App icon: the user's own logo (`assets/app-icon.svg`), drawn in each theme's background and accent with the gradient, outline and glow measured from the user's frames 168 and 169, Default in black and white. `src/app_icon.rs` swaps the window icon when the theme changes; the live window's colours were read back and matched. `assets/nitro.ico`, `assets/app-icons/` and the sheet are generated by the ignored test `write_icon_files`. The exe holds the Default icon, which is what a pinned shortcut shows before launch. Not yet seen on the real taskbar by the agent.
+
+## Still not implemented
+
+Sending video, video playback in chat, Realtime for messages, screen audio, name fonts.
+
+---
+
+Read this first. `CODEX-2026-11-06-HANDOFF.md` is a detailed chronological audit
+trail containing SUPERSEDED attempts. This document describes the current state.
+Root AGENTS-HANDOFF.md includes older Claude history; do not treat every old
+unchecked item or old numeric constant as current truth. Verify live source.
+
+## Running build and scope
+
+- Hero debug app is open with `--dev-mcp`, signed in. Last verified process39260
+  runs `nitro hero/target/debug/nitro-hero.exe`; it was rebuilt/restarted AFTER the
+  final renderer change. Executable SHA256:
+  `AF2CFE5991BDD40580A143C11D5AE404994A6395D6DE5294356D475C903240B5`.
+- Latest installed voice worker SHA256:
+  `DC6773F31445A335A7956F90BD173A60C7F5F74F423D16EB613009A84AA507F4`.
+- Work is local/unreleased. NO production migration, Edge Function deployment,
+  updater manifest change, signing-key access, installation, release or push.
+  Other app/experimental source was not modified by this continuation.
+- Workspace started heavily dirty, with Hero untracked. Never stage the whole repo
+  or Hero tree blindly. Local audit screenshots may contain the user's chat/avatar.
+
+## Final overlay fix — evidence, not the earlier fallback claim
+
+User repeatedly reported portrait moving top-left while green circle sat bottom-right.
+Earlier tests measured the INITIALS FALLBACK only, which was insufficient. Those
+zero-drift claims do not validate the image path and are superseded.
+
+Actual root cause verified in installed gpui0.2.2/src/window.rs::paint_image:
+image primitives FLOOR physical origin and CEIL physical size. Quads/shadows retain
+fractional bounds. Thus even one shared fractional rectangle does NOT align them.
+Red calibration photo through the IMAGE loader reproduced this exact failure:
+at target .05 photo centroid~[59.976,52.976], exposed green~[62.935,56.013]. The
+green centroid exaggerates the offset because the off-centre photo occludes it.
+
+Current implementation in src/components.rs:
+- `call_overlay`: fixed-size avatar slot. One physical-pixel centre chosen from
+  baseline diameter/parity. Volume remains max4% visual growth, centred.
+- `overlay_raster_layer`: photo is rendered at adjacent diameters separated by TWO
+  physical pixels, sharing parity and centre. Lower size paints opaque; upper size
+  blends with fractional growth using a Div opacity wrapper. This avoids both
+  asymmetric floor/ceil drift and abrupt two-pixel size jumps.
+- `overlay_raster_bounds`: bias origin +.0001 and size -.0001 in physical-pixel units
+  before converting to logical units, protecting integer floor/ceil at fractional DPI.
+  Do not replace this with unsnapped bounds or merely round the ring centre.
+- Photo/decor use the SAME existing GPUI ImgResourceLoader cache; no new downloads.
+  Decoration size approximates118%, also keeping parity/centre, and paints above the
+  photo. `overlay_art_frame` uses the decoded APNG's per-frame delays and a stable
+  clock; animated art requests frames. Profile avatars are canonical square512 files.
+- Ring and glow paint BEHIND the photo and decoration. No foreground outline.
+  Ring outset scaled(1+.5*level); no old black-rim compensation because the photo
+  path now paints directly rather than through the padded shared-avatar layout.
+- The usual shared avatar() remains unchanged for the rest of the app and is used
+  as loading/initials fallback. The final alignment regression MUST exercise an
+  actual image; do not substitute the fallback again.
+- Adjacent-size blending is an approximation to continuous scaling and can soften
+  texture edges slightly between sizes. Two layers share the same APNG frame.
+  Verify subjective animation with the user; calibration is not a performance test.
+
+Current tuning, src/components.rs + hud.rs:
+- Visual local curve: `clamp((rawPeak-.005)/(.14-.005),0,1)^1.25`. NO x4 multiplier.
+  The user's measured MicrophoneFX speech .02535 gives~9% intensity, not the rejected60%.
+- Max scale4%, glow blur8..12 scaled px, glow alpha `.1+.25*level`, ring alpha
+  `.22+.5*level`, both faded with smoothstep(clamp(level/.08)). No hard .02 switch.
+- Smoothing75ms attack /180ms release; Hud.animating prevents target updates from
+  resetting the integration clock while animation is already running.
+- Shared overlay_size: padding56, avatar40, row gap12, max2 participants,
+  optional150px label allowance. Left anchor is display-left; no +24/+8 offset.
+- Native passive/frame setup runs AFTER window creation, keeping initial quiet/loud
+  bounds identical. Click-through/topmost/noactivate preserved; no window frame shadow.
+
+## Repeatable verification
+
+Run inside `nitro hero/`:
+- `cargo test --locked`:13 tests pass, including new floor/ceil-centre regression
+  over DPI1/1.25/1.5/1.75/2/2.5/3 and UI scales.5/.7/1/1.5.
+- `cargo build --locked`:passes, no warnings; running exe SHA recorded above.
+- `python scripts/verify_overlay_alignment.py`: actual image-path regression,
+  30 native captures at overlay scales.5/.7/1.5. Measured max photo drift0.0px,
+  max photo/ring separation0.0px. Refuses during a real call; no mic/backend writes.
+- Debug MCP `nitro_test_overlay`: supports marker=true (512px red IMAGE fixture),
+  photo=true (existing profile art), levels list max16 and scale. Defaults quiet/loud.
+  Opens a temporary synthetic HUD and always closes it. It does not join voice.
+- Real profile/animated decoration visually inspected at0/.1/.3/.7/1/0 with final
+  running renderer; ring behind artwork. Human live-motion acceptance still pending.
+
+Artifacts (local only):
+- audits/overlay-alignment/measurements.json +30 marker PNGs: final repeatable report.
+- audits/overlay-photo-calibration-before-snap.json/.png: reproduced failed renderer.
+- audits/overlay-photo-calibration.json/.png: post-fix ten-level marker comparison.
+- audits/overlay-raster-final-photo.png: final real-avatar review.
+- audits/overlay-centered-* / earlier fallback-only reports are historical, NOT proof
+  of the final image path. Temporary MCP frame filenames are reused: copy frames or
+  calculate measurements before another probe overwrites them. Current script does.
+
+## Other completed work / important limits
+
+- Media sidebar: full-card local cover thumbnail, labels/reply over image, preserved
+  rim/rounded clipping and viewport fetch/caching. Original chat images remain contain.
+- Shared slider: continuous interrupted press/release, capsule radius, window-wide
+  dragging, bounded elastic return. Tabs: horizontal-only elastic pulse + drag selection.
+- 29 themes with canonical Nitro IDs/exact bg/material source colours; Default ONLY
+  uses iOS blue. Others have their own contrast-adjusted accents, darker tracks and
+  brighter selected pills. Generator `scripts/sync_themes.py --check`. Alias compatibility
+  retained. Text/accents/tab separation tests pass; Default's original blue/white3.65
+  contrast is explicitly an exception. Do not flatten palette roles again.
+- Equipped APNG decorations cached once,60 frames verified for049/544; catalogue
+  uses small stills. App and overlay animation use GPUI's cached decoded data.
+- Read-only production verification: tlgf and nrohde (display name waatq) ALREADY both
+  have avatar decoration544/name effectresize. No profile mutation was necessary.
+- Device selections persist. Preferences use synced temp+rename writes, valid backup
+  recovery and defaults for missing fields; tests cover device/theme recovery.
+- Local meter: Native device-track sink produced zero samples. Replaced local meter
+  only with IAudioMeterInformation on the EXACT selected capture endpoint,50ms poll,
+  dedicated COM thread dropped on stop/routes. User confirmed MicrophoneFX selection
+  and response works. User-authorized sample comparison matched endpoint peak; temporary
+  second capture implementation was REMOVED. Current meter has no extra capture stream.
+- Meter is VISUAL ONLY and before per-track processing; can reflect other apps using
+  same endpoint. Muted/deafened overlay suppressed. Remote meter still decoded PCM.
+  MCP voice.local_meter_status exposes readiness/errors without IDs/audio/tokens.
+- Physical playout gated until generation-matched remote decoded PCM; synthetic pump
+  preserved. Synthetic two-peer/mute/restart tests passed. Loud-static root acceptance
+  and real two-person audible call quality are NOT conclusively verified by agent.
+
+## Still not implemented — do not imply these ship
+
+- Screen capture/sharing. Hero fake live toggle was removed; button refuses activation.
+  Approved limits:500GB/month,1 viewer/share,10 minutes/share. Server monthly ledger,
+  leases, force-close reaper and provider usage enforcement are NOT implemented/deployed.
+  Existing main Nitro broker unchanged. See SCREEN-SHARE-GUARDS.md; keep Hero disabled.
+- Stable replacement: upgrade-contract.json +STABLE-UPGRADE-SKELETON.md are DESIGN ONLY.
+  Preserve existing identifier/public key/current-user NSIS identity. No native updater,
+  preference exporter/importer, packaging or installation migration executed.
+- Shared soundboard in calls, sound upload/trim, global hotkeys, actual in-call volume/
+  noise/echo preference application, full realtime/presence, image viewer, etc. Check
+  original Claude checklist and source; don't infer completion from controls existing.
+
+## Next maintainer / rollback
+
+1. Ask user to retest live speech on final renderer. For objective regressions run the
+   RED IMAGE marker test; compare both photo and ring, not initials or just one centre.
+2. Keep the GPU snap regression. Reverting raster blend to raw fractional paint_image
+   restores the measured top-left drift; reverting to foreground outline hides art.
+3. Current renderer change is components.rs + debug MCP calibration/script; no worker
+   or backend change this turn. Sensitivity/voice-meter changes are separate and should
+   not be reverted while isolating paint geometry. Preserve accepted softer tuning.
+4. Never stop an active user call without authorization. MCP probes refuse active calls.
+   User authorized prior restarts; final rebuild occurred after no active call confirmed.
+5. No keys/tokens/audio stored in handoff or artifacts. Probe microphone only with new
+   actual authorization; `--allow-microphone` flag by itself is not user consent.

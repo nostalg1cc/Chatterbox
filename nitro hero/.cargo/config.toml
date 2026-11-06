@@ -1,0 +1,3 @@
+[env]
+# audiopus bundles an older libopus whose CMakeLists current CMake rejects without this.
+CMAKE_POLICY_VERSION_MINIMUM = "3.5"

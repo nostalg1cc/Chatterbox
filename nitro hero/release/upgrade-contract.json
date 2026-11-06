@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "status": "built-not-released",
+  "enabled": false,
+  "stableIdentity": {
+    "identifier": "io.github.nostalg1cc.dislight",
+    "productName": "Nitro",
+    "executableName": "nitro.exe",
+    "scope": "currentUser",
+    "minimumExclusiveVersion": "0.1.72",
+    "updaterEndpoint": "https://github.com/nostalg1cc/Chatterbox/releases/latest/download/latest.json",
+    "trustedPublicKeySource": "src-tauri/tauri.conf.json#plugins.updater.pubkey"
+  },
+  "signing": {
+    "privateKeyLocation": "existing-protected-release-environment-only",
+    "embedPrivateKey": false,
+    "rotateExistingTrustKey": false,
+    "requireSignatureVerificationBeforeInstall": true,
+    "authenticodeIsSeparate": true
+  },
+  "payloadRequirements": [
+    "Hero native executable renamed to stable nitro.exe",
+    "nitro-voice-engine.exe beside the application",
+    "embedded fonts/icons/sounds with no workspace paths",
+    "compatible per-user NSIS upgrade and relaunch arguments",
+    "native updater supporting current trust key and signed manifests"
+  ],
+  "preferences": {
+    "sourceLocalStorageKey": "dislight-preferences-v1",
+    "exportSchemaVersion": 1,
+    "destination": "%LOCALAPPDATA%/Nitro Hero/preferences.json",
+    "canonicalThemeIds": "src/lib/themes.ts -> nitro hero/src/themes.rs",
+    "retainOriginalWebViewData": true,
+    "importOnlyOnce": true,
+    "doNotOverwriteNewerNativePreferences": true,
+    "supabaseSession": "separate-protected-transfer-or-reauthentication"
+  },
+  "requiredReleaseGates": [
+    "explicit user release approval",
+    "inventory actual installed NSIS registration and install paths",
+    "audible two-person call acceptance",
+    "guarded screen sharing acceptance or keep feature disabled",
+    "signed installer accepted by installed Tauri updater",
+    "next native update accepted and tampered signature rejected",
+    "interrupted upgrade and preferences import recovery",
+    "one installed app, correct shortcut and functioning uninstall"
+  ]
+}
