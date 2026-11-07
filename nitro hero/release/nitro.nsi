@@ -76,6 +76,9 @@ Function CloseRunningApp
   ; A call left running can hold the engine. Only this app's engine has this name.
   nsExec::Exec 'taskkill /F /IM nitro-voice-engine.exe'
   Pop $3
+  ; A video being compressed can hold this. Named for this app, so others' ffmpeg is safe.
+  nsExec::Exec 'taskkill /F /IM nitro-ffmpeg.exe'
+  Pop $3
 FunctionEnd
 
 Section "Nitro"
@@ -113,6 +116,8 @@ Section "Uninstall"
   Pop $3
   Delete "$INSTDIR\nitro.exe"
   Delete "$INSTDIR\nitro-voice-engine.exe"
+  Delete "$INSTDIR\nitro-ffmpeg.exe"
+  Delete "$INSTDIR\FFMPEG-NOTICE.txt"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
   Delete "$SMPROGRAMS\${APP_ID}.lnk"

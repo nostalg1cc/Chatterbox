@@ -24,6 +24,11 @@ try {
 }
 Copy-Item (Join-Path $root 'target\release\nitro-hero.exe') (Join-Path $payload 'nitro.exe')
 Copy-Item (Join-Path $target 'release\nitro-voice-engine.exe') $payload
+# Video compression needs it. Its build is described in tools\ffmpeg.
+$ffmpeg = Join-Path $root 'tools\ffmpeg\out\ffmpeg.exe'
+if (-not (Test-Path $ffmpeg)) { throw 'tools\ffmpeg\out\ffmpeg.exe is missing. See tools\ffmpeg\build-ffmpeg.sh.' }
+Copy-Item $ffmpeg (Join-Path $payload 'nitro-ffmpeg.exe')
+Copy-Item (Join-Path $root 'tools\ffmpeg\FFMPEG-NOTICE.txt') $payload
 
 $makensis = Join-Path $env:LOCALAPPDATA 'tauri\NSIS\makensis.exe'
 if (-not (Test-Path $makensis)) { $makensis = Join-Path $env:LOCALAPPDATA 'tauri\NSIS\Bin\makensis.exe' }
@@ -33,8 +38,9 @@ $installer = Join-Path $out "Nitro_${version}_x64-setup.exe"
 if ($LASTEXITCODE -ne 0) { throw 'The installer failed to build.' }
 Write-Output "Built $installer"
 
-if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
-    Write-Output 'Not signed: TAURI_SIGNING_PRIVATE_KEY is not set.'
+# Without the password as well, the signer waits for someone to type it, forever.
+if (-not $env:TAURI_SIGNING_PRIVATE_KEY -or -not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+    Write-Output 'Not signed: TAURI_SIGNING_PRIVATE_KEY or its password is not set.'
     return
 }
 Push-Location $repo

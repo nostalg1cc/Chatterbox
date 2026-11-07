@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use gpui::{
     Context, Div, InteractiveElement, MouseButton,
-    ParentElement, SharedString, Stateful, StatefulInteractiveElement, Styled,
+    ParentElement, Pixels, SharedString, Stateful, StatefulInteractiveElement, Styled,
     StyledImage, Window, div, prelude::*, px, rgba, svg,
 };
 use gpui_component::input::Input;
@@ -64,20 +64,328 @@ fn call_glow() -> Div {
 }
 
 /// Height for a message image shown at the card's 400px width.
-fn message_image_height(size: Option<(u32, u32)>) -> f32 {
-    match size {
-        Some((width, height)) if width > 0 => (400. * height as f32 / width as f32).clamp(120., 360.),
-        _ => 240.,
-    }
+/// An image's size in chat: its own shape, no larger than it really is or than fits.
+fn message_image_size(size: Option<(u32, u32)>) -> (f32, f32) {
+    const WIDEST: f32 = 420.;
+    const TALLEST: f32 = 360.;
+    const SMALLEST: f32 = 64.;
+    let Some((width, height)) = size.filter(|(width, height)| *width > 0 && *height > 0) else {
+        return (320., 240.);
+    };
+    let (width, height) = (width as f32, height as f32);
+    let scale = (WIDEST / width).min(TALLEST / height).min(1.);
+    ((width * scale).max(SMALLEST), (height * scale).max(SMALLEST))
+}
+
+/// Message text you can select, copy and click links in.
+fn message_text(
+    message: usize,
+    text: String,
+    selection: std::rc::Rc<std::cell::RefCell<Option<crate::links::TextSelection>>>,
+    focus: gpui::FocusHandle,
+) -> Div {
+    use crate::links;
+    let found = std::rc::Rc::new(links::find(&text));
+    let selected = selection
+        .borrow()
+        .as_ref()
+        // Its text is compared because a message can be edited while part of it is selected.
+        .filter(|current| current.message == message && *current.text == text)
+        .map(links::TextSelection::range);
+    let styled = gpui::StyledText::new(text.clone()).with_highlights(links::highlights(
+        &found,
+        selected,
+        gpui::rgb(0x7ab8ff).into(),
+        gpui::rgba(0x4d8dff66).into(),
+    ));
+    let layout = styled.layout().clone();
+    let text = std::rc::Rc::new(text);
+    let nearest = {
+        let layout = layout.clone();
+        move |position| layout.index_for_position(position).unwrap_or_else(|closest| closest)
+    };
+    let link_at = {
+        let (layout, found) = (layout.clone(), found.clone());
+        move |position| {
+            let index = layout.index_for_position(position).ok()?;
+            found.iter().find(|range| range.start <= index && index < range.end).cloned()
+        }
+    };
+    // The press is on the element, so anything in front of the text blocks it as usual.
+    let (press_selection, press_text, press_nearest, press_focus) =
+        (selection.clone(), text.clone(), nearest.clone(), focus.clone());
+    div()
+        .relative()
+        .cursor_text()
+        .on_mouse_down(MouseButton::Left, move |event, window, _| {
+            let index = links::on_character(&press_text, press_nearest(event.position));
+            let range = match event.click_count {
+                1 => index..index,
+                2 => links::word_at(&press_text, index),
+                _ => 0..press_text.len(),
+            };
+            *press_selection.borrow_mut() = Some(links::TextSelection {
+                message,
+                text: press_text.clone(),
+                anchor: range.start,
+                head: range.end,
+                dragging: event.click_count == 1,
+            });
+            if event.click_count > 1 {
+                press_focus.focus(window);
+            }
+            window.refresh();
+        })
+        .child(styled)
+        .child(
+            gpui::canvas(
+                // An area over each line of each link. GPUI picks the cursor from these on every
+                // mouse move, without having to paint again.
+                {
+                    let (layout, found) = (layout.clone(), found.clone());
+                    move |bounds, window, _| {
+                        let line = layout.line_height();
+                        let mut areas = Vec::new();
+                        for range in found.iter() {
+                            let (Some(from), Some(to)) =
+                                (layout.position_for_index(range.start), layout.position_for_index(range.end))
+                            else {
+                                continue;
+                            };
+                            let mut area = |left: Pixels, top: Pixels, right: Pixels| {
+                                let corners = gpui::Bounds::from_corners(gpui::point(left, top), gpui::point(right, top + line));
+                                areas.push(window.insert_hitbox(corners, gpui::HitboxBehavior::Normal));
+                            };
+                            let (mut left, mut top) = (from.x, from.y);
+                            while top + px(1.) < to.y {
+                                area(left, top, bounds.right());
+                                left = bounds.left();
+                                top += line;
+                            }
+                            area(left, top, to.x);
+                        }
+                        areas
+                    }
+                },
+                move |bounds, areas, window, _| {
+                    for area in &areas {
+                        window.set_cursor_style(gpui::CursorStyle::PointingHand, area);
+                    }
+                    // A press anywhere else ends this selection. Capture runs before the
+                    // press on the text, so a press on the same text starts it afresh.
+                    let outside = selection.clone();
+                    window.on_mouse_event(move |event: &gpui::MouseDownEvent, phase, window, _| {
+                        let mine = outside.borrow().as_ref().is_some_and(|current| current.message == message);
+                        if phase.capture() && mine && !bounds.contains(&event.position) {
+                            *outside.borrow_mut() = None;
+                            window.refresh();
+                        }
+                    });
+                    let (moving, moving_text) = (selection.clone(), text.clone());
+                    window.on_mouse_event(move |event: &gpui::MouseMoveEvent, phase, window, _| {
+                        if !phase.capture() {
+                            return;
+                        }
+                        let mut current = moving.borrow_mut();
+                        let Some(active) = current.as_mut().filter(|current| current.message == message && current.dragging) else {
+                            return;
+                        };
+                        // The button came up where this text couldn't see it, such as outside
+                        // the window, or while the message was scrolled away.
+                        if event.pressed_button != Some(MouseButton::Left) {
+                            active.dragging = false;
+                            if active.anchor == active.head {
+                                *current = None;
+                            }
+                            window.refresh();
+                            return;
+                        }
+                        let head = links::on_character(&moving_text, nearest(event.position));
+                        if head != active.head {
+                            active.head = head;
+                            window.refresh();
+                        }
+                    });
+                    let released = selection.clone();
+                    window.on_mouse_event(move |event: &gpui::MouseUpEvent, phase, window, cx| {
+                        if !phase.capture() || event.button != MouseButton::Left {
+                            return;
+                        }
+                        let mut current = released.borrow_mut();
+                        let Some(active) = current.as_mut().filter(|current| current.message == message && current.dragging) else {
+                            return;
+                        };
+                        active.dragging = false;
+                        if active.anchor == active.head {
+                            *current = None;
+                            window.refresh();
+                            if let Some(link) = link_at(event.position) {
+                                cx.open_url(&text[link]);
+                            }
+                        } else {
+                            // A plain click leaves focus alone, so typing carries on in the composer.
+                            focus.focus(window);
+                        }
+                    });
+                },
+            )
+            .absolute()
+            .size_full(),
+        )
 }
 
 impl Preview {
     /// An image from chat storage. It asks to be fetched only once it's near the viewport.
+    /// A video in chat, filling whatever holds it: its first picture, then its frames while
+    /// it plays. `height` is the tile's own, for the picture behind it.
+    fn render_video_tile(&self, id: SharedString, path: Option<String>, duration: String, width: f32, height: f32, in_grid: bool, cx: &mut Context<Self>) -> Stateful<Div> {
+        let playing = self
+            .playing_video
+            .as_ref()
+            .filter(|playing| path.as_ref().is_some_and(|path| *path == playing.path));
+        let frame = playing.and_then(|playing| playing.frame.clone());
+        let loading = playing.is_some_and(|playing| playing.player.is_none());
+        let active = playing.is_some();
+        let paused = playing.and_then(|playing| playing.player.as_ref()).is_some_and(|player| player.paused());
+        let controls = if active && !loading { self.render_video_controls(width, false, cx) } else { None };
+        let group: SharedString = format!("{id}-tile").into();
+        // A message's own video has its own shape already. A grid tile doesn't, so it fills.
+        let fit = if in_grid { gpui::ObjectFit::Cover } else { gpui::ObjectFit::Contain };
+        let picture = self.render_media_picture(path.clone(), height, fit, false);
+        material_surface(MATERIAL_PANEL, 12., StrokeKind::Neutral)
+            .id(id)
+            .group(group.clone())
+            .relative()
+            .size_full()
+            .overflow_hidden()
+            .cursor_pointer()
+            .when_some(path, |tile, path| {
+                tile.on_click(cx.listener(move |this, _, _, cx| this.toggle_video(path.clone(), cx)))
+            })
+            .map(|tile| match frame {
+                Some(frame) => tile.child(components::video_frame(frame, 12.)),
+                None => tile.child(picture),
+            })
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .when(!active || loading || paused, |center| {
+                        center.child(
+                            material_surface(MATERIAL_DARK, 22., StrokeKind::Neutral)
+                                .size(px(44.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .map(|button| {
+                                    if loading {
+                                        button.text_size(px(11.)).text_color(rgb(0xe4e4e7)).child("…")
+                                    } else {
+                                        button.child(svg().path("Play").size(px(18.)).text_color(rgb(0xffffff)))
+                                    }
+                                }),
+                        )
+                    }),
+            )
+            .when(!active, |tile| {
+                tile.child(
+                    div().absolute().bottom(px(8.)).right(px(8.)).child(badge(duration, MATERIAL_DARK, 0xf2f2f3)),
+                )
+            })
+            // Out of the way while it plays, back when the mouse is over it or it's paused.
+            .when_some(controls, |tile, controls| {
+                tile.child(
+                    div()
+                        .absolute()
+                        .bottom_0()
+                        .left_0()
+                        .right_0()
+                        .opacity(if paused { 1. } else { 0. })
+                        .group_hover(group, |style| style.opacity(1.))
+                        .child(controls),
+                )
+            })
+    }
+
+    /// The preview cards for a message's links, each fetched once it's near the viewport.
+    fn render_link_cards(&self, message: usize, text: &str, cx: &mut Context<Self>) -> Option<Div> {
+        let mut urls: Vec<String> = Vec::new();
+        for range in crate::links::find(text) {
+            let url = text[range].to_string();
+            if !urls.contains(&url) {
+                urls.push(url);
+            }
+        }
+        urls.truncate(crate::links::MAX_CARDS);
+        if urls.is_empty() {
+            return None;
+        }
+        let mut column = div().mt(px(6.)).flex().flex_col().gap(px(6.));
+        for (index, url) in urls.into_iter().enumerate() {
+            match self.link_cards.get(&url) {
+                Some(crate::links::LinkState::Ready(loaded)) => {
+                    // Checked again here, as this one came from the server or a saved file.
+                    let target = Some(loaded.card.url.clone()).filter(|url| crate::links::can_open(url));
+                    column = column.child(
+                        div()
+                            .id(SharedString::from(format!("link-card-{message}-{index}")))
+                            .w(px(components::LINK_CARD_WIDTH))
+                            .cursor_pointer()
+                            .hover(|card| card.opacity(0.92))
+                            .on_click(cx.listener(move |_, _, _, cx| {
+                                if let Some(target) = &target {
+                                    cx.open_url(target);
+                                }
+                            }))
+                            .child(components::link_card(components::LinkCardView {
+                                site: loaded.card.site.clone().into(),
+                                title: loaded.card.title.clone().into(),
+                                description: loaded.card.description.clone().into(),
+                                image: loaded.image.clone(),
+                                aspect: loaded.aspect,
+                                playable: loaded.card.playable,
+                            })),
+                    );
+                }
+                Some(_) => {}
+                None => {
+                    let wanted = self.link_wanted.clone();
+                    column = column.child(
+                        gpui::canvas(
+                            move |bounds, window, _| {
+                                let viewport = f32::from(window.viewport_size().height);
+                                let top = f32::from(bounds.origin.y);
+                                // Not while it's above the view: a card appearing there would
+                                // push down whatever is being read.
+                                if top < viewport + 300. && top > -40. {
+                                    wanted.borrow_mut().push(url.clone());
+                                }
+                            },
+                            |_, _, _, _| {},
+                        )
+                        .w_full()
+                        .h(px(1.)),
+                    );
+                }
+            }
+        }
+        Some(column)
+    }
+
     fn render_chat_image(&self, path: Option<String>, height: f32) -> Div {
         self.render_media_image(path, height, gpui::ObjectFit::Contain)
     }
 
     fn render_media_image(&self, path: Option<String>, height: f32, fit: gpui::ObjectFit) -> Div {
+        self.render_media_picture(path, height, fit, true)
+    }
+
+    /// `opens` is whether pressing it shows it full size. The sidebar and video tiles do
+    /// something else when pressed.
+    fn render_media_picture(&self, path: Option<String>, height: f32, fit: gpui::ObjectFit, opens: bool) -> Div {
         let state = path.as_ref().and_then(|path| self.media_files.get(path));
         let ready = match state {
             Some(crate::MediaFile::Ready { original, sidebar }) => {
@@ -88,7 +396,7 @@ impl Preview {
         let wanted = self.media_wanted.clone();
         let request = path.filter(|_| state.is_none());
         let original = match state {
-            Some(crate::MediaFile::Ready { original, .. }) => Some(original.clone()),
+            Some(crate::MediaFile::Ready { original, .. }) if opens => Some(original.clone()),
             _ => None,
         };
         let lightbox = self.lightbox_request.clone();
@@ -96,9 +404,9 @@ impl Preview {
             .relative()
             .w_full()
             .h(px(height))
-            .rounded(px(9.))
+            .rounded(px(12.))
             .overflow_hidden()
-            .bg(rgb(crate::state::palette().media))
+            .when(ready.is_none(), |d| d.bg(rgb(crate::state::palette().media)))
             .flex()
             .items_center()
             .justify_center()
@@ -111,7 +419,7 @@ impl Preview {
                 Some(file) => d.child(
                     gpui::img(file)
                         .size_full()
-                        .rounded(px(if matches!(fit, gpui::ObjectFit::Cover) { 10.75 } else { 9. }))
+                        .rounded(px(if matches!(fit, gpui::ObjectFit::Cover) { 10.75 } else { 12. }))
                         .object_fit(if matches!(fit, gpui::ObjectFit::Cover) { gpui::ObjectFit::Fill } else { fit }),
                 ),
                 None => d.child(svg().path("Picture").size(px(24.)).text_color(rgb(0x6d6d73))),
@@ -203,6 +511,27 @@ impl Preview {
                         "← Back to Nitro"
                     }),
             ))
+            // The glass trial's switch, in development builds only.
+            .when(cfg!(debug_assertions), |d| {
+                d.child(
+                    div()
+                        .id("win-ctrl-glass")
+                        .cursor_pointer()
+                        .h(px(24.))
+                        .px(px(10.))
+                        .flex()
+                        .items_center()
+                        .text_size(px(11.))
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .text_color(rgb(if components::glass_ui() { 0xffffff } else { 0xa1a1aa }))
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(cx.listener(|_, _, _, cx| {
+                            components::set_glass_ui(!components::glass_ui());
+                            cx.notify();
+                        }))
+                        .child(if components::glass_ui() { "Glass on" } else { "Glass off" }),
+                )
+            })
             // Media Sidebar Toggle (right next to Settings, when signed in & in Chat view)
             .when(signed_in && in_chat, |d| {
                 d.child(
@@ -373,39 +702,81 @@ impl Preview {
                 .relative()
                 .flex()
                 .flex_col()
+                .on_drop(cx.listener(|this, paths: &gpui::ExternalPaths, _, cx| this.attach_dropped(paths.paths(), cx)))
                 .child(self.render_message_history(cx))
-                // Top scroll-fade gradient mask (transparent titlebar/header sits cleanly over this)
+                // Fade masks only without glass: with it, content runs on under the header and composer.
+                .when(!components::glass_ui(), |stage| {
+                    stage.child(
+                        div()
+                            .absolute()
+                            .top(px(0.))
+                            .left(px(0.))
+                            .right(px(0.))
+                            .h(px(96.))
+                            .bg(gpui::linear_gradient(
+                                180.,
+                                gpui::linear_color_stop(rgb(stage_bg), 0.0),
+                                gpui::linear_color_stop(rgba((stage_bg << 8) | 0x00), 1.0),
+                            )),
+                    )
+                })
+                .when(!components::glass_ui(), |stage| {
+                    stage.child(
+                        div()
+                            .absolute()
+                            .bottom(px(0.))
+                            .left(px(0.))
+                            .right(px(0.))
+                            .h(px(108.))
+                            .bg(gpui::linear_gradient(
+                                0.,
+                                gpui::linear_color_stop(rgb(stage_bg), 0.0),
+                                gpui::linear_color_stop(rgba((stage_bg << 8) | 0x00), 1.0),
+                            )),
+                    )
+                })
+                // Messages scroll under the header, but can't be pressed through it. The header
+                // itself is painted above this, and it's all still a window drag.
                 .child(
                     div()
+                        .id("chat-header-shield")
                         .absolute()
                         .top(px(0.))
                         .left(px(0.))
                         .right(px(0.))
-                        .h(px(96.))
-                        .bg(gpui::linear_gradient(
-                            180.,
-                            gpui::linear_color_stop(rgb(stage_bg), 0.0),
-                            gpui::linear_color_stop(rgba((stage_bg << 8) | 0x00), 1.0),
-                        )),
-                )
-                // Bottom scroll-fade gradient mask
-                .child(
-                    div()
-                        .absolute()
-                        .bottom(px(0.))
-                        .left(px(0.))
-                        .right(px(0.))
-                        .h(px(108.))
-                        .bg(gpui::linear_gradient(
-                            0.,
-                            gpui::linear_color_stop(rgb(stage_bg), 0.0),
-                            gpui::linear_color_stop(rgba((stage_bg << 8) | 0x00), 1.0),
-                        )),
+                        .h(px(52.))
+                        .block_mouse_except_scroll()
+                        .on_drop(cx.listener(|this, paths: &gpui::ExternalPaths, _, cx| this.attach_dropped(paths.paths(), cx)))
+                        .window_control_area(gpui::WindowControlArea::Drag),
                 )
                 .when(active_call, |d| d.child(call_glow()))
                 .when_some(self.render_screen_panel(cx), |d, panel| d.child(panel))
                 .child(self.render_floating_header(cx))
-                .child(self.render_composer_dock(window, cx)),
+                .child(self.render_composer_dock(window, cx))
+                // Shows that a dragged file can be dropped. It takes no presses of its own.
+                .when(cx.has_active_drag(), |stage| {
+                    stage.child(
+                        div()
+                            .absolute()
+                            .inset(px(12.))
+                            .rounded(px(16.))
+                            .border_2()
+                            .border_color(rgb(ACCENT))
+                            .bg(rgba(0x7ab8ff14))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(
+                                material_surface(MATERIAL_DARK, 14., StrokeKind::Neutral)
+                                    .px(px(16.))
+                                    .py(px(10.))
+                                    .text_size(px(14.))
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_color(rgb(0xf2f2f3))
+                                    .child("Drop to attach an image or video"),
+                            ),
+                    )
+                }),
         };
 
         div()
@@ -433,6 +804,12 @@ impl Preview {
                 self.media_sidebar_open && self.shell_view == ShellView::Chat,
                 |d| d.child(self.render_media_sidebar(window, cx)),
             )
+            // Content runs on under the buttons with glass, so they get a fade to sit on.
+            .when(components::glass_ui(), |d| {
+                let sidebar = self.media_sidebar_open && self.shell_view == ShellView::Chat;
+                let (width, soft) = if sidebar { (344., 40.) } else { (300., 96.) };
+                d.child(components::window_buttons_fade(stage_bg, width, soft))
+            })
             // Global top-right Windows caption controls + Settings + Media Sidebar toggle
             .child(self.render_window_controls(window, cx))
     }
@@ -1535,7 +1912,32 @@ impl Preview {
             .px(px(28.))
             .flex()
             .flex_col()
-            .gap(px(14.));
+            .gap(px(14.))
+            // Not on the history itself: a focusable element takes focus from the composer on
+            // any press, and marks the press handled, which stops a window drag starting there.
+            .child(
+                div()
+                    .absolute()
+                    .size_0()
+                    .track_focus(&self.history_focus)
+                    .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, window, cx| {
+                        let keys = &event.keystroke;
+                        if keys.modifiers.control && !keys.modifiers.alt && keys.key == "c" {
+                            if let Some(words) = this.text_selection.borrow().as_ref().and_then(|selection| selection.words()) {
+                                cx.write_to_clipboard(gpui::ClipboardItem::new_string(words.to_string()));
+                            }
+                            return;
+                        }
+                        // Anything else means they've moved on from the selection. Typing goes
+                        // back to the composer, so a selection never swallows what's typed.
+                        let typing = keys.key_char.is_some() && !keys.modifiers.control && !keys.modifiers.alt;
+                        if typing || keys.key == "escape" {
+                            *this.text_selection.borrow_mut() = None;
+                            this.chat_input.update(cx, |input, cx| input.focus(window, cx));
+                            cx.notify();
+                        }
+                    })),
+            );
 
         let messages = self.active_conv().messages.clone();
         if self.state.conversations.is_empty() {
@@ -1618,7 +2020,7 @@ impl Preview {
     }
 
     /// Condenses a burst into the shared Media Grid, with identical files as one counted tile.
-    fn render_burst_card(&self, burst: &[ChatMessage]) -> Div {
+    fn render_burst_card(&self, burst: &[ChatMessage], cx: &mut Context<Self>) -> Div {
         let mut distinct: Vec<(&ChatMessage, usize)> = vec![];
         for member in burst {
             let key = crate::backend::media_key(member);
@@ -1630,51 +2032,34 @@ impl Preview {
                 None => distinct.push((member, 1)),
             }
         }
-        let videos = burst
-            .iter()
-            .filter(|member| matches!(member.attachment, ChatAttachment::VideoClip { .. }))
-            .count();
-        let caption = match (burst.len() - videos, videos) {
-            (images, 0) => format!("{images} images"),
-            (0, videos) => format!("{videos} videos"),
-            (images, videos) => format!(
-                "{images} {} · {videos} {}",
-                if images == 1 { "image" } else { "images" },
-                if videos == 1 { "video" } else { "videos" },
-            ),
-        };
-        let single_height = message_image_height(distinct[0].0.media_size);
-        let height = if distinct.len() == 1 {
-            single_height
-        } else {
-            components::MEDIA_GRID_TILE_HEIGHT
-        };
+        let count = distinct.len();
         let tiles = distinct
             .iter()
-            .map(|(member, count)| components::MediaTile {
-                content: if matches!(member.attachment, ChatAttachment::VideoClip { .. }) {
-                    div()
-                        .size_full()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(
-                            material_surface(ACCENT, 18., StrokeKind::Colored)
-                                .size(px(36.))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(svg().path("Play").size(px(14.)).text_color(rgb(0xffffff))),
-                        )
+            .enumerate()
+            .map(|(index, (member, repeats))| components::MediaTile {
+                content: if let ChatAttachment::VideoClip { duration, .. } = &member.attachment {
+                    div().size_full().child(self.render_video_tile(
+                        format!("video-{}", member.id).into(),
+                        member.media_path.clone(),
+                        duration.clone(),
+                        components::media_tile_width(count.min(4), index),
+                        components::media_tile_height(count.min(4), index),
+                        true,
+                        cx,
+                    ))
                 } else {
-                    self.render_chat_image(member.media_path.clone(), height)
+                    self.render_media_image(
+                        member.media_path.clone(),
+                        components::media_tile_height(count.min(4), index),
+                        gpui::ObjectFit::Cover,
+                    )
                 },
-                count: *count,
+                count: *repeats,
             })
             .collect();
         div()
             .mt(px(8.))
-            .child(components::media_grid(tiles, caption, single_height))
+            .child(components::media_grid(tiles))
     }
 
     #[inline(never)]
@@ -1750,6 +2135,8 @@ impl Preview {
         let picker_target = message_db_id.clone();
         let edit_target = message_db_id.clone();
         let edit_text = msg.text.clone();
+        let copy_text = if msg.deleted { String::new() } else { msg.text.clone() };
+        let highlighted = self.highlighted_message.as_ref().is_some_and(|id| burst.iter().any(|member| member.db_id == *id));
         let action_bar = material_surface(MATERIAL_DARK, 15., StrokeKind::Neutral)
             .relative()
             .h(px(30.))
@@ -1777,6 +2164,11 @@ impl Preview {
                     cx.notify();
                 })),
             )
+            .when(!copy_text.is_empty(), |bar| {
+                bar.child(action(("act-copy", msg_idx), "Copy").on_click(cx.listener(move |_, _, _, cx| {
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(copy_text.clone()));
+                })))
+            })
             .when(can_edit, |bar| {
                 bar.child(
                     action(("act-edit", msg_idx), "Pencil").on_click(cx.listener(move |this, _, window, cx| {
@@ -1856,110 +2248,41 @@ impl Preview {
                 .child(label("esc to cancel · enter to save"))
         });
 
+        let link_cards = if !show_previews || msg.deleted {
+            None
+        } else {
+            self.render_link_cards(msg.id, &msg.text, cx)
+        };
         let attachment_el = if !show_previews || msg.deleted {
             None
         } else if burst.len() > 1 {
-            Some(self.render_burst_card(burst))
+            Some(self.render_burst_card(burst, cx))
         } else {
             match &msg.attachment {
                 ChatAttachment::None => None,
-                ChatAttachment::MediaGallery {
-                    title,
-                    subtitle,
-                    items: _,
-                } => Some(
-                    material_surface(MATERIAL_PANEL, 14., StrokeKind::Neutral)
-                        .mt(px(8.))
-                        .w(px(420.))
-                        .p(px(10.))
-                        .flex()
-                        .flex_col()
-                        .gap(px(8.))
-                        .child(self.render_chat_image(msg.media_path.clone(), message_image_height(msg.media_size)))
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .justify_between()
-                                .child(
-                                    div()
-                                        .flex()
-                                        .flex_col()
-                                        .child(
-                                            div()
-                                                .text_size(px(12.5))
-                                                .font_weight(gpui::FontWeight::SEMIBOLD)
-                                                .text_color(rgb(0xf2f2f3))
-                                                .child(title.clone()),
-                                        )
-                                        .child(label(subtitle.clone())),
-                                ),
-                        ),
-                ),
-                ChatAttachment::VideoClip {
-                    title,
-                    duration,
-                    resolution,
-                } => Some(
-                    material_surface(MATERIAL_PANEL, 14., StrokeKind::Neutral)
-                        .mt(px(8.))
-                        .w(px(420.))
-                        .p(px(10.))
-                        .flex()
-                        .flex_col()
-                        .gap(px(8.))
-                        .child(
-                            div()
-                                .relative()
-                                .w_full()
-                                .h(px(156.))
-                                .rounded(px(9.))
-                                .overflow_hidden()
-                                .bg(rgb(crate::state::palette().media))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(
-                                    material_surface(ACCENT, 22., StrokeKind::Colored)
-                                        .size(px(44.))
-                                        .flex()
-                                        .items_center()
-                                        .justify_center()
-                                        .child(
-                                            svg()
-                                                .path("Play")
-                                                .size(px(18.))
-                                                .text_color(rgb(0xffffff)),
-                                        ),
-                                )
-                                .child(
-                                    div()
-                                        .absolute()
-                                        .bottom(px(8.))
-                                        .right(px(8.))
-                                        .child(badge(duration.clone(), 0x18181b, 0xf2f2f3)),
-                                ),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .justify_between()
-                                .child(
-                                    div()
-                                        .flex()
-                                        .flex_col()
-                                        .child(
-                                            div()
-                                                .text_size(px(12.5))
-                                                .font_weight(gpui::FontWeight::SEMIBOLD)
-                                                .text_color(rgb(0xf2f2f3))
-                                                .child(title.clone()),
-                                        )
-                                        .child(label(resolution.clone())),
-                                ),
-                        ),
-                ),
+                ChatAttachment::MediaGallery { .. } => {
+                    let (width, height) = message_image_size(msg.media_size);
+                    Some(
+                        div()
+                            .mt(px(6.))
+                            .w(px(width))
+                            .child(self.render_chat_image(msg.media_path.clone(), height)),
+                    )
+                }
+                ChatAttachment::VideoClip { duration, .. } => {
+                    let (width, height) = message_image_size(msg.media_size);
+                    Some(
+                        div().mt(px(6.)).w(px(width)).h(px(height)).child(self.render_video_tile(
+                            format!("video-{}", msg.id).into(),
+                            msg.media_path.clone(),
+                            duration.clone(),
+                            width,
+                            height,
+                            false,
+                            cx,
+                        )),
+                    )
+                }
             }
         };
 
@@ -1967,6 +2290,21 @@ impl Preview {
             .id(("message-card", msg.id))
             .group("msg-row")
             .relative()
+            .when(highlighted, |card| card.bg(rgba(0x7ab8ff1f)))
+            .child({
+                let (tops, ids) = (self.message_tops.clone(), burst.iter().map(|member| member.db_id.clone()).collect::<Vec<_>>());
+                gpui::canvas(
+                    move |bounds, _, _| {
+                        let mut tops = tops.borrow_mut();
+                        for id in &ids {
+                            tops.insert(id.clone(), f32::from(bounds.top()));
+                        }
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .size_full()
+            })
             .w_full()
             .px(px(14.))
             .py(px(10.))
@@ -2065,10 +2403,17 @@ impl Preview {
                                                 } else {
                                                     0xe4e4e7
                                                 }))
-                                                .child(if msg.deleted {
-                                                    SharedString::from("(deleted)")
-                                                } else {
-                                                    SharedString::from(msg.text.clone())
+                                                .map(|text| {
+                                                    if msg.deleted {
+                                                        text.child("(deleted)")
+                                                    } else {
+                                                        text.child(message_text(
+                                                            msg.id,
+                                                            msg.text.clone(),
+                                                            self.text_selection.clone(),
+                                                            self.history_focus.clone(),
+                                                        ))
+                                                    }
                                                 })
                                                 .when(msg.edited && !msg.deleted, |text| {
                                                     text.child(
@@ -2081,6 +2426,7 @@ impl Preview {
                                         )
                                     })
                                     .when_some(attachment_el, |d, el| d.child(el))
+                                    .when_some(link_cards, |d, cards| d.child(cards))
                                     .when(burst.iter().any(|member| !member.reactions.is_empty()), |d| d.child(reactions_row)),
                             ),
                     )
@@ -2147,15 +2493,23 @@ impl Preview {
         // The attachment waiting to send, as in main Nitro.
         let pending_media_row = if self.pending_media.is_some() || self.media_busy.is_some() {
             let thumbnail = self.pending_media.as_ref().map(|media| media.thumbnail.clone());
-            let title = self.media_busy.map(String::from).or_else(|| {
-                self.pending_media.as_ref().map(|media| media.name.clone())
-            });
+            let compressing = self.media_progress.as_ref().filter(|progress| progress.compressing.load(std::sync::atomic::Ordering::Acquire));
+            let title = compressing
+                .map(|progress| format!("Compressing video… {}%", progress.percent.load(std::sync::atomic::Ordering::Acquire)))
+                .or_else(|| self.media_busy.map(String::from))
+                .or_else(|| self.pending_media.as_ref().map(|media| media.name.clone()));
+            let cancellable = compressing.is_some();
             let detail = self.pending_media.as_ref().map(|media| {
-                format!("{} · {:.1} MB", "Image", media.bytes.len() as f32 / (1024. * 1024.))
+                let size = media.bytes.len() as f32 / (1024. * 1024.);
+                match media.seconds {
+                    Some(seconds) => format!("Video · {}:{:02} · {size:.1} MB", seconds as u32 / 60, seconds as u32 % 60),
+                    None => format!("Image · {size:.1} MB"),
+                }
             });
             let uploading = self.media_busy.is_some();
             Some(
                 material_surface(MATERIAL_DARK, 14., StrokeKind::Neutral)
+                    .block_mouse_except_scroll()
                     .p(px(6.))
                     .flex()
                     .items_center()
@@ -2179,6 +2533,24 @@ impl Preview {
                             )
                             .when_some(detail, |column, detail| column.child(label(detail))),
                     )
+                    .when(cancellable, |row| {
+                        row.child(
+                            div()
+                                .id("cancel-compressing")
+                                .cursor_pointer()
+                                .size(px(24.))
+                                .rounded_full()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .hover(|s| s.bg(rgba(0xffffff14)))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.cancel_preparing_media();
+                                    cx.notify();
+                                }))
+                                .child("×"),
+                        )
+                    })
                     .when(!uploading, |row| {
                         row.child(
                             div()
@@ -2203,6 +2575,8 @@ impl Preview {
         };
 
         let composer_pill = material_surface(MATERIAL_DARK, 23., StrokeKind::Neutral)
+            .block_mouse_except_scroll()
+            .on_drop(cx.listener(|this, paths: &gpui::ExternalPaths, _, cx| this.attach_dropped(paths.paths(), cx)))
             .flex_1()
             .h(px(46.))
             .pl(px(8.))
@@ -2273,6 +2647,7 @@ impl Preview {
                         |d, (reply_author, reply_excerpt)| {
                             d.child(
                                 material_surface(MATERIAL_PANEL, 16., StrokeKind::Neutral)
+                                    .block_mouse_except_scroll()
                                     .w_full()
                                     .px(px(12.))
                                     .py(px(8.))
@@ -2388,21 +2763,29 @@ impl Preview {
             })),
         );
 
-        let mut media_cards = div().flex().flex_col().gap(px(12.));
-        for (m_idx, item) in conv.shared_media.iter().enumerate() {
+        // Reads like the chat: newest at the bottom, where it rests, with older ones up under the
+        // tabs. Short lists sit at the bottom too.
+        let mut media_cards = div().min_h_full().flex().flex_col().justify_end().gap(px(12.));
+        let mut shown = 0;
+        for (m_idx, item) in conv.shared_media.iter().enumerate().rev() {
             if self.media_tabs.selected == 1 && item.kind == "clip" {
                 continue;
             }
             if self.media_tabs.selected == 2 && item.kind != "clip" {
                 continue;
             }
+            shown += 1;
             let item_title = item.title.clone();
             let item_sender = item.sender.clone();
             let item_id = item.id.clone();
-            let is_clip = item.kind == "clip";
+            let scroll_target = item.id.clone();
 
             media_cards = media_cards.child(
                 material_surface(MATERIAL_PANEL, 12., StrokeKind::Neutral)
+                    .id(("media-card", m_idx))
+                    .cursor_pointer()
+                    .on_click(cx.listener(move |this, _, _, cx| this.scroll_to_message(scroll_target.clone(), cx)))
+                    .block_mouse_except_scroll()
                     .w_full()
                     .p(px(1.25))
                     .h(px(178.5))
@@ -2410,27 +2793,11 @@ impl Preview {
                     .overflow_hidden()
                     .flex()
                     .flex_col()
-                    .child(if is_clip {
-                        div()
-                            .w_full()
-                            .h(px(176.))
-                            .bg(rgb(crate::state::palette().media))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child(
-                                material_surface(ACCENT, 18., StrokeKind::Colored)
-                                    .size(px(36.))
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .child(svg().path("Play").size(px(14.)).text_color(rgb(0xffffff))),
-                            )
-                    } else {
-                        self.render_media_image(item.media_path.clone(), 176., gpui::ObjectFit::Cover)
+                    .child(
+                        self.render_media_picture(item.media_path.clone(), 176., gpui::ObjectFit::Cover, false)
                             .rounded_t(px(10.75))
-                            .rounded_b(px(10.75))
-                    })
+                            .rounded_b(px(10.75)),
+                    )
                     .child(
                         div()
                             .absolute()
@@ -2474,6 +2841,8 @@ impl Preview {
                                 .items_center()
                                 .justify_center()
                                 .on_click(cx.listener(move |this, _, _, cx| {
+                                    // Replying isn't also a press on the card behind it.
+                                    cx.stop_propagation();
                                     this.chat_replying_to =
                                         Some((item_sender.clone(), item_title.clone()));
                                     this.chat_reply_target = Some(item_id.clone());
@@ -2487,6 +2856,18 @@ impl Preview {
             );
         }
 
+        // A different chat or tab starts at the newest. Something new, or a resize, only follows
+        // if you were already there, so it never pulls you away from older media.
+        let key = (conv.id.clone(), self.media_tabs.selected, shown, f32::from(window.viewport_size().height) as i32);
+        if self.media_scroll_key.as_ref() != Some(&key) {
+            let same_list = self.media_scroll_key.as_ref().is_some_and(|last| last.0 == key.0 && last.1 == key.1);
+            let from_bottom = f32::from(self.media_scroll.max_offset().height) + f32::from(self.media_scroll.offset().y);
+            if !same_list || from_bottom < 60. {
+                self.media_scroll.scroll_to_bottom();
+            }
+            self.media_scroll_key = Some(key);
+        }
+
         // Transparent Media Sidebar container (no solid bg, no border)
         div()
             .relative()
@@ -2497,20 +2878,24 @@ impl Preview {
             .flex()
             .flex_col()
             .when(self.call_connected, |d| d.child(call_glow()))
+            // The tabs stay put, clear of the window buttons, and the cards run under them.
             .child(
                 div()
-                    .id("media-sidebar-scroll")
+                    .relative()
                     .flex_1()
                     .min_h_0()
-                    .overflow_y_scroll()
-                    .pt(px(44.))
-                    .px(px(20.))
-                    .pb(px(32.))
-                    .flex()
-                    .flex_col()
-                    .gap(px(12.))
-                    .child(tabs_row)
-                    .child(media_cards),
+                    .child(
+                        div()
+                            .id("media-sidebar-scroll")
+                            .size_full()
+                            .overflow_y_scroll()
+                            .track_scroll(&self.media_scroll)
+                            .pt(px(100.))
+                            .px(px(20.))
+                            .pb(px(32.))
+                            .child(media_cards),
+                    )
+                    .child(div().absolute().top(px(44.)).left(px(20.)).right(px(20.)).child(tabs_row)),
             )
     }
 }

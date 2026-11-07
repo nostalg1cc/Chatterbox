@@ -211,6 +211,11 @@ fn clip_gain(volume: u8) -> f32 {
     level * level
 }
 
+/// A separate sound for a playing video, stopped by dropping it.
+pub fn media_sink() -> Option<Sink> {
+    Sink::try_new(output()?).ok()
+}
+
 /// Starts a clip, replacing any clip already playing.
 pub fn play_clip(clip: &DecodedClip, volume: u8) -> Result<(), String> {
     let handle = output().ok_or("No audio output is available.")?;

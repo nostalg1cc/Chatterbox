@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::cell::Cell;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -86,15 +87,103 @@ pub fn rgb(hex: u32) -> gpui::Rgba {
     gpui::rgb(themed(hex))
 }
 
+/// Whether every surface is drawn as glass. Development builds have a switch for comparing.
+static GLASS_UI: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+thread_local! {
+    /// Overrides the switch for part of the interface, for the side-by-side comparison.
+    static GLASS_FORCED: Cell<Option<bool>> = const { Cell::new(None) };
+}
+
+pub fn glass_ui() -> bool {
+    GLASS_FORCED.with(Cell::get).unwrap_or_else(|| GLASS_UI.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// Builds and paints `content` as glass or not, whatever the switch says. Surfaces decide when
+/// they're built and when they paint, so it's set for both.
+pub fn with_glass(id: &'static str, on: bool, build: impl FnOnce() -> Div) -> Stateful<Div> {
+    GLASS_FORCED.with(|forced| forced.set(Some(on)));
+    let content = build();
+    GLASS_FORCED.with(|forced| forced.set(None));
+    div()
+        .id(id)
+        .child(canvas(|_, _, _| (), move |_, _, _, _| GLASS_FORCED.with(|forced| forced.set(Some(on)))).absolute().size_0())
+        .child(content)
+        .child(canvas(|_, _, _| (), |_, _, _, _| GLASS_FORCED.with(|forced| forced.set(None))).absolute().size_0())
+}
+
+pub fn set_glass_ui(on: bool) {
+    GLASS_UI.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// How one piece of glass differs from the standard settings.
+#[derive(Clone, Copy, Debug)]
+pub struct GlassLook {
+    /// A colour, and how strongly it shows.
+    pub tint: Option<(u32, f32)>,
+    pub highlight: f32,
+    pub blur: f32,
+    pub lift: f32,
+    /// The crisp top-lit line inside the edge, as on the solid surfaces. 1 matches them.
+    pub rim: f32,
+    /// The dark line outside the edge, as on the solid surfaces. 1 matches them.
+    pub ring: f32,
+}
+
+impl GlassLook {
+    pub const STANDARD: Self = Self { tint: None, highlight: 1., blur: 1., lift: 1., rim: 0., ring: 0. };
+    /// Carved in: darker, with a quiet rim. What a sliding piece sits in.
+    pub const WELL: Self = Self { tint: Some((0x000000, 0.24)), highlight: 1.5, blur: 1.4, lift: 0.7, rim: 0.9, ring: 1. };
+    /// A bright slab raised above a well: a strong rim and a real shadow.
+    pub const SLAB: Self = Self { tint: Some((0xffffff, 0.15)), highlight: 5., blur: 0.6, lift: 2.5, rim: 1.1, ring: 0.8 };
+    /// A slider's handle.
+    pub const KNOB: Self = Self { tint: Some((0xffffff, 0.14)), highlight: 4., blur: 0.5, lift: 1.6, rim: 1.1, ring: 0.8 };
+    /// A large panel or menu: darker and more diffused, as text has to read on it.
+    pub const PANEL: Self = Self { tint: Some((0xffffff, 0.05)), highlight: 2., blur: 2.4, lift: 1.3, rim: 1., ring: 1. };
+    /// An ordinary button or pill. The standard settings suit a busy backdrop. Interface surfaces
+    /// often sit on flat colour, where they need more rim and a little body to have an edge.
+    pub const SURFACE: Self = Self { tint: Some((0xffffff, 0.04)), highlight: 2., blur: 1., lift: 1.2, rim: 1., ring: 1. };
+
+    fn tinted(colour: u32) -> Self {
+        Self { tint: Some((colour, 0.54)), highlight: 2., blur: 1., lift: 1.2, rim: 1.64, ring: 1. }
+    }
+
+    /// The glass standing in for one of the app's existing surfaces.
+    /// `role` is the colour before theming. A theme can tint its neutral surfaces, and those must
+    /// stay clear glass, not become coloured buttons.
+    fn for_surface(role: u32, fill: u32, height: f32) -> Self {
+        let colour: Hsla = gpui::rgb(role).into();
+        if colour.s > 0.3 {
+            Self::tinted(fill)
+        } else if height >= 120. {
+            // Content can now be behind a menu or card, so its own colour holds most of the
+            // body, and what's behind is well diffused. Text on it has to stay readable.
+            Self { tint: Some((fill, 0.42)), ..Self::PANEL }
+        } else {
+            Self::SURFACE
+        }
+    }
+}
+
+fn paint_look(bounds: Bounds<Pixels>, radius: f32, look: GlassLook, window: &mut Window) {
+    let tint = look.tint.map(|(colour, strength)| (gpui::rgb(colour), strength));
+    window.paint_glass(bounds, px(radius), tint, look.highlight, look.blur, look.lift, look.rim, look.ring);
+}
+
 /// Paints Nitro's 3-layer surface + light-catching gradient ring + outer 1.25px black contact ring.
 pub fn material_canvas(fill_hex: u32, radius: f32, stroke: StrokeKind) -> Canvas<()> {
     canvas(
         |_, _, _| (),
         move |bounds, _, window, _| {
+            let role_hex = fill_hex;
             let fill_hex = themed(fill_hex);
             let r = radius
                 .min(f32::from(bounds.size.height) / 2.)
                 .min(f32::from(bounds.size.width) / 2.);
+            if glass_ui() {
+                paint_look(bounds, r, GlassLook::for_surface(role_hex, fill_hex, f32::from(bounds.size.height)), window);
+                return;
+            }
 
             // 1. Outer 1.25px black (80% opacity) contact ring separating surface from canvas.
             let mut ring = gpui::fill(bounds.dilate(px(1.25)), rgba(0x000000cc));
@@ -594,7 +683,29 @@ pub fn label(text: impl Into<SharedString>) -> Div {
 // Tabs
 // ---------------------------------------------------------------------------
 
-const TABS_TRANSITION: Duration = Duration::from_millis(250);
+const TABS_TRANSITION: Duration = Duration::from_millis(420);
+/// The side of the indicator being left behind starts this much later, so it stretches
+/// towards the new tab and then catches up, instead of sliding as a rigid block.
+const TABS_TRAILING_DELAY: f32 = 0.05;
+
+/// Rises to 1 with a very small overshoot, then settles.
+fn tabs_spring(seconds: f32) -> f32 {
+    if seconds <= 0. {
+        return 0.;
+    }
+    1. - (-21. * seconds).exp() * (16. * seconds).cos()
+}
+
+/// Mixes two text colours, for a label brightening as the indicator reaches it.
+fn mix_colour(from: gpui::Hsla, to: gpui::Hsla, amount: f32) -> gpui::Hsla {
+    let amount = amount.clamp(0., 1.);
+    gpui::Hsla {
+        h: to.h,
+        s: from.s + (to.s - from.s) * amount,
+        l: from.l + (to.l - from.l) * amount,
+        a: from.a + (to.a - from.a) * amount,
+    }
+}
 const TABS_ELASTIC: Duration = Duration::from_millis(420);
 
 /// Selection and indicator animation for `tabs`. Interrupting a transition continues from
@@ -616,6 +727,22 @@ impl TabsState {
             drag: Rc::new(Cell::new(None)),
             bounds: Rc::new(Cell::new(Bounds::default())),
         }
+    }
+
+    /// The indicator's left and right edges, in tabs. They travel separately, which is what
+    /// gives it its stretch.
+    fn edges(&self, count: usize) -> (f32, f32) {
+        let seconds = self.started.elapsed().as_secs_f32();
+        if seconds >= TABS_TRANSITION.as_secs_f32() {
+            return (self.selected as f32, self.selected as f32 + 1.);
+        }
+        let distance = self.selected as f32 - self.from;
+        let (lead, trail) = (tabs_spring(seconds), tabs_spring(seconds - TABS_TRAILING_DELAY));
+        let (left, right) = if distance >= 0. { (trail, lead) } else { (lead, trail) };
+        let last = count.max(1) as f32;
+        let left = (self.from + distance * left).clamp(0., last - 1.);
+        let right = (self.from + 1. + distance * right).clamp(left + 0.5, last);
+        (left, right)
     }
 
     fn position(&self) -> f32 {
@@ -641,11 +768,38 @@ pub fn tabs(
     window: &mut Window,
     on_select: Rc<dyn Fn(&usize, &mut Window, &mut App)>,
 ) -> Div {
-    if state.started.elapsed() < TABS_ELASTIC {
+    tabs_with(false, id, labels, state, item_width, window, on_select)
+}
+
+/// The same tabs, made of glass: the bar, with a lighter slab sliding over it.
+pub fn glass_tabs(
+    id: &'static str,
+    labels: Vec<SharedString>,
+    state: &TabsState,
+    item_width: f32,
+    window: &mut Window,
+    on_select: Rc<dyn Fn(&usize, &mut Window, &mut App)>,
+) -> Div {
+    tabs_with(true, id, labels, state, item_width, window, on_select)
+}
+
+fn tabs_with(
+    glass: bool,
+    id: &'static str,
+    labels: Vec<SharedString>,
+    state: &TabsState,
+    item_width: f32,
+    window: &mut Window,
+    on_select: Rc<dyn Fn(&usize, &mut Window, &mut App)>,
+) -> Div {
+    let glass = glass || glass_ui();
+    if state.started.elapsed() < TABS_ELASTIC.max(TABS_TRANSITION) {
         window.request_animation_frame();
     }
     let selected = state.selected;
     let position = state.position();
+    let (left_edge, right_edge) = state.edges(labels.len());
+    let held = state.drag.get().is_some();
     let t = (state.started.elapsed().as_secs_f32() / TABS_ELASTIC.as_secs_f32()).clamp(0., 1.);
     let pulse = (std::f32::consts::PI * t).sin().powi(2);
     let edge = if selected == 0 { -1. } else if selected + 1 == labels.len() { 1. } else { 0. };
@@ -653,7 +807,7 @@ pub fn tabs(
     let lift = 0.; // Elasticity is horizontal; the tab hit targets never change height.
     let width = item_width * labels.len() as f32 + 8.;
     let mut bar = div().relative()
-        .child(material_surface(MATERIAL_SUBTLE, 20. + lift / 2., StrokeKind::Neutral)
+        .child(if glass { glass_look(20. + lift / 2., GlassLook::WELL) } else { material_surface(MATERIAL_SUBTLE, 20. + lift / 2., StrokeKind::Neutral) }
             .absolute().left(px(stretch.min(0.))).top(px(-lift / 2.))
             .w(px(width + stretch.abs())).h(px(40. + lift)))
         .w(px(item_width * labels.len() as f32 + 8.))
@@ -662,12 +816,17 @@ pub fn tabs(
         .items_center()
         .p(px(4.))
         .child(
-            material_surface(0x34343a, 16. + lift / 2., StrokeKind::Neutral)
+            if glass {
+                glass_look(16. + lift / 2., GlassLook::SLAB)
+            } else {
+                material_surface(0x34343a, 16. + lift / 2., StrokeKind::Neutral)
+            }
                 .absolute()
-                .top(px(4. - lift / 2.))
-                .left(px(4. + position * item_width + stretch.min(0.)))
-                .w(px(item_width + stretch.abs()))
-                .h(px(32. + lift)),
+                // Pressed, it squeezes in slightly, under the finger.
+                .top(px(if held { 5. } else { 4. - lift / 2. }))
+                .left(px(4. + left_edge * item_width + stretch.min(0.) + if held { 1.5 } else { 0. }))
+                .w(px((right_edge - left_edge) * item_width + stretch.abs() - if held { 3. } else { 0. }))
+                .h(px(if held { 30. } else { 32. + lift })),
         );
     let count = labels.len();
     for (index, name) in labels.into_iter().enumerate() {
@@ -682,10 +841,15 @@ pub fn tabs(
                 .items_center()
                 .justify_center()
                 .rounded_full()
-                .text_color(tab_text(selected == index))
+                // Brightens as the indicator arrives, and dims as it leaves.
+                .text_color(mix_colour(
+                    tab_text(false),
+                    tab_text(true),
+                    1. - (position - index as f32).abs(),
+                ))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_size(px(14.))
-                .hover(|s| s.opacity(0.78))
+                .when(selected != index, |tab| tab.hover(|s| s.bg(rgba(0xffffff0d))))
                 .capture_any_mouse_down(press_sound)
                 .child(name),
         );
@@ -721,8 +885,11 @@ pub fn tabs(
                     on_select(&index, window, cx);
                 }
             });
-            window.on_mouse_event(move |_: &gpui::MouseUpEvent, phase, _, _| {
-                if phase == gpui::DispatchPhase::Capture { drag.set(None); }
+            window.on_mouse_event(move |_: &gpui::MouseUpEvent, phase, window, _| {
+                if phase == gpui::DispatchPhase::Capture && drag.get().is_some() {
+                    drag.set(None);
+                    window.refresh();
+                }
             });
         }
     }).absolute().size_full())
@@ -750,15 +917,44 @@ pub struct SliderMotion {
     changed: Option<Instant>,
     /// How far the track is stretched while dragging past an end. Negative is left.
     stretch: f32,
+    /// Where the handle is drawn, gliding towards `target` rather than jumping to it.
+    shown: Option<f32>,
+    target: f32,
+    hovered: bool,
+    /// 0 to 1, following `hovered`.
+    hover: f32,
+    last_frame: Option<Instant>,
 }
 
 const SLIDER_PRESS_MS: f32 = 180.;
 const SLIDER_SPRING_MS: f32 = 340.;
 const SLIDER_MAX_STRETCH: f32 = 7.;
+/// How quickly the handle catches up. Tighter under the finger, so a drag never feels loose.
+const SLIDER_GLIDE_SECONDS: f32 = 0.055;
+const SLIDER_GLIDE_HELD_SECONDS: f32 = 0.018;
+const SLIDER_HOVER_SECONDS: f32 = 0.07;
 
 #[cfg(test)]
 mod slider_motion_tests {
     use super::*;
+
+    #[test]
+    fn the_handle_glides_to_its_value_and_then_rests() {
+        let mut motion = SliderMotion::default();
+        motion.advance(0.2);
+        assert_eq!(motion.shown, Some(0.2), "the first frame starts in place");
+        motion.last_frame = Some(Instant::now() - Duration::from_millis(16));
+        motion.advance(0.8);
+        let part_way = motion.shown.unwrap();
+        assert!(part_way > 0.2 && part_way < 0.8, "{part_way}");
+        assert!(!motion.settled());
+        for _ in 0..200 {
+            motion.last_frame = Some(Instant::now() - Duration::from_millis(16));
+            motion.advance(0.8);
+        }
+        assert_eq!(motion.shown, Some(0.8));
+        assert!(motion.settled(), "nothing should keep asking for frames at rest");
+    }
 
     #[test]
     fn reversing_a_partial_press_keeps_its_current_scale() {
@@ -794,6 +990,25 @@ mod slider_motion_tests {
 }
 
 impl SliderMotion {
+    /// Moves the drawn handle and hover along for this frame.
+    fn advance(&mut self, target: f32) {
+        let now = Instant::now();
+        let dt = self.last_frame.map_or(0., |last| now.duration_since(last).as_secs_f32()).min(0.05);
+        self.last_frame = Some(now);
+        self.target = target;
+        let glide = if self.pressed { SLIDER_GLIDE_HELD_SECONDS } else { SLIDER_GLIDE_SECONDS };
+        let shown = self.shown.unwrap_or(target);
+        let moved = shown + (target - shown) * (1. - (-dt / glide).exp());
+        self.shown = Some(if (target - moved).abs() < 0.0008 { target } else { moved });
+        let goal = if self.hovered { 1. } else { 0. };
+        let hover = self.hover + (goal - self.hover) * (1. - (-dt / SLIDER_HOVER_SECONDS).exp());
+        self.hover = if (goal - hover).abs() < 0.01 { goal } else { hover };
+    }
+
+    fn settled(&self) -> bool {
+        self.shown == Some(self.target) && self.hover == if self.hovered { 1. } else { 0. }
+    }
+
     fn elapsed_ms(&self) -> f32 {
         self.changed
             .map_or(f32::MAX, |changed| changed.elapsed().as_secs_f32() * 1000.)
@@ -851,16 +1066,48 @@ pub fn slider(
     width: f32,
     on_change: Rc<dyn Fn(&u16, &mut Window, &mut App)>,
 ) -> Stateful<Div> {
+    slider_with(false, slot, handle, value, max, step, width, on_change)
+}
+
+/// The same slider, made of glass.
+pub fn glass_slider(
+    slot: usize,
+    handle: &SliderHandle,
+    value: u16,
+    max: u16,
+    step: u16,
+    width: f32,
+    on_change: Rc<dyn Fn(&u16, &mut Window, &mut App)>,
+) -> Stateful<Div> {
+    slider_with(true, slot, handle, value, max, step, width, on_change)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn slider_with(
+    glass: bool,
+    slot: usize,
+    handle: &SliderHandle,
+    value: u16,
+    max: u16,
+    step: u16,
+    width: f32,
+    on_change: Rc<dyn Fn(&u16, &mut Window, &mut App)>,
+) -> Stateful<Div> {
+    let glass = glass || glass_ui();
     let inner = width - 24.;
-    let ratio = (value as f32 / max as f32).clamp(0., 1.);
-    let motion = handle.motion.get();
+    let target = (value as f32 / max as f32).clamp(0., 1.);
+    let mut motion = handle.motion.get();
+    motion.advance(target);
+    handle.motion.set(motion);
+    let ratio = motion.shown.unwrap_or(target);
     let press = motion.press();
     let stretch = motion.current_stretch();
     let stretch_left = (-stretch).max(0.);
     let stretch_right = stretch.max(0.);
-    let thumb_width = 28. + 5. * press;
-    let thumb_height = 20. + 4. * press;
+    let thumb_width = 28. + 5. * press + 2. * motion.hover;
+    let thumb_height = 20. + 4. * press + 1.5 * motion.hover;
     let thumb_radius = thumb_height / 2.;
+    let hover_motion = handle.motion.clone();
     let motion_cell = handle.motion.clone();
     let press_motion = handle.motion.clone();
     let move_motion = handle.motion.clone();
@@ -879,6 +1126,12 @@ pub fn slider(
         .max_w_full()
         .h(px(28.))
         .cursor_pointer()
+        .on_hover(move |hovered, window, _| {
+            let mut current = hover_motion.get();
+            current.hovered = *hovered;
+            hover_motion.set(current);
+            window.refresh();
+        })
         .on_mouse_down(MouseButton::Left, move |event, window, cx| {
             cx.stop_propagation();
             window.focus(&focus);
@@ -888,6 +1141,7 @@ pub fn slider(
                 press_from: previous.press(),
                 changed: Some(Instant::now()),
                 stretch: previous.current_stretch(),
+                ..previous
             });
             if let Some(next) = slider_snap(f32::from(event.position.x), press_bounds.get(), max, step)
             {
@@ -906,7 +1160,7 @@ pub fn slider(
             cx.stop_propagation();
         })
         .child(
-            material_surface(MATERIAL_SUBTLE, 10., StrokeKind::Neutral)
+            if glass { glass_look(10., GlassLook::WELL) } else { material_surface(MATERIAL_SUBTLE, 10., StrokeKind::Neutral) }
                 .absolute()
                 .top(px(4.))
                 .left(px(-stretch_left))
@@ -914,7 +1168,22 @@ pub fn slider(
                 .h(px(20.)),
         )
         .child(
-            material_surface(ACCENT, 10., StrokeKind::Colored)
+            // On top of the glass, not behind it: a strong, undistorted colour.
+            if glass {
+                let base: Hsla = rgb(ACCENT).into();
+                let vivid = |lightness: f32| Hsla { s: 1., l: lightness, ..base };
+                div()
+                    .rounded(px(10.))
+                    .border_1()
+                    .border_color(rgba(0xffffff33))
+                    .bg(gpui::linear_gradient(
+                        90.,
+                        gpui::linear_color_stop(vivid(0.5), 0.),
+                        gpui::linear_color_stop(vivid(0.62), 1.),
+                    ))
+            } else {
+                material_surface(ACCENT, 10., StrokeKind::Colored)
+            }
                 .absolute()
                 .top(px(4.))
                 .left(px(-stretch_left))
@@ -924,21 +1193,25 @@ pub fn slider(
     if step > 1 {
         let points = (max / step) as usize;
         for n in 0..=points {
+            let place = n as f32 / points as f32;
+            // A mark swells just as the handle passes it.
+            let near = (1. - (place - ratio).abs() * points as f32).clamp(0., 1.);
+            let size = 3. + 2. * near;
             track = track.child(
                 div()
                     .absolute()
-                    .left(px(10.5 + inner * n as f32 / points as f32))
-                    .top(px(12.5))
-                    .size(px(3.))
+                    .left(px(12. + inner * place - size / 2.))
+                    .top(px(14. - size / 2.))
+                    .size(px(size))
                     .rounded_full()
                     // Marks for the steps, quiet enough not to compete with the handle.
-                    .bg(rgba(if n as u16 * step <= value { 0xffffff59 } else { 0xffffff2e })),
+                    .bg(rgba(if place <= ratio + 0.0001 { 0xffffff59 } else { 0xffffff2e })),
             );
         }
     }
     track
         .child(
-            material_surface(ACCENT, thumb_radius, StrokeKind::Colored)
+            if glass { glass_look(thumb_radius, GlassLook::KNOB) } else { material_surface(ACCENT, thumb_radius, StrokeKind::Colored) }
                 .absolute()
                 .top(px(14. - thumb_height / 2.))
                 .left(px(12. + inner * ratio + stretch - thumb_width / 2.))
@@ -959,7 +1232,8 @@ pub fn slider(
             canvas(
                 move |rect, window, _| {
                     bounds.set(rect);
-                    if motion_cell.get().animating() {
+                    let current = motion_cell.get();
+                    if current.animating() || !current.settled() {
                         window.request_animation_frame();
                     }
                 },
@@ -1149,15 +1423,24 @@ pub struct MediaTile {
 
 const MEDIA_GRID_WIDTH: f32 = 400.;
 const MEDIA_GRID_GAP: f32 = 6.;
-pub const MEDIA_GRID_TILE_HEIGHT: f32 = 140.;
+/// The shape of the cropped thumbnails, so a tile shows one without stretching it.
+const MEDIA_TILE_SHAPE: f32 = 555. / 352.;
+
+/// A tile's width: half the grid, or all of it for a last tile that spans the row.
+pub fn media_tile_width(count: usize, index: usize) -> f32 {
+    if count % 2 == 1 && index + 1 == count { MEDIA_GRID_WIDTH } else { (MEDIA_GRID_WIDTH - MEDIA_GRID_GAP) / 2. }
+}
+
+/// A tile's height. With an odd count the last tile spans the row, so it's taller.
+pub fn media_tile_height(count: usize, index: usize) -> f32 {
+    let half = (MEDIA_GRID_WIDTH - MEDIA_GRID_GAP) / 2.;
+    let spans = count % 2 == 1 && index + 1 == count;
+    (if spans { MEDIA_GRID_WIDTH } else { half }) / MEDIA_TILE_SHAPE
+}
 
 /// A burst of media condensed into one card: up to four tiles, then `+N` on the last.
 /// `height_single` is the tile height when only one distinct file is shown.
-pub fn media_grid(
-    tiles: Vec<MediaTile>,
-    caption: impl Into<SharedString>,
-    height_single: f32,
-) -> Div {
+pub fn media_grid(tiles: Vec<MediaTile>) -> Div {
     let distinct = tiles.len();
     let hidden = distinct.saturating_sub(4);
     let visible: Vec<MediaTile> = tiles.into_iter().take(4).collect();
@@ -1167,12 +1450,12 @@ pub fn media_grid(
     for (index, tile) in visible.into_iter().enumerate() {
         // An odd last tile spans the row, so the card always has a clean edge.
         let full = visible_count % 2 == 1 && index + 1 == visible_count;
-        let height = if visible_count == 1 { height_single } else { MEDIA_GRID_TILE_HEIGHT };
+        let height = media_tile_height(visible_count, index);
         let mut cell = div()
             .relative()
             .w(px(if full { MEDIA_GRID_WIDTH } else { half }))
             .h(px(height))
-            .rounded(px(9.))
+            .rounded(px(10.75))
             .overflow_hidden()
             .bg(rgb(palette().media))
             .child(tile.content);
@@ -1202,15 +1485,7 @@ pub fn media_grid(
         }
         grid = grid.child(cell);
     }
-    material_surface(MATERIAL_PANEL, 14., StrokeKind::Neutral)
-        .w(px(420.))
-        .max_w_full()
-        .p(px(10.))
-        .flex()
-        .flex_col()
-        .gap(px(8.))
-        .child(grid)
-        .child(label(caption))
+    grid
 }
 
 // ---------------------------------------------------------------------------
@@ -1759,8 +2034,12 @@ pub struct OverlayStream {
     pub frame: std::sync::Arc<gpui::RenderImage>,
 }
 
-/// Paints a video frame whole and centred, on black, as a chat panel or overlay tile.
+/// Paints a video frame whole and centred, on black, as a chat panel.
 pub fn video_frame(frame: std::sync::Arc<gpui::RenderImage>, radius: f32) -> Div {
+    painted_frame(frame, radius, false)
+}
+
+fn painted_frame(frame: std::sync::Arc<gpui::RenderImage>, radius: f32, fill: bool) -> Div {
     div()
         .size_full()
         .rounded(px(radius))
@@ -1771,8 +2050,11 @@ pub fn video_frame(frame: std::sync::Arc<gpui::RenderImage>, radius: f32) -> Div
                 |_, _, _| (),
                 move |bounds, _, window, _| {
                     let size = frame.size(0);
-                    let scale = (f32::from(bounds.size.width) / size.width.0 as f32)
-                        .min(f32::from(bounds.size.height) / size.height.0 as f32);
+                    let (across, down) = (
+                        f32::from(bounds.size.width) / size.width.0 as f32,
+                        f32::from(bounds.size.height) / size.height.0 as f32,
+                    );
+                    let scale = if fill { across.max(down) } else { across.min(down) };
                     let shown = gpui::size(px(size.width.0 as f32 * scale), px(size.height.0 as f32 * scale));
                     let fitted = Bounds::new(
                         gpui::point(
@@ -1806,23 +2088,26 @@ pub const OVERLAY_PADDING: f32 = 56.;
 const OVERLAY_STREAM_WIDTH: f32 = 320.;
 const OVERLAY_STREAM_HEIGHT: f32 = 180.;
 
-pub fn overlay_size(count: usize, scale: f32, show_names: bool, has_stream: bool) -> gpui::Size<Pixels> {
+/// The stream tile in pixels: always 16:9, at most the full tile, and never larger than the
+/// picture, so a small window stays small instead of being stretched.
+pub fn overlay_stream_size(source: (u32, u32), scale: f32) -> (f32, f32) {
+    let scale = scale.clamp(0.5, 1.5);
+    let width = (source.0 as f32).min(OVERLAY_STREAM_WIDTH * scale);
+    let height = (source.1 as f32).min(OVERLAY_STREAM_HEIGHT * scale);
+    if width * 9. > height * 16. { (height * 16. / 9., height) } else { (width, width * 9. / 16.) }
+}
+
+pub fn overlay_size(count: usize, scale: f32, show_names: bool, stream: Option<(u32, u32)>) -> gpui::Size<Pixels> {
+    let tile = stream.map(|source| overlay_stream_size(source, scale));
     let scale = scale.clamp(0.5, 1.5);
     let count = count.min(2).max(1) as f32;
-    if has_stream {
-        let row: f32 = 40. + if show_names { 150. } else { 0. };
-        return gpui::size(
-            px((2. * OVERLAY_PADDING + row.max(OVERLAY_STREAM_WIDTH)) * scale),
-            px((2. * OVERLAY_PADDING
-                + count * 40.
-                + (count - 1.) * 12.
-                + 10.
-                + OVERLAY_STREAM_HEIGHT)
-                * scale),
-        );
+    let row = (40. + if show_names { 150. } else { 0. }) * scale;
+    let people = (count * 40. + (count - 1.) * 12.) * scale;
+    let padding = 2. * OVERLAY_PADDING * scale;
+    match tile {
+        Some((width, height)) => gpui::size(px(padding + row.max(width)), px(padding + people + 10. * scale + height)),
+        None => gpui::size(px(padding + row), px(padding + people)),
     }
-    gpui::size(px((2. * OVERLAY_PADDING + 40. + if show_names { 150. } else { 0. }) * scale),
-        px((2. * OVERLAY_PADDING + count * 40. + (count - 1.) * 12.) * scale))
 }
 
 /// The people in a call as a compact column, with rings that follow their voices.
@@ -1926,12 +2211,18 @@ pub fn call_overlay(
                 }),
         );
         if let Some(stream) = stream.filter(|stream| stream.owner == person.id) {
+            let source = stream.frame.size(0);
+            let (width, height) = overlay_stream_size(
+                (source.width.0.max(1) as u32, source.height.0.max(1) as u32),
+                scale,
+            );
             column = column.child(
                 div()
                     .mt(unit(-2.))
-                    .w(unit(OVERLAY_STREAM_WIDTH))
-                    .h(unit(OVERLAY_STREAM_HEIGHT))
-                    .child(video_frame(stream.frame.clone(), 8. * scale.clamp(0.5, 1.5))),
+                    .w(px(width))
+                    .h(px(height))
+                    .flex_shrink_0()
+                    .child(painted_frame(stream.frame.clone(), 8. * scale.clamp(0.5, 1.5), true)),
             );
         }
     }
@@ -1984,6 +2275,432 @@ fn overlay_raster_bounds(centre: gpui::Point<Pixels>, diameter: f32, dpi: f32) -
     let y = (f32::from(centre.y) * dpi - diameter / 2.).round();
     Bounds::new(gpui::point(px((x + 0.0001) / dpi), px((y + 0.0001) / dpi)),
         gpui::size(px((diameter - 0.0001) / dpi), px((diameter - 0.0001) / dpi)))
+}
+
+/// A surface of real glass: it bends and diffuses whatever is painted behind it. Children go on
+/// top. `tint` is a colour and how strongly it shows, for a coloured button.
+pub fn glass_surface(radius: f32, tint: Option<(u32, f32)>) -> Div {
+    glass_look(radius, GlassLook { tint, ..GlassLook::STANDARD })
+}
+
+pub fn glass_look(radius: f32, look: GlassLook) -> Div {
+    div().relative().rounded(px(radius)).child(
+        canvas(|_, _, _| (), move |bounds, _, window, _| paint_look(bounds, radius, look, window))
+            .absolute()
+            // Pinned to the corner, or the surface's own padding would push the glass over.
+            .top_0()
+            .left_0()
+            .size_full(),
+    )
+}
+
+fn glass_pill(id: &'static str, height: f32, tint: Option<(u32, f32)>) -> Stateful<Div> {
+    glass_surface(height / 2., tint)
+        .id(id)
+        .h(px(height))
+        .flex()
+        .items_center()
+        .justify_center()
+        .gap(px(8.))
+        .cursor_pointer()
+        .text_size(px(14.))
+        .font_weight(gpui::FontWeight::MEDIUM)
+        .text_color(gpui::rgb(0xffffff))
+        .hover(|style| style.opacity(0.86))
+}
+
+fn glass_samples() -> [Arc<gpui::Image>; 3] {
+    static SAMPLES: OnceLock<[Arc<gpui::Image>; 3]> = OnceLock::new();
+    SAMPLES
+        .get_or_init(|| {
+            let image = |bytes: &[u8]| Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Jpeg, bytes.to_vec()));
+            [
+                image(include_bytes!("../assets/glass-samples/sunset.jpg")),
+                image(include_bytes!("../assets/glass-samples/lights.jpg")),
+                image(include_bytes!("../assets/glass-samples/detail.jpg")),
+            ]
+        })
+        .clone()
+}
+
+/// What keeps the window buttons readable with content passing under them: the background colour,
+/// solid along the top and gone by `FADE_HEIGHT`, and easing in over `soft` from its left edge.
+pub fn window_buttons_fade(colour: u32, width: f32, soft: f32) -> impl IntoElement {
+    const FADE_HEIGHT: f32 = 44.;
+    const SOLID: f32 = 18.;
+    const STRIP: f32 = 4.;
+    let base: Hsla = gpui::rgb(colour).into();
+    canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            let mut column = |x: f32, column_width: f32, alpha: f32| {
+                let colour = Hsla { a: alpha, ..base };
+                let origin = bounds.origin + gpui::point(px(x), px(0.));
+                window.paint_quad(gpui::fill(
+                    Bounds::new(origin, gpui::size(px(column_width), px(SOLID))),
+                    colour,
+                ));
+                window.paint_quad(gpui::fill(
+                    Bounds::new(origin + gpui::point(px(0.), px(SOLID)), gpui::size(px(column_width), px(FADE_HEIGHT - SOLID))),
+                    gpui::linear_gradient(
+                        180.,
+                        gpui::linear_color_stop(colour, 0.),
+                        gpui::linear_color_stop(Hsla { a: 0., ..base }, 1.),
+                    ),
+                ));
+            };
+            let mut x = 0.;
+            while x < soft {
+                let along = (x + STRIP / 2.) / soft;
+                column(x, STRIP, along * along * (3. - 2. * along));
+                x += STRIP;
+            }
+            column(x, width - x, 1.);
+        },
+    )
+    .absolute()
+    .top_0()
+    .right_0()
+    .w(px(width))
+    .h(px(FADE_HEIGHT))
+}
+
+/// The same set of the app's components, for looking at one material beside the other.
+pub fn compare_column(title: &'static str, tabs: Div, volume: Stateful<Div>, stepped: Stateful<Div>) -> Div {
+    let button = |id: &'static str, fill: u32, stroke: StrokeKind, text: &'static str| {
+        material_interactive(id, id, fill, 19., stroke)
+            .h(px(38.))
+            .px(px(16.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .text_size(px(13.5))
+            .font_weight(gpui::FontWeight::MEDIUM)
+            .text_color(gpui::rgb(0xffffff))
+            .child(text)
+    };
+    let round = |id: &'static str, icon: &'static str| {
+        material_interactive(id, id, MATERIAL_DARK, 19., StrokeKind::Neutral)
+            .size(px(38.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(svg().path(icon).size(px(16.)).text_color(gpui::rgb(0xffffff)))
+    };
+    div()
+        .w(px(392.))
+        .flex()
+        .flex_col()
+        .gap(px(14.))
+        .text_color(gpui::rgb(0xffffff))
+        .child(div().text_size(px(13.)).font_weight(gpui::FontWeight::SEMIBOLD).child(title))
+        .child(
+            div().flex().gap(px(8.))
+                .child(
+                    material_interactive("cmp-partner", "cmp-partner", MATERIAL_DARK, 19., StrokeKind::Neutral)
+                        .h(px(38.)).px(px(6.)).pr(px(12.)).flex().items_center().gap(px(8.)).text_size(px(13.5))
+                        .child(avatar("N".to_string(), 26., 0x3d4a58, 0xffffff, AvatarImage::from(true)))
+                        .child("nyxnie")
+                        .child(svg().path("ChevronDown").size(px(12.)).text_color(gpui::rgb(0xffffff))),
+                )
+                .child(
+                    material_interactive("cmp-voice", "cmp-voice", MATERIAL_DARK, 19., StrokeKind::Neutral)
+                        .h(px(38.)).px(px(14.)).flex().items_center().gap(px(8.)).text_size(px(13.5))
+                        .child(svg().path("CallPhone").size(px(15.)).text_color(gpui::rgb(0xffffff)))
+                        .child("Voice"),
+                ),
+        )
+        .child(
+            div().flex().gap(px(8.))
+                .child(button("cmp-primary", ACCENT, StrokeKind::Colored, "Primary"))
+                .child(button("cmp-secondary", MATERIAL_DARK, StrokeKind::Neutral, "Secondary"))
+                .child(button("cmp-danger", MATERIAL_RED, StrokeKind::Colored, "Danger")),
+        )
+        .child(
+            div().flex().items_center().gap(px(8.))
+                .child(round("cmp-play", "Play"))
+                .child(round("cmp-sound", "Volume"))
+                .child(round("cmp-react", "SmilePlus"))
+                .child(badge("3", ACCENT, 0xffffff))
+                .child(badge("New", MATERIAL_DARK, 0xffffff)),
+        )
+        .child(tabs)
+        .child(volume)
+        .child(stepped)
+        .child(
+            material_surface(MATERIAL_DARK, 23., StrokeKind::Neutral)
+                .h(px(46.)).px(px(7.)).flex().items_center().gap(px(8.))
+                .child(round("cmp-attach", "Paperclip"))
+                .child(div().flex_1().text_size(px(14.)).child("Message @nyxnie…"))
+                .child(button("cmp-send", ACCENT, StrokeKind::Colored, "Send")),
+        )
+        .child(
+            material_surface(MATERIAL_PANEL, 14., StrokeKind::Neutral)
+                .h(px(130.)).p(px(14.)).flex().flex_col().gap(px(4.))
+                .child(div().text_size(px(14.)).font_weight(gpui::FontWeight::SEMIBOLD).child("A card or menu"))
+                .child(div().text_size(px(12.5)).child("Link previews, menus and media cards are this surface.")),
+        )
+}
+
+/// A comparison panel: two columns, on the plain background or over a picture.
+pub fn compare_panel(picture: bool, left: Stateful<Div>, right: Stateful<Div>) -> Div {
+    div()
+        .relative()
+        .w_full()
+        .rounded(px(18.))
+        .overflow_hidden()
+        .p(px(24.))
+        .flex()
+        .justify_between()
+        .when(picture, |panel| {
+            panel.child(
+                gpui::img(glass_samples()[0].clone())
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
+                    .object_fit(gpui::ObjectFit::Cover),
+            )
+        })
+        .child(left)
+        .child(right)
+}
+
+/// The composer as glass, with a reply and an attachment above it, as they appear in chat.
+fn glass_composer() -> Div {
+    let icon = |name: &'static str, size: f32| svg().path(name).size(px(size)).text_color(gpui::rgb(0xffffff));
+    div()
+        .w(px(600.))
+        .flex()
+        .flex_col()
+        .gap(px(8.))
+        .child(
+            glass_surface(14., None).h(px(56.)).p(px(6.)).flex().items_center().gap(px(10.))
+                .child(
+                    div().size(px(44.)).flex_shrink_0().rounded(px(10.)).overflow_hidden()
+                        .child(gpui::img(glass_samples()[0].clone()).size_full().object_fit(gpui::ObjectFit::Cover)),
+                )
+                .child(
+                    div().flex_1().flex().flex_col().text_color(gpui::rgb(0xffffff))
+                        .child(div().text_size(px(12.5)).font_weight(gpui::FontWeight::SEMIBOLD).child("sunset.mp4"))
+                        .child(div().text_size(px(12.)).child("Video · 0:12 · 8.4 MB")),
+                )
+                .child(div().px(px(10.)).text_color(gpui::rgb(0xffffff)).child("×")),
+        )
+        .child(
+            glass_surface(23., None).h(px(46.)).px(px(7.)).flex().items_center().gap(px(8.))
+                .child(glass_pill("glass-composer-attach", 32., Some((0xffffff, 0.1))).w(px(32.)).child(icon("Paperclip", 16.)))
+                .child(div().flex_1().text_size(px(14.5)).text_color(gpui::rgb(0xffffff)).child("Message @nyxnie…"))
+                .child(
+                    glass_pill("glass-composer-send", 34., Some((ACCENT, 0.5))).px(px(14.)).text_size(px(12.5))
+                        .child(icon("Send", 13.))
+                        .child("Send"),
+                ),
+        )
+}
+
+/// A test bench for glass: header, buttons, a card, tabs, sliders, a composer and a dock over
+/// pictures that scroll. The tabs and sliders come in working.
+pub fn glass_showcase(tabs: Div, volume: Div, partner_volume: Div) -> Div {
+    let icon = |name: &'static str, size: f32| svg().path(name).size(px(size)).text_color(gpui::rgb(0xffffff));
+    let pictures = glass_samples().into_iter().fold(div().flex().flex_col(), |column, picture| {
+        column.child(gpui::img(picture).w_full().h(px(354.)).flex_shrink_0().object_fit(gpui::ObjectFit::Cover))
+    });
+    let circle = |id: &'static str, name: &'static str| {
+        glass_pill(id, 44., None).w(px(44.)).child(icon(name, 18.))
+    };
+    div()
+        .relative()
+        .w_full()
+        .h(px(700.))
+        .rounded(px(18.))
+        .overflow_hidden()
+        .child(div().id("glass-pictures").size_full().overflow_y_scroll().child(pictures))
+        // The header's pair, as glass.
+        .child(
+            div().absolute().top(px(18.)).left_0().right_0().flex().justify_center().gap(px(10.))
+                .child(
+                    glass_pill("glass-partner", 40., None).px(px(6.)).pr(px(14.))
+                        .child(avatar("N".to_string(), 28., 0x3d4a58, 0xffffff, AvatarImage::from(true)))
+                        .child("nyxnie")
+                        .child(icon("ChevronDown", 12.)),
+                )
+                .child(glass_pill("glass-voice", 40., None).px(px(16.)).child(icon("CallPhone", 16.)).child("Voice")),
+        )
+        // Buttons, plain and coloured, and round ones.
+        .child(
+            div().absolute().top(px(90.)).left(px(28.)).flex().flex_col().gap(px(14.))
+                .child(
+                    div().flex().gap(px(10.))
+                        .child(glass_pill("glass-primary", 40., Some((ACCENT, 0.42))).px(px(20.)).child("Primary"))
+                        .child(glass_pill("glass-secondary", 40., None).px(px(20.)).child("Secondary"))
+                        .child(glass_pill("glass-danger", 40., Some((0xff3b3b, 0.42))).px(px(20.)).child("Danger")),
+                )
+                .child(
+                    div().flex().gap(px(10.))
+                        .child(circle("glass-play", "Play"))
+                        .child(circle("glass-sound", "Volume"))
+                        .child(circle("glass-react", "SmilePlus"))
+                        .child(circle("glass-copy", "Copy")),
+                ),
+        )
+        // A larger panel, where the flat middle shows.
+        .child(
+            glass_surface(24., None).absolute().top(px(90.)).right(px(28.)).w(px(250.)).h(px(170.)).p(px(20.))
+                .flex().flex_col().gap(px(6.)).text_color(gpui::rgb(0xffffff))
+                .child(div().text_size(px(16.)).font_weight(gpui::FontWeight::SEMIBOLD).child("A glass card"))
+                .child(div().text_size(px(13.)).child("Scroll the pictures to see them bend at the edges and blur through the middle.")),
+        )
+        // Tabs and volume sliders, which respond.
+        .child(div().absolute().top(px(290.)).left(px(28.)).child(tabs))
+        .child(
+            div().absolute().top(px(280.)).right(px(28.)).w(px(330.)).flex().flex_col().gap(px(14.))
+                .text_color(gpui::rgb(0xffffff))
+                .child(volume)
+                .child(partner_volume),
+        )
+        .child(div().absolute().bottom(px(92.)).left_0().right_0().flex().justify_center().child(glass_composer()))
+        // The dock, at the size the settings were tuned for.
+        .child(
+            div().absolute().bottom(px(24.)).left_0().right_0().flex().justify_center().child(
+                glass_surface(17., None).w(px(760.)).h(px(48.)).flex().items_center().justify_center().gap(px(26.))
+                    .child(icon("Pencil", 18.))
+                    .child(icon("Reply", 18.))
+                    .child(icon("CallPhone", 18.))
+                    .child(icon("Volume", 18.))
+                    .child(icon("Copy", 18.))
+                    .child(icon("Picture", 18.)),
+            ),
+        )
+}
+
+pub const LINK_CARD_WIDTH: f32 = 420.;
+
+pub struct LinkCardView {
+    pub site: SharedString,
+    pub title: SharedString,
+    pub description: SharedString,
+    pub image: Option<PathBuf>,
+    /// Width over height. A squarish picture goes beside the text instead of above it.
+    pub aspect: Option<f32>,
+    pub playable: bool,
+}
+
+/// A link's preview. The caller makes it clickable.
+pub fn link_card(view: LinkCardView) -> Div {
+    let wide = view.aspect.is_some_and(|aspect| aspect >= 1.3);
+    let picture = |width: f32, height: f32, radius: f32, playable: bool, file: PathBuf| {
+        div()
+            .relative()
+            .flex_shrink_0()
+            .w(px(width))
+            .h(px(height))
+            .overflow_hidden()
+            .child(gpui::img(file).size_full().rounded(px(radius)).object_fit(gpui::ObjectFit::Cover))
+            .when(playable, |picture| {
+                picture.child(
+                    div().absolute().inset_0().flex().items_center().justify_center().child(
+                        material_surface(MATERIAL_DARK, 22., StrokeKind::Neutral)
+                            .size(px(44.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(svg().path("Play").size(px(18.)).text_color(gpui::rgb(0xffffff))),
+                    ),
+                )
+            })
+    };
+    let words = div()
+        .flex_1()
+        .min_w_0()
+        .flex()
+        .flex_col()
+        .gap(px(3.))
+        .child(div().text_size(px(11.5)).line_height(px(15.)).text_color(gpui::rgb(0x9e9ea8)).truncate().child(view.site))
+        .child(
+            div()
+                .text_size(px(14.))
+                .line_height(px(19.))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(gpui::rgb(0xf2f2f3))
+                .line_clamp(2)
+                .child(view.title),
+        )
+        .when(!view.description.is_empty(), |words| {
+            words.child(
+                div()
+                    .text_size(px(12.5))
+                    .line_height(px(17.))
+                    .text_color(gpui::rgb(0x9e9ea8))
+                    .line_clamp(3)
+                    .child(view.description),
+            )
+        });
+    let card = material_surface(MATERIAL_PANEL, 14., StrokeKind::Neutral).w(px(LINK_CARD_WIDTH)).p(px(12.));
+    match view.image {
+        Some(file) if wide => {
+            let width = LINK_CARD_WIDTH - 24.;
+            let height = (width / view.aspect.unwrap_or(16. / 9.)).clamp(120., 224.);
+            card.flex().flex_col().gap(px(10.)).child(words).child(picture(width, height, 10., view.playable, file))
+        }
+        Some(file) => card
+            .flex()
+            .items_start()
+            .gap(px(12.))
+            .child(words)
+            .child(picture(76., 76., 10., view.playable, file)),
+        None => card.child(words),
+    }
+}
+
+#[cfg(test)]
+mod tab_motion_tests {
+    use super::*;
+
+    #[test]
+    fn the_spring_settles_on_target_with_only_a_small_overshoot() {
+        assert_eq!(tabs_spring(0.), 0.);
+        let most = (0..1000).map(|ms| tabs_spring(ms as f32 / 1000.)).fold(0., f32::max);
+        assert!(most > 1. && most < 1.05, "{most}");
+        assert!((tabs_spring(TABS_TRANSITION.as_secs_f32()) - 1.).abs() < 0.01);
+    }
+
+    #[test]
+    fn the_indicator_stays_in_the_bar_and_rests_exactly_on_its_tab() {
+        for (from, to) in [(0, 2), (2, 0), (0, 1), (1, 2)] {
+            let mut state = TabsState::new(from);
+            state.select(to);
+            for ms in (0..500).step_by(5) {
+                state.started = Instant::now() - Duration::from_millis(ms);
+                let (left, right) = state.edges(3);
+                assert!(left >= 0. && right <= 3. && right > left, "{from}->{to} at {ms}: {left}..{right}");
+            }
+            state.started = Instant::now() - TABS_TRANSITION;
+            assert_eq!(state.edges(3), (to as f32, to as f32 + 1.));
+        }
+    }
+
+    #[test]
+    fn colours_mix_within_their_range() {
+        let (dim, bright) = (tab_text(false), tab_text(true));
+        assert_eq!(mix_colour(dim, bright, 1.).l, bright.l);
+        assert_eq!(mix_colour(dim, bright, -3.).l, dim.l);
+    }
+}
+
+#[cfg(test)]
+mod overlay_tile_tests {
+    use super::overlay_stream_size;
+
+    #[test]
+    fn the_tile_is_widescreen_and_only_shrinks_for_small_pictures() {
+        assert_eq!(overlay_stream_size((1920, 1080), 1.), (320., 180.));
+        assert_eq!(overlay_stream_size((800, 600), 1.), (320., 180.));
+        assert_eq!(overlay_stream_size((1920, 1080), 1.5), (480., 270.));
+        let (width, height) = overlay_stream_size((200, 100), 1.);
+        assert!((width - 177.78).abs() < 0.01 && height == 100.);
+        assert_eq!(overlay_stream_size((160, 300), 1.), (160., 90.));
+    }
 }
 
 #[cfg(test)]

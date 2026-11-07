@@ -6,9 +6,11 @@ mod backend;
 mod chat;
 mod clipboard;
 mod components;
+mod compress;
 #[cfg(debug_assertions)]
 mod dev_mcp;
 mod hud;
+mod links;
 mod state;
 mod themes;
 mod sync;
@@ -21,6 +23,8 @@ mod hotkeys;
 mod realtime;
 mod screen_share;
 mod screen_view;
+mod video;
+mod viewer;
 mod voice;
 
 use std::{
@@ -88,6 +92,12 @@ impl AssetSource for Icons {
             "Sparkle" => Some(Cow::Borrowed(include_bytes!("../assets/icons/Sparkle.svg"))),
             "SmilePlus" => Some(Cow::Borrowed(include_bytes!("../assets/icons/SmilePlus.svg"))),
             "Pencil" => Some(Cow::Borrowed(include_bytes!("../assets/icons/Pencil.svg"))),
+            "Copy" => Some(Cow::Borrowed(include_bytes!("../assets/icons/Copy.svg"))),
+            "Pause" => Some(Cow::Borrowed(include_bytes!("../assets/icons/Pause.svg"))),
+            "Volume" => Some(Cow::Borrowed(include_bytes!("../assets/icons/Volume.svg"))),
+            "VolumeOff" => Some(Cow::Borrowed(include_bytes!("../assets/icons/VolumeOff.svg"))),
+            "Expand" => Some(Cow::Borrowed(include_bytes!("../assets/icons/Expand.svg"))),
+            "Shrink" => Some(Cow::Borrowed(include_bytes!("../assets/icons/Shrink.svg"))),
             "Trash" => Some(Cow::Borrowed(include_bytes!("../assets/icons/Trash.svg"))),
             "ThumbsUp" => Some(Cow::Borrowed(include_bytes!(
                 "../assets/icons/ThumbsUp.svg"
@@ -219,6 +229,17 @@ pub struct ActiveBanner {
 const BANNER_SLIDE: Duration = Duration::from_millis(320);
 const BANNER_AUTO_DISMISS: Duration = Duration::from_secs(5);
 
+pub struct PlayingVideo {
+    pub path: String,
+    /// The chat it was started in. It stops when that's no longer on screen.
+    pub conversation: String,
+    /// Showing in the full-window preview.
+    pub expanded: bool,
+    /// Empty while it downloads.
+    pub player: Option<video::Player>,
+    pub frame: Option<std::sync::Arc<gpui::RenderImage>>,
+}
+
 pub enum MediaFile {
     Loading,
     Ready { original: std::path::PathBuf, sidebar: Option<std::path::PathBuf> },
@@ -258,6 +279,9 @@ pub struct Preview {
     pub chat_replying_to: Option<(String, String)>,
     pub media_sidebar_open: bool,
     pub media_tabs: components::TabsState,
+    pub media_scroll: gpui::ScrollHandle,
+    /// The chat, tab, number of items and window height the sidebar last rendered for.
+    pub media_scroll_key: Option<(String, usize, usize, i32)>,
     pub open_dropdown: Option<state::HeaderDropdown>,
     pub audio_devices: audio_devices::SystemAudioDevices,
     pub soundboard_clips: Vec<state::SoundClip>,
@@ -271,6 +295,8 @@ pub struct Preview {
     dropdown_result: Option<&'static str>,
     pub toggles: [bool; 4],
     gallery_tabs: components::TabsState,
+    glass_tabs: components::TabsState,
+    compare_tabs: [components::TabsState; 4],
     pub auth_tabs: components::TabsState,
     alert_visible: bool,
     alert_feedback: Option<&'static str>,
@@ -278,7 +304,7 @@ pub struct Preview {
     pub slider_value: [u8; 2],
     /// Slots 0–1 are the playground; 2–5 are soundboard, input, partner and output volume.
     /// 6 is interface volume, 7 is overlay size.
-    pub sliders: [SliderHandle; 10],
+    pub sliders: [SliderHandle; 22],
     pub user: Option<backend::SignedInUser>,
     pub auth_busy: Option<String>,
     pub sync_error: Option<String>,
@@ -323,6 +349,8 @@ pub struct Preview {
     pub sound_saving: bool,
     pub pending_media: Option<chat_media::PendingMedia>,
     pub media_busy: Option<&'static str>,
+    /// Set while a video is being prepared, so it can show progress and be cancelled.
+    pub media_progress: Option<std::sync::Arc<compress::Progress>>,
     pub poll_soon: bool,
     applied_icon_theme: Option<state::AppTheme>,
     /// A name from the chosen file, for the name field on its next render.
@@ -330,7 +358,7 @@ pub struct Preview {
     pub update: UpdateState,
     pub update_progress: std::sync::Arc<std::sync::atomic::AtomicU32>,
     /// A chat image to show full size. The cell lets images ask from their own handlers.
-    pub lightbox: Option<std::path::PathBuf>,
+    pub lightbox: Option<viewer::ImageViewer>,
     pub lightbox_request: std::rc::Rc<std::cell::RefCell<Option<std::path::PathBuf>>>,
     /// The sound this app last played for the partner, to stop it again.
     pub sent_sound: Option<(String, String)>,
@@ -353,6 +381,25 @@ pub struct Preview {
     pub media_wanted: Rc<std::cell::RefCell<Vec<String>>>,
     pub media_queue: std::collections::VecDeque<String>,
     pub media_in_flight: usize,
+    /// The one video in chat that's loading or playing.
+    pub playing_video: Option<PlayingVideo>,
+    pub viewer_focus: gpui::FocusHandle,
+    pub viewer_was_open: bool,
+    pub video_volume: u8,
+    pub video_muted: bool,
+    /// When the mouse last moved over the full-window video, to hide its controls after.
+    pub video_controls_shown_at: Instant,
+    /// Where each message's card was last drawn, so the media sidebar can scroll to it.
+    pub message_tops: Rc<std::cell::RefCell<std::collections::HashMap<String, f32>>>,
+    /// The message just scrolled to, tinted for a moment so it's easy to find.
+    pub highlighted_message: Option<String>,
+    pub link_cards: std::collections::HashMap<String, links::LinkState>,
+    pub link_wanted: Rc<std::cell::RefCell<Vec<String>>>,
+    pub link_queue: std::collections::VecDeque<String>,
+    pub link_in_flight: usize,
+    pub text_selection: Rc<std::cell::RefCell<Option<links::TextSelection>>>,
+    /// Holds focus while message text is selected, so Ctrl+C reaches the history and not the composer.
+    pub history_focus: gpui::FocusHandle,
     pub wants_older: Rc<Cell<bool>>,
     pub loading_older: bool,
     pub older_anchor: Rc<Cell<Option<(f32, f32)>>>,
@@ -534,6 +581,58 @@ impl Preview {
         }
     }
 
+    /// One column of a comparison. `index` picks its own tabs and slider state.
+    fn render_compare_column(&mut self, index: usize, title: &'static str, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
+        let tabs = components::tabs(
+            "cmp-tabs",
+            vec!["All".into(), "Photos".into(), "Clips".into()],
+            &self.compare_tabs[index],
+            90.6,
+            window,
+            Rc::new(cx.listener(move |this, tab: &usize, _, cx| {
+                this.compare_tabs[index].select(*tab);
+                cx.notify();
+            })),
+        );
+        let slot = 14 + index * 2;
+        let volume = self.slider_for(slot, self.slider_value[0], 100, 1, 392., cx);
+        let stepped = self.slider_for(slot + 1, self.slider_value[1], 100, 5, 392., cx);
+        components::compare_column(title, tabs, volume, stepped)
+    }
+
+    fn render_compare_panel(&mut self, panel: usize, picture: bool, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
+        let (now_id, glass_id) = if picture { ("cmp-now-picture", "cmp-glass-picture") } else { ("cmp-now-plain", "cmp-glass-plain") };
+        let first = panel * 2;
+        let left = components::with_glass(now_id, false, || self.render_compare_column(first, "Today", window, cx));
+        let right = components::with_glass(glass_id, true, || self.render_compare_column(first + 1, "Glass", window, cx));
+        components::compare_panel(picture, left, right)
+    }
+
+    fn render_glass_bench(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
+        let tabs = components::glass_tabs(
+            "glass-tabs",
+            vec!["All".into(), "Photos".into(), "Clips".into()],
+            &self.glass_tabs,
+            90.6,
+            window,
+            Rc::new(cx.listener(|this, index: &usize, _, cx| {
+                this.glass_tabs.select(*index);
+                cx.notify();
+            })),
+        );
+        let field = |title: &'static str, slot: usize, value: u8, step: u16, cx: &mut Context<Self>| {
+            slider_field(
+                title,
+                format!("{value}"),
+                330.,
+                components::glass_slider(slot, &self.sliders[slot], u16::from(value), 100, step, 330., self.slider_on_change(slot, cx)),
+            )
+        };
+        let volume = field("Output volume", 12, self.slider_value[0], 1, cx);
+        let partner = field("Partner volume · steps", 13, self.slider_value[1], 5, cx);
+        components::glass_showcase(tabs, volume, partner)
+    }
+
     pub fn slider_change(&self, slot: usize, cx: &mut Context<Self>) -> Rc<dyn Fn(&u16, &mut Window, &mut App)> {
         self.slider_on_change(slot, cx)
     }
@@ -552,6 +651,12 @@ impl Preview {
             let value = *value as u8;
             match slot {
                 0 | 1 => this.slider_value[slot] = value,
+                // The glass test bench's and the comparison's, sharing the plain ones' values.
+                12..=21 => {
+                    this.slider_value[slot % 2] = value;
+                    cx.notify();
+                    return;
+                }
                 2 => {
                     this.state.preferences.soundboard_volume = value;
                     audio::set_clip_volume(value);
@@ -687,7 +792,7 @@ impl Preview {
                     }
                     this.pump_hotkeys(cx);
                     if let Some(path) = this.lightbox_request.borrow_mut().take() {
-                        this.lightbox = Some(path);
+                        this.lightbox = Some(viewer::ImageViewer::open(path));
                         cx.notify();
                     }
                     if matches!(this.update, UpdateState::Downloading(_)) {
@@ -760,6 +865,8 @@ impl Preview {
             chat_replying_to: None,
             media_sidebar_open: true,
             media_tabs: components::TabsState::new(0),
+            media_scroll: gpui::ScrollHandle::new(),
+            media_scroll_key: None,
             open_dropdown: None,
             audio_devices: audio_devices::enumerate_audio_devices(),
             soundboard_clips: vec![],
@@ -773,6 +880,8 @@ impl Preview {
             dropdown_result: None,
             toggles: [false; 4],
             gallery_tabs: components::TabsState::new(0),
+            glass_tabs: components::TabsState::new(0),
+            compare_tabs: std::array::from_fn(|_| components::TabsState::new(0)),
             auth_tabs: components::TabsState::new(0),
             alert_visible: true,
             alert_feedback: None,
@@ -824,6 +933,7 @@ impl Preview {
             sound_saving: false,
             pending_media: None,
             media_busy: None,
+            media_progress: None,
             poll_soon: false,
             applied_icon_theme: None,
             pending_sound_name: None,
@@ -853,6 +963,20 @@ impl Preview {
             media_wanted: Default::default(),
             media_queue: Default::default(),
             media_in_flight: 0,
+            playing_video: None,
+            viewer_focus: cx.focus_handle(),
+            viewer_was_open: false,
+            video_volume: 85,
+            video_muted: false,
+            video_controls_shown_at: Instant::now(),
+            message_tops: Default::default(),
+            highlighted_message: None,
+            link_cards: Default::default(),
+            link_wanted: Default::default(),
+            link_queue: Default::default(),
+            link_in_flight: 0,
+            text_selection: Default::default(),
+            history_focus: cx.focus_handle(),
             wants_older: Default::default(),
             loading_older: false,
             older_anchor: Default::default(),
@@ -1878,6 +2002,37 @@ impl Preview {
                                         "Voice call ended · 5:37:57 · 15:47",
                                     ))
                                     .child(section(
+                                        "Compare",
+                                        "The real components: today's look beside glass, plain and over a picture",
+                                    ))
+                                    .child(self.render_compare_panel(0, false, window, cx))
+                                    .child(self.render_compare_panel(1, true, window, cx))
+                                    .child(section(
+                                        "Glass",
+                                        "Test bench, not used in the app yet. Scroll the pictures under it",
+                                    ))
+                                    .child(self.render_glass_bench(window, cx))
+                                    .child(section(
+                                        "Link card",
+                                        "Under a message with a link. Wide pictures sit on top, square ones to the side",
+                                    ))
+                                    .child(components::link_card(components::LinkCardView {
+                                        site: "Example".into(),
+                                        title: "A page with a square picture".into(),
+                                        description: "The description runs for up to three lines, then fades out with an ellipsis.".into(),
+                                        image: components::AvatarImage::from(true).path,
+                                        aspect: Some(1.),
+                                        playable: false,
+                                    }))
+                                    .child(components::link_card(components::LinkCardView {
+                                        site: "YouTube".into(),
+                                        title: "A video, with a wide picture".into(),
+                                        description: "Channel name".into(),
+                                        image: components::AvatarImage::from(true).path,
+                                        aspect: Some(16. / 9.),
+                                        playable: true,
+                                    }))
+                                    .child(section(
                                         "Call overlay",
                                         "On top of other apps during a call, with rings that follow voices",
                                     ))
@@ -1971,7 +2126,7 @@ impl Preview {
     }
 }
 fn media_grid_examples() -> gpui::Div {
-    use components::{MEDIA_GRID_TILE_HEIGHT, MediaTile, media_grid};
+    use components::{MediaTile, media_grid};
     let sample = || {
         img(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/avatar.webp"))
             .size_full()
@@ -1986,13 +2141,9 @@ fn media_grid_examples() -> gpui::Div {
         .flex_wrap()
         .items_start()
         .gap(px(16.))
-        .child(media_grid(vec![tile(1), tile(1)], "2 images", MEDIA_GRID_TILE_HEIGHT))
-        .child(media_grid(
-            (0..11).map(|_| tile(1)).collect(),
-            "11 images",
-            MEDIA_GRID_TILE_HEIGHT,
-        ))
-        .child(media_grid(vec![tile(20)], "20 images", 240.))
+        .child(media_grid(vec![tile(1), tile(1)]))
+        .child(media_grid((0..11).map(|_| tile(1)).collect()))
+        .child(media_grid(vec![tile(20)]))
 }
 
 impl Render for Preview {
@@ -2068,25 +2219,7 @@ impl Render for Preview {
                 )
                 .child(self.render_window_controls(window, cx))
         };
-        let lightbox = self.lightbox.clone().map(|path| {
-            gpui::deferred(
-                div()
-                    .id("lightbox")
-                    .absolute()
-                    .top_0()
-                    .left_0()
-                    .size_full()
-                    .p(px(48.))
-                    .bg(gpui::rgba(0x000000d9))
-                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.lightbox = None;
-                        cx.notify();
-                    }))
-                    .child(gpui::img(path).size_full().object_fit(gpui::ObjectFit::Contain)),
-            )
-            .with_priority(2)
-        });
+        let lightbox = self.render_viewers(window, cx);
         div()
             .relative()
             .size_full()
@@ -2094,7 +2227,7 @@ impl Render for Preview {
             .flex_col()
             .children(lightbox)
             .capture_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, _, cx| {
-                if this.handle_shortcut(&event.keystroke, cx) {
+                if this.viewer_key(event.keystroke.key.as_str(), cx) || this.handle_shortcut(&event.keystroke, cx) {
                     cx.stop_propagation();
                 }
             }))
@@ -2129,6 +2262,11 @@ fn main() {
                 "../assets/fonts/Inter-Variable.ttf"
             ))])
             .expect("bundled Inter font must load");
+        #[cfg(debug_assertions)]
+        if std::env::args().any(|arg| arg == "--hud-check") {
+            hud::check(cx);
+            return;
+        }
         let bounds = Bounds::centered(None, size(px(1240.), px(820.)), cx);
         let preview = cx
             .open_window(

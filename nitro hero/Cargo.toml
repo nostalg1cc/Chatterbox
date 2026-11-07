@@ -1,6 +1,6 @@
 [package]
 name = "nitro-hero"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
 publish = false
 
@@ -19,6 +19,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
 raw-window-handle = "0.6"
 rodio = { version = "0.20", default-features = false, features = ["wav"] }
+windows = { version = "0.61", features = ["Win32_Media_MediaFoundation", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_System_Com_StructuredStorage", "Win32_System_Variant"] }
 opus-decoder = "0.1"
 matroska-demuxer = "0.8"
 opus = "0.3"
@@ -59,3 +60,8 @@ opt-level = 3
 [profile.dev.package.opus-decoder]
 opt-level = 3
 overflow-checks = false
+
+# One addition to GPUI 0.2.2: a glass drawing type, in scene.rs, window.rs and the Windows
+# renderer and shaders. See docs/CURRENT-HANDOFF.md.
+[patch.crates-io]
+gpui = { path = "vendor/gpui" }

@@ -490,6 +490,7 @@ impl Preview {
             "typing": { "joined": self.typing.is_some(), "self": self.self_typing_until.is_some(), "partner": self.partner_typing_until.is_some() },
             "hud_open": self.hud.is_some(),
             "playing_clip": self.playing_sound_id.is_some(),
+            "playing_video": self.playing_video.is_some(),
             "banner": self.banner.as_ref().map(|banner| banner.notice_id.is_some()),
             "decorations": self.decoration_catalog.len(),
             "network": {

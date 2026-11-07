@@ -237,3 +237,43 @@ Tests: `scripts/voice_transport_smoke.py`, `scripts/voice_recovery_smoke.py`, `s
 One-way audio, where you hear them and they can't hear you: most likely a partner still on 0.2.1 whose engine got a second connection in one process, which never plays (see the known problem above). 0.2.2 and later use a new engine there. A 0.2.1 client can't be fixed remotely, so it has to update. Not confirmed in a real call, because the partner's version can't be read. `scripts/voice_oneway_check.py` covers one side coming back on a new engine, and the real mic reaching the other side.
 
 Added: update checks every 30 minutes, not only at launch, and the impolite side re-offers immediately when the partner signals `ready` while not connected.
+
+## After 0.2.3 (not released yet, 2026-11-07)
+
+Everything below is in the working tree, uncommitted and unreleased.
+
+- **Overlay clipping:** `hud::position` now runs after the app update. A resize during an update is dropped by GPUI, which then keeps drawing to the old area. `nitro-hero --hud-check` (debug only) proves it at each size.
+- **Stream tile:** always 16:9, never upscaled. Frames are cropped once in `hud::crop_to_widescreen`, so corners stay round.
+- **Watching a stream:** the refusal was a real 404 from `screen-share`: the sharer's `last_seen_at` was over 120 s old, so the function said they'd left, and the client reworded every 404 as "not enabled on the server". The client now shows the function's own message. Why that sharer had no heartbeat in the 19:18 call is unknown; the 21:27 call on 0.2.3 had both. Shares re-announce every 15 s. An engine restart now closes open leases and tells the partner.
+- **Message text** (`chat::message_text`, `links.rs`): select by drag, double or triple click, Ctrl+C. Focus goes to a hidden element only after a real selection, because a focusable element marks every press as handled, which stops window dragging. Typing returns to the composer.
+- **Header:** `chat-header-shield` stops presses reaching messages under it, and stays a window drag.
+- **Link cards:** `link-preview`, one call per link ever, paced to 24 a minute (the function allows 30), retried after 2 minutes if it fails. Cached in `link-previews/`, capped at 200 MB.
+- **Video:** `video.rs` uses Media Foundation, loaded at runtime so Windows N still starts. Same limits as main: 100 MiB, 2 minutes. Downloaded on first play, then a saved first frame is the poster. The `media` cache is now capped at 2 GiB.
+
+Not done: pause, seek and fullscreen; playing from the media sidebar; a poster before first play (that would need a Cloudinary transform or a download); drag and drop onto the window; video tile and grid in the UI gallery beyond the existing samples.
+Not checked: watching a share with a real second person, a video's sound by ear, the link hand cursor by eye.
+
+Later the same night, also unreleased:
+
+- **Compression** (`compress.rs`): x264 CRF 22, preset slow, at most 720p, 5 Mbit/s and a 48 MiB budget; AAC 128k; metadata removed; below-normal priority, with progress and cancel. Lean MP4s go up as they are. A one-minute 2.2 GB 1080p60 test file became 19 MB. Sources have no size limit now, only the 2 minute limit.
+- **Thumbnails:** a video's first picture comes from the first 3 MB of the file (`fetch_video_poster`), so no full download and no Cloudinary transform. Used by chat tiles and the sidebar.
+- **Media sidebar:** thumbnails only, pressing one scrolls to its message and tints it. Tabs stay fixed and the cards fade under them.
+- **Drag and drop:** images and videos on the chat, header or composer. First file only. Not testable by tools, as GPUI keeps the drop path private.
+- **ffmpeg:** `tools/ffmpeg/setup-and-build.sh` builds a 13.5 MB static ffmpeg (about 3.8 MB in the installer) into `tools/ffmpeg/out/`, which git ignores. Run it from Git Bash on the release machine: the safety check won't let an agent run it. `build-release.ps1` copies it in as `nitro-ffmpeg.exe` and stops if it's missing. The test `every_common_kind_of_source_compresses` runs real files through it when it's beside the test program (`%TEMP%
+h\debug\deps
+itro-ffmpeg.exe`). Under the GPL because of x264: see `FFMPEG-NOTICE.txt`.
+- **Tabs and sliders:** the tab indicator's edges travel separately on a spring, and labels cross-fade. The slider handle glides, swells on hover and glows when pressed, and step marks react as it passes.
+
+Also unreleased:
+
+- **Video controls and previews** (`viewer.rs`, `video.rs`): play/pause, seek, time, mute and volume, full window. Space and arrows work in the full-window video. Images fit the window at 100%, zoom up to 5x toward the cursor and drag within their edges, as main Nitro does. Previews take focus while open, because keys only arrive with something focused.
+
+**Glass test (unreleased, gallery only):** `vendor/gpui` is GPUI 0.2.2 plus one drawing type, patched in through `Cargo.toml`. `Window::paint_glass` adds a `Glass` primitive (`scene.rs`). `draw_glasses` in `directx_renderer.rs` copies what's behind each piece into a texture, and `glass_fragment` in `shaders.hlsl` runs a port of GlassDock's `glass_v2.wgsl` on it, with the user's `GLASS.ini` values as constants at the top. `components::glass_surface` is the Nitro side, and `glass_showcase` is the test bench. Differences from GlassDock: it sees this app's own painted content rather than the desktop, its blur is shader samples rather than a blur chain, and it has no cursor or motion response. Not measured: frame time, or a weak graphics card. Updating GPUI now means reapplying this patch.
+
+**Glass trial across the app (development builds only):** every surface goes through `material_canvas`, so `components::glass_ui()` switches them all at once. It's on in debug builds and off in release, with a "Glass on" switch beside the UI gallery button. `GlassLook` holds each surface's tint, rim, blur and lift, and `Window::paint_glass` takes them. `SURFACE`, `PANEL` and the tinted look differ from the user's settings for flat backgrounds; `STANDARD` is the user's settings as they are. The gallery's Compare section shows today's look beside glass through `with_glass`, which overrides the switch for part of the interface. Remove it and the bench when this is decided.
+
+**Glass is now the default look**, in every build, and the switch is for development only. Interface surfaces use `GlassLook` values, not the user's settings alone: a crisp rim and a light dark ring like the solid material, and dimming over bright content so white labels read. Fade masks only apply with glass off, and content scrolls under the header, composer, sidebar tabs and a glass capsule around the window buttons. Coloured or neutral is decided from a component's colour before theming. Frame time is still unmeasured.
+
+## 0.2.4 (2026-11-07)
+
+Released with glass on by default in all builds. Not measured: glass frame time on weak GPUs, and there is no painted fallback. The Compare section, Glass bench and "Glass on" switch remain, debug or UI gallery only. Still unconfirmed by a real second person: watching a stream. Blue boxes around names are the "Resize" name effect, not a bug.

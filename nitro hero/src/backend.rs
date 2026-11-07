@@ -390,6 +390,55 @@ fn rest(method: &str, path: &str, body: Option<Value>, prefer: &str) -> ApiResul
     authed(method, &format!("{}/rest/v1/{path}", config.url), body, prefer)
 }
 
+pub fn fetch_link_preview(url: &str) -> ApiResult<Value> {
+    function("link-preview", json!({"url":url}))
+}
+
+/// A preview's picture is only decoration, so a large one is skipped rather than waited for.
+pub fn download_preview_image(url: &str, file: &std::path::Path) -> Option<()> {
+    const LARGEST: u64 = 5 * 1024 * 1024;
+    let response = agent().get(url).timeout(Duration::from_secs(20)).call().ok()?;
+    let mut bytes = Vec::new();
+    std::io::Read::read_to_end(&mut std::io::Read::take(response.into_reader(), LARGEST + 1), &mut bytes).ok()?;
+    DOWNLOADED_BYTES.fetch_add(bytes.len(), Ordering::Relaxed);
+    if bytes.is_empty() || bytes.len() as u64 > LARGEST {
+        return None;
+    }
+    write_whole(file, &bytes).ok()
+}
+
+/// Writes a file in one step, so a crash or a second copy of the app can't leave half of one.
+pub fn write_whole(file: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let temp = file.with_extension(format!("{}.part", uuid::Uuid::new_v4().simple()));
+    std::fs::write(&temp, bytes)?;
+    std::fs::rename(&temp, file).inspect_err(|_| {
+        let _ = std::fs::remove_file(&temp);
+    })
+}
+
+/// Removes a cache folder's least recently used files once it's over a size.
+pub fn trim_cache(folder: &str, limit: u64) {
+    let Ok(entries) = std::fs::read_dir(data_dir().join(folder)) else { return };
+    let mut files: Vec<_> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let info = entry.metadata().ok()?;
+            info.is_file().then(|| (info.modified().ok(), info.len(), entry.path()))
+        })
+        .collect();
+    let mut total: u64 = files.iter().map(|(_, size, _)| size).sum();
+    files.sort_by_key(|(modified, _, _)| *modified);
+    for (_, size, path) in files {
+        if total <= limit {
+            break;
+        }
+        // A file in use can't be deleted on Windows, which is the right outcome.
+        if std::fs::remove_file(path).is_ok() {
+            total -= size;
+        }
+    }
+}
+
 fn function(name: &str, body: Value) -> ApiResult<Value> {
     let config = config()?;
     authed("POST", &format!("{}/functions/v1/{name}", config.url), Some(body), "")
@@ -530,7 +579,7 @@ fn download_profile_art(url: &str, file: &std::path::Path) -> Option<()> {
     result
 }
 
-fn cache_file(folder: &str, name: &str) -> PathBuf {
+pub fn cache_file(folder: &str, name: &str) -> PathBuf {
     let dir = data_dir().join(folder);
     let _ = std::fs::create_dir_all(&dir);
     dir.join(safe_name(name))
@@ -1065,6 +1114,107 @@ pub fn load_older(
 }
 
 /// Returns the cached file for a chat image, downloading it the first time only.
+/// Where a video's first picture is kept, once the video has been played here.
+pub fn video_poster_file(path: &str) -> PathBuf {
+    cache_file("media", &format!("{path}.poster.jpg"))
+}
+
+/// A video's first picture, from only the start of the file, so showing a thumbnail doesn't
+/// cost a whole download. Videos here keep their index at the front, so that's enough.
+pub fn fetch_video_poster(path: &str) -> ApiResult<PathBuf> {
+    const START_BYTES: u64 = 3 * 1024 * 1024;
+    let poster = video_poster_file(path);
+    if poster.exists() {
+        return Ok(poster);
+    }
+    let failed = || ApiError::Network("The thumbnail couldn't be made.".into());
+    let name = if path.ends_with(".webm") { path.to_string() } else { format!("{path}.mp4") };
+    let whole = cache_file("media", &name);
+    let temp = std::env::temp_dir().join(format!("nitro-start-{}.{}", uuid::Uuid::new_v4().simple(), if path.ends_with(".webm") { "webm" } else { "mp4" }));
+    let source = if whole.exists() {
+        whole
+    } else {
+        let config = config()?;
+        DELIVERY_LINKS.fetch_add(1, Ordering::Relaxed);
+        let url = if path.starts_with("cloudinary:") {
+            text(&function("purge-chat-media", json!({ "mode": "delivery", "path": path }))?, "url")
+        } else {
+            format!("{}/storage/v1{}", config.url, text(&rest_storage_sign(path)?, "signedURL"))
+        };
+        if url.is_empty() {
+            return Err(failed());
+        }
+        let response = agent()
+            .get(&url)
+            .set("Range", &format!("bytes=0-{}", START_BYTES - 1))
+            .timeout(Duration::from_secs(30))
+            .call()
+            .map_err(|_| failed())?;
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut std::io::Read::take(response.into_reader(), START_BYTES), &mut bytes).map_err(|_| failed())?;
+        DOWNLOADED_BYTES.fetch_add(bytes.len(), Ordering::Relaxed);
+        std::fs::write(&temp, bytes).map_err(|_| failed())?;
+        temp.clone()
+    };
+    let made = crate::compress::first_frame(&source, &poster);
+    let _ = std::fs::remove_file(&temp);
+    made.ok_or_else(failed)?;
+    Ok(poster)
+}
+
+/// A video, downloaded only when someone plays it, then kept like every other file. The name
+/// ends in its type because Windows goes by that to pick a decoder.
+pub fn fetch_chat_video(path: &str) -> ApiResult<PathBuf> {
+    const LARGEST: u64 = 110 * 1024 * 1024;
+    let name = if path.ends_with(".webm") { path.to_string() } else { format!("{path}.mp4") };
+    let file = cache_file("media", &name);
+    if file.exists() {
+        // Marks it as recently used, so the cache removes others first.
+        if let Ok(opened) = std::fs::File::options().write(true).open(&file) {
+            let _ = opened.set_modified(std::time::SystemTime::now());
+        }
+        return Ok(file);
+    }
+    let config = config()?;
+    DELIVERY_LINKS.fetch_add(1, Ordering::Relaxed);
+    let url = if path.starts_with("cloudinary:") {
+        text(&function("purge-chat-media", json!({ "mode": "delivery", "path": path }))?, "url")
+    } else {
+        format!("{}/storage/v1{}", config.url, text(&rest_storage_sign(path)?, "signedURL"))
+    };
+    let failed = || ApiError::Network("The video couldn't be downloaded.".into());
+    if url.is_empty() {
+        return Err(failed());
+    }
+    MEDIA_DOWNLOADS.fetch_add(1, Ordering::Relaxed);
+    let response = agent().get(&url).timeout(Duration::from_secs(600)).call().map_err(|error| match error {
+        // Cloudinary is still converting a large video.
+        ureq::Error::Status(423, _) => ApiError::Network("This video is still processing. Try again shortly.".into()),
+        _ => failed(),
+    })?;
+    // Its own temporary name, as the same video can be downloading twice at once.
+    let temp = file.with_extension(format!("{}.part", uuid::Uuid::new_v4().simple()));
+    let copied = std::fs::File::create(&temp).and_then(|mut output| {
+        std::io::copy(&mut std::io::Read::take(response.into_reader(), LARGEST + 1), &mut output)
+    });
+    let finished = match copied {
+        Ok(written) if written > 0 && written <= LARGEST => {
+            DOWNLOADED_BYTES.fetch_add(written as usize, Ordering::Relaxed);
+            std::fs::rename(&temp, &file).is_ok() || file.exists()
+        }
+        _ => false,
+    };
+    let _ = std::fs::remove_file(&temp);
+    if !finished {
+        return Err(failed());
+    }
+    trim_cache("media", MEDIA_CACHE_LIMIT_BYTES);
+    Ok(file)
+}
+
+/// Videos are large, so the folder of downloaded media can't simply keep growing.
+const MEDIA_CACHE_LIMIT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
 pub fn fetch_chat_image(path: &str) -> ApiResult<PathBuf> {
     let file = cache_file("media", path);
     if file.exists() {
@@ -1084,6 +1234,7 @@ pub fn fetch_chat_image(path: &str) -> ApiResult<PathBuf> {
     }
     MEDIA_DOWNLOADS.fetch_add(1, Ordering::Relaxed);
     download_to(&url, &file).ok_or(ApiError::Network("download failed".into()))?;
+    trim_cache("media", MEDIA_CACHE_LIMIT_BYTES);
     Ok(file)
 }
 
@@ -1432,7 +1583,7 @@ pub fn send_message(
 
 /// Reserves space, uploads the original, and sends the message, as main Nitro does. The
 /// reservation is given back if any step fails.
-pub fn send_image_message(
+pub fn send_media_message(
     id: &str,
     conversation_id: &str,
     sender_id: &str,
@@ -1440,6 +1591,7 @@ pub fn send_image_message(
     reply_to: Option<&str>,
     media: &crate::chat_media::PendingUpload,
 ) -> ApiResult<()> {
+    let (kind, delivered) = if media.seconds.is_some() { ("video", "video/mp4") } else { ("image", "image/webp") };
     let reservation = function(
         "purge-chat-media",
         json!({
@@ -1447,8 +1599,8 @@ pub fn send_image_message(
             "provider": "cloudinary",
             "conversationId": conversation_id,
             "messageId": id,
-            "kind": "image",
-            "mimeType": "image/webp",
+            "kind": kind,
+            "mimeType": delivered,
             "uploadMimeType": media.upload_mime,
             "sizeBytes": media.bytes.len(),
         }),
@@ -1467,12 +1619,13 @@ pub fn send_image_message(
                 "sender_id": sender_id,
                 "content": content,
                 "reply_to_message_id": reply_to,
-                "media_kind": "image",
+                "media_kind": kind,
                 "media_path": path,
-                "media_mime_type": "image/webp",
+                "media_mime_type": delivered,
                 "media_size_bytes": media.bytes.len(),
                 "media_width": media.width,
                 "media_height": media.height,
+                "media_duration_seconds": media.seconds.map(|seconds| (seconds * 1000.).round() / 1000.),
             })),
             "return=minimal",
         )
@@ -1485,7 +1638,7 @@ pub fn send_image_message(
 
 fn upload_to_cloudinary(reservation: &Value, media: &crate::chat_media::PendingUpload) -> ApiResult<()> {
     let boundary = format!("nitro{}", uuid::Uuid::new_v4().simple());
-    let mut body = Vec::with_capacity(media.bytes.len() + 1024);
+    let mut body = Vec::with_capacity(1024);
     let fields = reservation["fields"].as_object().ok_or(ApiError::Network("The upload couldn't start.".into()))?;
     for (name, value) in fields {
         let value = value.as_str().map(String::from).unwrap_or_else(|| value.to_string());
@@ -1500,21 +1653,23 @@ fn upload_to_cloudinary(reservation: &Value, media: &crate::chat_media::PendingU
         )
         .as_bytes(),
     );
-    body.extend_from_slice(&media.bytes);
-    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    let tail = format!("\r\n--{boundary}--\r\n");
+    let length = body.len() + media.bytes.len() + tail.len();
     let url = text(reservation, "uploadUrl");
     if !url.starts_with("https://api.cloudinary.com/") {
         return Err(ApiError::Network("The upload couldn't start.".into()));
     }
     let response = ureq::post(&url)
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(if media.seconds.is_some() { 900 } else { 120 }))
         .set("Content-Type", &format!("multipart/form-data; boundary={boundary}"))
-        .send_bytes(&body)
-        .map_err(|_| ApiError::Network("The image couldn't be uploaded.".into()))?;
+        .set("Content-Length", &length.to_string())
+        // The file is sent from where it already is. A video could be 100 MiB, twice over.
+        .send(std::io::Read::chain(std::io::Read::chain(&body[..], &media.bytes[..]), tail.as_bytes()))
+        .map_err(|_| ApiError::Network("That couldn't be uploaded.".into()))?;
     let result: Value = serde_json::from_reader(response.into_reader())
-        .map_err(|_| ApiError::Network("The image couldn't be uploaded.".into()))?;
+        .map_err(|_| ApiError::Network("That couldn't be uploaded.".into()))?;
     if result["public_id"] != reservation["publicId"] {
-        return Err(ApiError::Network("The image couldn't be uploaded.".into()));
+        return Err(ApiError::Network("That couldn't be uploaded.".into()));
     }
     Ok(())
 }

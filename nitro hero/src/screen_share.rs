@@ -7,6 +7,8 @@ use std::time::{Duration, Instant};
 const RENEW_INTERVAL: Duration = Duration::from_secs(15);
 /// A short network hiccup is fine, but media doesn't keep flowing unconfirmed.
 const MAX_FAILED_RENEWALS: u32 = 2;
+/// Signals can be lost in a socket reconnect, and the Watch button depends on this one.
+const ANNOUNCE_INTERVAL: Duration = Duration::from_secs(15);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScreenSource {
@@ -75,6 +77,7 @@ struct Share {
     track: String,
     lease: Lease,
     revision: u64,
+    announced: Option<Instant>,
 }
 
 #[derive(Default)]
@@ -222,6 +225,7 @@ impl ScreenFlow {
                     }
                     self.status.share = Stage::Live;
                     share.revision = revision_now();
+                    share.announced = Some(Instant::now());
                     vec![Effect::Signal(self.published_signal())]
                 }
                 Some("failed") => self.stop_share(Some("The screen share lost its connection.")),
@@ -387,12 +391,31 @@ impl ScreenFlow {
         {
             effects.push(Effect::Broker(Op::RenewShare, body));
         }
+        if let Some(share) = &mut self.share
+            && share.announced.is_some_and(|last| now.duration_since(last) >= ANNOUNCE_INTERVAL)
+        {
+            share.announced = Some(now);
+            effects.push(Effect::Signal(self.published_signal()));
+        }
         if let Some(watch) = &mut self.watch
             && let Some(body) = renewal_due(&mut watch.lease, now)
         {
             effects.push(Effect::Broker(Op::RenewWatch, body));
         }
         effects
+    }
+
+    /// Leases still open, for when the call's engine goes away without a chance to stop properly.
+    pub fn open_leases(&self) -> Vec<String> {
+        let share = self.share.as_ref().map(|share| &share.lease);
+        let watch = self.watch.as_ref().map(|watch| &watch.lease);
+        share.into_iter().chain(watch).filter(|lease| !lease.id.is_empty()).map(|lease| lease.id.clone()).collect()
+    }
+
+    /// Tells the partner any earlier share of ours is over. Used after an engine restart, which
+    /// can't send it itself. Harmless if there wasn't one.
+    pub fn ended_signal() -> Value {
+        json!({"type":"screen-stopped","screenRevision":revision_now()})
     }
 
     pub fn shutdown(&mut self) -> Vec<Effect> {
@@ -449,6 +472,36 @@ fn renewal_ended(lease: &mut Lease, result: Result<Value, String>) -> bool {
             lease.failed_renewals += 1;
             lease.failed_renewals >= MAX_FAILED_RENEWALS
         }
+    }
+}
+
+#[cfg(test)]
+mod announce_tests {
+    use super::*;
+
+    #[test]
+    fn a_live_share_keeps_announcing_itself_until_it_stops() {
+        let mut flow = ScreenFlow::default();
+        flow.start_share("1".into(), "screen".into(), "Screen 1".into(), 1, "t".into());
+        flow.on_engine(&json!({"event":"screen-state","state":"connected"}));
+        let announced = |flow: &mut ScreenFlow| {
+            flow.tick().iter().filter(|effect| matches!(effect, Effect::Signal(_))).count()
+        };
+        assert_eq!(announced(&mut flow), 0);
+        flow.share.as_mut().unwrap().announced = Some(Instant::now() - ANNOUNCE_INTERVAL);
+        assert_eq!(announced(&mut flow), 1);
+        assert_eq!(announced(&mut flow), 0);
+        flow.stop_share(None);
+        assert_eq!(announced(&mut flow), 0);
+    }
+
+    #[test]
+    fn the_announcement_is_harmless_to_receive_twice() {
+        let mut flow = ScreenFlow::default();
+        let signal = json!({"type":"screen-published","cloudflareSessionId":"s","trackNames":["t"],"screenRevision":5});
+        flow.on_signal(&signal);
+        assert!(flow.on_signal(&signal).is_empty());
+        assert!(flow.status.partner_sharing);
     }
 }
 

@@ -1,0 +1,10 @@
+Nitro includes ffmpeg.exe, built from FFmpeg 7.1.1 with libx264 and libdav1d.
+
+FFmpeg: https://ffmpeg.org  Source: https://ffmpeg.org/releases/ffmpeg-7.1.1.tar.xz
+x264: https://www.videolan.org/developers/x264.html
+dav1d: https://code.videolan.org/videolan/dav1d
+
+Because it includes libx264, this ffmpeg.exe is licensed under the GNU General Public License,
+version 2 or later: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+It is a separate program that Nitro runs. Its exact build settings are in
+tools/ffmpeg/build-ffmpeg.sh in the Nitro source.

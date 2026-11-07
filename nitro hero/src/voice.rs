@@ -275,12 +275,13 @@ impl Api {
             .send()
             .map_err(|_| "Screen sharing could not be reached.")?;
         let status = response.status();
-        if status.as_u16() == 404 {
+        let reply: Result<Value, _> = response.json();
+        // The function answers 404 itself for a share that's over, and says so. Only a 404
+        // without its own message means the function isn't there.
+        if status.as_u16() == 404 && reply.as_ref().map_or(true, |reply| !reply["error"].is_string()) {
             return Err("Screen sharing isn't enabled on the server yet.".into());
         }
-        let reply: Value = response
-            .json()
-            .map_err(|_| "Screen sharing returned an invalid response.")?;
+        let reply = reply.map_err(|_| "Screen sharing returned an invalid response.")?;
         if !status.is_success() {
             return Err(reply["error"].as_str().unwrap_or("Screen sharing failed.").to_string());
         }
@@ -483,6 +484,40 @@ fn note_sound(state: &mut State, count: u64, message: Value) -> u64 {
     }
     count
 }
+/// A call's screen flow. If the call's engine ends without a proper stop, this gives back what
+/// it held, or the seat would be refused as "already sharing" until the lease ran out.
+struct ScreenHolder {
+    flow: crate::screen_share::ScreenFlow,
+    api: Api,
+    scope: Value,
+}
+
+impl std::ops::Deref for ScreenHolder {
+    type Target = crate::screen_share::ScreenFlow;
+    fn deref(&self) -> &Self::Target {
+        &self.flow
+    }
+}
+
+impl std::ops::DerefMut for ScreenHolder {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.flow
+    }
+}
+
+impl Drop for ScreenHolder {
+    fn drop(&mut self) {
+        for lease in self.flow.open_leases() {
+            let (api, mut body) = (self.api.clone(), self.scope.clone());
+            body["action"] = json!("close");
+            body["leaseId"] = json!(lease);
+            std::thread::spawn(move || {
+                let _ = api.screen_share(body);
+            });
+        }
+    }
+}
+
 /// Calls the screen-share function off this loop, which also reads the signaling socket.
 fn broker(
     api: &Api,
@@ -538,11 +573,13 @@ pub fn start(config: Start, events: mpsc::Sender<State>) -> Handle {
         // engine, under the same seat, so one fault doesn't throw anyone out. A call that
         // really has moved to another device is refused by the join and ends here.
         let mut retries = 0;
+        let mut restarted = false;
         let error = loop {
             let mut helper = None::<Helper>;
             let mut lease = None::<Lease>;
             let began = Instant::now();
-            let result = run(&config, &api, &rx, &mut state, &emit, &mut helper, &mut lease);
+            let result = run(&config, &api, &rx, &mut state, &emit, &mut helper, &mut lease, restarted);
+            restarted = true;
             if began.elapsed() > Duration::from_secs(60) {
                 retries = 0;
             }
@@ -595,6 +632,7 @@ fn run(
     emit: &impl Fn(&State),
     helper_slot: &mut Option<Helper>,
     lease_slot: &mut Option<Lease>,
+    restarted: bool,
 ) -> Result<(), String> {
     let helper = helper_slot.insert(Helper::start()?);
     helper.send(json!({"command":"prepare","input":c.input,"output":c.output}))?;
@@ -687,7 +725,11 @@ fn run(
         sharing_screen.clone(),
         poke.clone(),
     );
-    let mut screen = crate::screen_share::ScreenFlow::default();
+    let mut screen = ScreenHolder {
+        flow: Default::default(),
+        api: api.clone(),
+        scope: json!({"conversationId":c.conversation,"voiceSessionId":c.session}),
+    };
     let mut sound_count = 0u64;
     let (broker_tx, broker_rx) = mpsc::channel();
     let screen_scope = json!({"conversationId":c.conversation,"voiceSessionId":c.session});
@@ -726,6 +768,12 @@ fn run(
     let mut early = VecDeque::<(Value, Instant)>::new();
     let mut incoming = VecDeque::<Value>::new();
     let mut outbox = VecDeque::<(Value, Instant)>::new();
+    if restarted {
+        outbox.push_back((
+            signal(crate::screen_share::ScreenFlow::ended_signal(), generation, &c.session, partner_session.as_deref()),
+            Instant::now(),
+        ));
+    }
     let mut in_flight = None::<(String, Value, Instant)>;
     let mut seen = VecDeque::<String>::new();
     let mut level_times = HashMap::<String, Instant>::new();

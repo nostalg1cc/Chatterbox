@@ -572,6 +572,28 @@ impl Preview {
                         };
                         this.fetch_image(path, cx);
                     }
+                    // Anything that was resting and is still on screen asks again from here.
+                    let now = std::time::Instant::now();
+                    let resting = this.link_cards.len();
+                    this.link_cards.retain(|_, state| {
+                        !matches!(state, crate::links::LinkState::Later(at) if now >= *at)
+                    });
+                    if this.link_cards.len() != resting {
+                        cx.notify();
+                    }
+                    let wanted: Vec<String> = this.link_wanted.borrow_mut().drain(..).collect();
+                    for url in wanted {
+                        if !this.link_cards.contains_key(&url) {
+                            this.link_cards.insert(url.clone(), crate::links::LinkState::Loading);
+                            this.link_queue.push_back(url);
+                        }
+                    }
+                    while this.link_in_flight < 2 {
+                        let Some(url) = this.link_queue.pop_front() else {
+                            break;
+                        };
+                        this.fetch_link_card(url, cx);
+                    }
                     if this.wants_older.take() {
                         this.load_older_messages(cx);
                     }
@@ -593,13 +615,119 @@ impl Preview {
         .detach();
     }
 
+    pub fn stop_video(&mut self) {
+        if let Some(frame) = self.playing_video.take().and_then(|playing| playing.frame) {
+            self.screen_retired.push(frame);
+        }
+    }
+
+    pub fn toggle_video_pause(&mut self) {
+        if let Some(player) = self.playing_video.as_ref().and_then(|playing| playing.player.as_ref()) {
+            player.set_paused(!player.paused());
+        }
+    }
+
+    /// Plays a video in chat, or pauses it if it's the one already going. It's downloaded on
+    /// the first play and kept. A format Windows can't play opens in the default player.
+    pub fn toggle_video(&mut self, path: String, cx: &mut Context<Self>) {
+        let same = self.playing_video.as_ref().is_some_and(|playing| playing.path == path);
+        if same && self.playing_video.as_ref().is_some_and(|playing| playing.player.is_some()) {
+            self.toggle_video_pause();
+            cx.notify();
+            return;
+        }
+        self.stop_video();
+        if same {
+            // Pressed again while it was still downloading.
+            cx.notify();
+            return;
+        }
+        self.playing_video = Some(crate::PlayingVideo {
+            path: path.clone(),
+            conversation: self.active_conv().id.clone(),
+            expanded: false,
+            player: None,
+            frame: None,
+        });
+        let muted = self.call_deafened;
+        cx.notify();
+        cx.spawn(async move |view, cx| {
+            let requested = path.clone();
+            let loaded = cx
+                .background_spawn(async move {
+                    let file = backend::fetch_chat_video(&requested)?;
+                    let poster = backend::video_poster_file(&requested);
+                    if !poster.exists() {
+                        let _ = crate::video::save_poster(&file, &poster);
+                    }
+                    let player = crate::video::Player::start(&file, muted).ok();
+                    Ok::<_, backend::ApiError>((file, player))
+                })
+                .await;
+            let _ = view.update(cx, |this, cx| {
+                // They may have stopped it, or started another, during the download.
+                // A thumbnail that couldn't be made from the file's start can be made now.
+                if matches!(this.media_files.get(&path), Some(crate::MediaFile::Failed)) {
+                    this.media_files.remove(&path);
+                }
+                let wanted = this.playing_video.as_ref().is_some_and(|playing| playing.path == path && playing.player.is_none());
+                match loaded {
+                    Ok((_, Some(player))) if wanted => {
+                        if let Some(playing) = &mut this.playing_video {
+                            playing.player = Some(player);
+                        }
+                    }
+                    Ok((file, None)) if wanted => {
+                        this.stop_video();
+                        cx.open_with_system(&file);
+                    }
+                    Err(error) if wanted => {
+                        this.stop_video();
+                        this.report(error, cx);
+                    }
+                    _ => {}
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn fetch_link_card(&mut self, url: String, cx: &mut Context<Self>) {
+        self.link_in_flight += 1;
+        cx.spawn(async move |view, cx| {
+            let requested = url.clone();
+            let state = cx.background_spawn(async move { crate::links::load(&requested) }).await;
+            let _ = view.update(cx, |this, cx| {
+                this.link_in_flight = this.link_in_flight.saturating_sub(1);
+                // A card arriving makes the history taller, so someone reading the latest
+                // message stays with it.
+                let distance = f32::from(this.chat_scroll.max_offset().height)
+                    + f32::from(this.chat_scroll.offset().y);
+                if matches!(state, crate::links::LinkState::Ready(_)) && distance < 60. {
+                    this.chat_scroll.scroll_to_bottom();
+                }
+                this.link_cards.insert(url, state);
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     fn fetch_image(&mut self, path: String, cx: &mut Context<Self>) {
         self.media_in_flight += 1;
         cx.spawn(async move |view, cx| {
             let requested = path.clone();
             let result = cx
                 .background_spawn(async move {
-                    backend::fetch_chat_image(&requested).map(|original| {
+                    // A video's stand-in is its first picture.
+                    let is_video = requested.starts_with("cloudinary:video:") || requested.ends_with(".webm");
+                    let file = if is_video {
+                        backend::fetch_video_poster(&requested)
+                    } else {
+                        backend::fetch_chat_image(&requested)
+                    };
+                    file.map(|original| {
                         let sidebar = backend::sidebar_thumbnail(&original);
                         crate::MediaFile::Ready { original, sidebar }
                     })
@@ -1389,6 +1517,36 @@ impl Preview {
             }
             changed = true;
         }
+        // Nothing keeps playing out of sight: another chat, Settings, or signed out.
+        let in_view = self.playing_video.as_ref().is_none_or(|playing| {
+            self.shell_view == crate::state::ShellView::Chat
+                && self.state.conversations.get(self.state.active_partner).is_some_and(|chat| chat.id == playing.conversation)
+        });
+        if !in_view {
+            self.stop_video();
+            changed = true;
+        }
+        let (silent, volume) = (self.call_deafened || self.video_muted, self.video_volume);
+        if let Some(playing) = &mut self.playing_video {
+            if let Some(player) = &playing.player {
+                player.set_muted(silent);
+                player.set_volume(volume);
+            }
+            let frame = playing.player.as_ref().and_then(|player| player.take()).and_then(|frame| {
+                let pixels = image::RgbaImage::from_raw(frame.width, frame.height, frame.pixels)?;
+                Some(std::sync::Arc::new(gpui::RenderImage::new(vec![image::Frame::new(pixels)])))
+            });
+            if let Some(frame) = frame {
+                if let Some(old) = playing.frame.replace(frame) {
+                    self.screen_retired.push(old);
+                }
+                changed = true;
+            }
+            if playing.player.as_ref().is_some_and(|player| player.ended()) {
+                self.stop_video();
+                changed = true;
+            }
+        }
         if let Some(next) = newest(&self.share_sink) {
             if let Some(old) = self.share_frame.replace(next) {
                 self.screen_retired.push(old);
@@ -1676,7 +1834,53 @@ impl Preview {
     }
 
     pub fn attach_file(&mut self, path: std::path::PathBuf, cx: &mut Context<Self>) {
-        self.prepare_attachment(cx, move || crate::chat_media::from_file(&path));
+        if self.media_busy.is_some() {
+            return;
+        }
+        let progress = std::sync::Arc::new(crate::compress::Progress::default());
+        self.media_progress = Some(progress.clone());
+        self.prepare_attachment(cx, move || crate::chat_media::from_file(&path, &progress));
+    }
+
+    /// Files dropped on the chat. One message holds one attachment, so that's the first file.
+    pub fn attach_dropped(&mut self, paths: &[std::path::PathBuf], cx: &mut Context<Self>) {
+        let Some(first) = paths.first() else { return };
+        if self.media_busy.is_some() {
+            self.sync_error = Some("Wait for the current attachment to finish first.".into());
+            cx.notify();
+            return;
+        }
+        if paths.len() > 1 {
+            self.sync_error = Some("Only the first file was attached. Send it, then drop the next.".into());
+        }
+        self.attach_file(first.clone(), cx);
+    }
+
+    pub fn cancel_preparing_media(&mut self) {
+        if let Some(progress) = &self.media_progress {
+            progress.cancelled.store(true, std::sync::atomic::Ordering::Release);
+        }
+    }
+
+    /// Scrolls chat to a message from the media sidebar, and tints it for a moment.
+    pub fn scroll_to_message(&mut self, id: String, cx: &mut Context<Self>) {
+        const BELOW_HEADER: f32 = 72.;
+        let Some(top) = self.message_tops.borrow().get(&id).copied() else { return };
+        let mut offset = self.chat_scroll.offset();
+        offset.y += gpui::px(BELOW_HEADER - top);
+        self.chat_scroll.set_offset(offset);
+        self.highlighted_message = Some(id.clone());
+        cx.notify();
+        cx.spawn(async move |view, cx| {
+            gpui::Timer::after(Duration::from_millis(1400)).await;
+            let _ = view.update(cx, |this, cx| {
+                if this.highlighted_message.as_ref() == Some(&id) {
+                    this.highlighted_message = None;
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     pub fn attach_clipboard_media(&mut self, media: crate::clipboard::ClipboardMedia, cx: &mut Context<Self>) {
@@ -1696,12 +1900,32 @@ impl Preview {
     ) {
         self.media_busy = Some("Preparing media…");
         cx.notify();
+        // Keeps the percentage moving while the work happens elsewhere.
+        cx.spawn(async move |view, cx| {
+            loop {
+                gpui::Timer::after(Duration::from_millis(250)).await;
+                let busy = view.update(cx, |this, cx| {
+                    let preparing = this.media_progress.is_some();
+                    if preparing {
+                        cx.notify();
+                    }
+                    preparing
+                });
+                if !matches!(busy, Ok(true)) {
+                    break;
+                }
+            }
+        })
+        .detach();
         cx.spawn(async move |view, cx| {
             let result = cx.background_spawn(async move { read() }).await;
             let _ = view.update(cx, |this, cx| {
                 this.media_busy = None;
+                this.media_progress = None;
                 match result {
                     Ok(media) => this.set_pending_media(Some(media)),
+                    // Empty means it was cancelled, which needs no message.
+                    Err(message) if message.is_empty() => {}
                     Err(message) => this.sync_error = Some(message),
                 }
                 cx.notify();
@@ -1740,6 +1964,7 @@ impl Preview {
             upload_mime: media.upload_mime,
             width: media.width,
             height: media.height,
+            seconds: media.seconds,
         });
         cx.notify();
         let Some(upload) = upload else { return };
@@ -1747,7 +1972,7 @@ impl Preview {
             let id = Uuid::new_v4().to_string();
             let result = cx
                 .background_spawn(async move {
-                    backend::send_image_message(&id, &conversation, &sender, &caption, reply_target.as_deref(), &upload)
+                    backend::send_media_message(&id, &conversation, &sender, &caption, reply_target.as_deref(), &upload)
                 })
                 .await;
             let _ = view.update(cx, |this, cx| {

@@ -1,11 +1,11 @@
 {
-  "version": "0.2.3",
-  "notes": "Fixes one-way calls where the other person could not hear you: if this happens, both of you should be on this version. Nitro now also checks for updates while it is open, not only when it starts.",
-  "pub_date": "2026-11-06T21:08:40.000Z",
+  "version": "0.2.4",
+  "notes": "Nitro has a new look: real glass across the app, with messages and media scrolling behind it, and glass that darkens over bright content so labels stay readable. You can now send videos: drag and drop images and videos, videos are compressed on your device before uploading, and they play with proper controls. Images open to fit the window and can be zoomed and dragged. Links are clickable and copyable, with rich previews. The media sidebar shows thumbnails, starts at the newest item, and scrolls chat to the message when clicked. Also fixes the voice overlay being cut off, crops the overlay's stream preview to 16:9, and shows a clear message when a stream can't be watched because the sharer has left the call.",
+  "pub_date": "2026-11-07T03:13:42.000Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.3/Nitro_0.2.3_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErME1kbkVJR3hIaWJSSVQvWUtmOGlnVGc3RlJUaGxsZU16QWIyd1I0TVc3TjFWaDR4ODB0MUVqR2hsTkdQRE1RY0xwVU1UVkRLRXJRNDVFd1BvOUR2UlFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzOTk5MzIwCWZpbGU6Tml0cm9fMC4yLjNfeDY0LXNldHVwLmV4ZQpiR1RORUxGMDlIcllQWHJZdGZqT0JERmJqUFNkSkY0YTNGZEQyeXRBVTdaQU0wY3ZjUUpBVTYvVlY2QmUrdW8zd1oxSHVGWlprNHRPOEQ5WCtEVFdDZz09Cg=="
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.4/Nitro_0.2.4_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMENuS1libVFHZExVSGQ1NExhcEFqY0NnampoaTJOL2dXNHViaDEvWVZ5MzJ4QzdhOVJlblFhZmVacGpSVmRwNFZqclZXeTRjSnBEaytnUEtRdUZ3TGdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MDIxMjIyCWZpbGU6Tml0cm9fMC4yLjRfeDY0LXNldHVwLmV4ZQpwOFVpZUtBWG1jTFErSVZWUzYra3czaDBoQVFjL0w4c29UOEY5bWJVZU81cGtNcGR5ZkZDMDM3TGlHRjVQZGRDRnZWQXJwRm5qa2FIRm5tbnZ0VkNDQT09Cg=="
     }
   }
 }
