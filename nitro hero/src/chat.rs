@@ -539,10 +539,7 @@ impl Preview {
                         .font_weight(gpui::FontWeight::MEDIUM)
                         .text_color(rgb(if components::glass_ui() { 0xffffff } else { 0xa1a1aa }))
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .on_click(cx.listener(|_, _, _, cx| {
-                            components::set_glass_ui(!components::glass_ui());
-                            cx.notify();
-                        }))
+                        .on_click(cx.listener(|this, _, _, cx| this.set_glass(!components::glass_ui(), cx)))
                         .child(if components::glass_ui() { "Glass on" } else { "Glass off" }),
                 )
             })
@@ -816,11 +813,11 @@ impl Preview {
                 sidebar_shown,
                 |d| d.child(self.render_media_sidebar(window, cx)),
             )
-            // Content runs on under the buttons with glass, so they get a fade to sit on.
-            .when(components::glass_ui(), |d| {
+            // Content runs on under the buttons, so they get a fade to sit on.
+            .child({
                 let (width, soft) = if sidebar_shown { (344., 40.) } else { (300., 96.) };
                 let colour = if self.call_connected { with_call_glow(stage_bg) } else { stage_bg };
-                d.child(components::window_buttons_fade(colour, width, soft))
+                components::window_buttons_fade(colour, width, soft)
             })
             // Global top-right Windows caption controls + Settings + Media Sidebar toggle
             .child(self.render_window_controls(window, cx))

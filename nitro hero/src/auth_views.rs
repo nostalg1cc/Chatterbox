@@ -1780,6 +1780,12 @@ impl Preview {
                     )
             }
             SettingsTab::Appearance => {
+                let (glass_copy, glass_button) = toggle_row(
+                    "settings-glass",
+                    "Glass",
+                    "See-through glass buttons and panels. Turn off for solid ones.",
+                    self.state.preferences.glass_ui,
+                );
                 let mut theme_cards = div().flex().flex_wrap().gap(px(12.));
                 for (idx, theme_opt) in AppTheme::ALL.into_iter().enumerate() {
                     let active = self.state.preferences.theme == theme_opt;
@@ -1866,6 +1872,12 @@ impl Preview {
                                 "Choose the colours Nitro uses.",
                             )),
                     )
+                    .child(settings_panel().child(row(
+                        glass_copy,
+                        glass_button.on_click(cx.listener(|this, _, _, cx| {
+                            this.set_glass(!this.state.preferences.glass_ui, cx);
+                        })),
+                    )))
                     .child(theme_cards)
             }
             SettingsTab::Voice => {

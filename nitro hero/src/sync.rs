@@ -1894,6 +1894,13 @@ impl Preview {
         }
     }
 
+    pub fn set_glass(&mut self, on: bool, cx: &mut Context<Self>) {
+        crate::components::set_glass_ui(on);
+        self.state.preferences.glass_ui = on;
+        self.persist();
+        cx.notify();
+    }
+
     /// Starts or stops the snow. Moving it redraws the window, so it's kept to 25 frames a second
     /// and holds still while another window has focus, a game for instance.
     pub fn set_snow(&mut self, on: bool, cx: &mut Context<Self>) {

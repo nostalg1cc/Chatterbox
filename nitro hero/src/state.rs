@@ -147,6 +147,8 @@ pub struct Preferences {
     pub keybinds: [String; 4],
     #[serde(default = "default_interface_volume")]
     pub interface_sound_volume: u8,
+    #[serde(default = "enabled_by_default")]
+    pub glass_ui: bool,
     /// Where the window was, to open there next time.
     #[serde(default)]
     pub window: Option<SavedWindow>,
@@ -223,6 +225,7 @@ impl Default for Preferences {
             voice_hud_show_names: false,
             keybinds: default_keybinds(),
             interface_sound_volume: default_interface_volume(),
+            glass_ui: true,
             window: None,
             wheel_enabled: true,
             wheel_key: default_wheel_key(),

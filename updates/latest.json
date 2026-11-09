@@ -1,11 +1,11 @@
 {
-  "version": "0.2.5",
-  "notes": "Fixes calls going silent for a few minutes about once an hour: both of you should update. New: a sound wheel you can open anywhere during a call, even over games: set its key under Settings, Keybinds. Nitro now opens with a small startup window that installs updates automatically, and remembers where you left its window. The sidebar now loads all your shared media as you scroll, and clicking an older item takes you to its message. The partner joined, partner left and reconnecting sounds are back, the voice overlay no longer blocks clicks, and pressing join now replaces a stuck call seat. It's snowing, too.",
-  "pub_date": "2026-11-09T02:44:09.000Z",
+  "version": "0.2.6",
+  "notes": "You can now switch between glass and solid buttons and panels: Settings, Appearance, Glass.",
+  "pub_date": "2026-11-09T02:51:29.000Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.5/Nitro_0.2.5_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMEQwY3JTMVZJVDZLOGpvMkpwaDhDUVA1ZkpzSEMyOVJZRFJRV2wwaWRpaXEzUG1mNk43SkJnaW9pT1QwTGdvdDZmVlB1ekUycXdjTXpaOFdUREpJTFFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTkyMjQ5CWZpbGU6Tml0cm9fMC4yLjVfeDY0LXNldHVwLmV4ZQptTVcvRTZPeDhCWlUwSFFNSjE4ck11RldiYzVkY0ZxSkIvMGxreDJMakk1OW1KcSswNXR3YVEvOHAzd1M4THNlSGNXQ2ZkTklJaXpQcGNMOTJmOVJBZz09Cg=="
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.6/Nitro_0.2.6_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMEdPVE1Fb3FXZGR4dlpzK0hDdEM4NzcydWhYOFlMVnhZS3lMNlFmQ3hIdVE5cEtEazdmYzQzR0ZVNUxSUjlvcG9hK05nbDA4WjFWNWpIRkNHS0pyS0FJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTkyNjg5CWZpbGU6Tml0cm9fMC4yLjZfeDY0LXNldHVwLmV4ZQpMZ2JZcXpDTWwwa2l0VksxNkdjMWlNWmZpa2xLc3I3UWJtYytWREcvYzhBcGZDOE01TTRPaGd1aGdMb2FiSHR3YlVSaFo4Z1JrdzB1cWJ2QktqSjVBQT09Cg=="
     }
   }
 }

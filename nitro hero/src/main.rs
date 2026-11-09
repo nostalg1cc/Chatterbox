@@ -749,6 +749,7 @@ impl Preview {
 
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let mut loaded_state = state::load_state();
+        components::set_glass_ui(loaded_state.preferences.glass_ui);
         if !loaded_state.preferences.legacy_imported {
             migrate::import_preferences(&mut loaded_state.preferences);
             loaded_state.preferences.legacy_imported = true;
