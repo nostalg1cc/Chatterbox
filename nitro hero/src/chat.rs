@@ -63,6 +63,20 @@ fn call_glow() -> Div {
         ))
 }
 
+/// Narrower than this, the sidebar would squeeze the chat too far.
+const SIDEBAR_NEEDS: f32 = 940.;
+
+/// The background as it looks under the top of `call_glow`.
+fn with_call_glow(background: u32) -> u32 {
+    const GLOW: u32 = 0x00b339;
+    const STRENGTH: f32 = 0.17;
+    let channel = |shift: u32| {
+        let (from, to) = (((background >> shift) & 0xff) as f32, ((GLOW >> shift) & 0xff) as f32);
+        ((from + (to - from) * STRENGTH).round() as u32) << shift
+    };
+    channel(16) | channel(8) | channel(0)
+}
+
 /// Height for a message image shown at the card's 400px width.
 /// An image's size in chat: its own shape, no larger than it really is or than fits.
 fn message_image_size(size: Option<(u32, u32)>) -> (f32, f32) {
@@ -676,6 +690,9 @@ impl Preview {
         }
 
         let stage_bg = self.state.preferences.theme.stage_bg();
+        let window_width = f32::from(window.viewport_size().width);
+        let sidebar_shown = self.media_sidebar_open && self.shell_view == ShellView::Chat && window_width >= SIDEBAR_NEEDS;
+        self.header_clear_of_buttons = !sidebar_shown && window_width < 1180.;
         let active_call = self.call_connected;
 
         let main_stage = match self.shell_view {
@@ -704,37 +721,32 @@ impl Preview {
                 .flex_col()
                 .on_drop(cx.listener(|this, paths: &gpui::ExternalPaths, _, cx| this.attach_dropped(paths.paths(), cx)))
                 .child(self.render_message_history(cx))
-                // Fade masks only without glass: with it, content runs on under the header and composer.
-                .when(!components::glass_ui(), |stage| {
-                    stage.child(
-                        div()
-                            .absolute()
-                            .top(px(0.))
-                            .left(px(0.))
-                            .right(px(0.))
-                            .h(px(96.))
-                            .bg(gpui::linear_gradient(
-                                180.,
-                                gpui::linear_color_stop(rgb(stage_bg), 0.0),
-                                gpui::linear_color_stop(rgba((stage_bg << 8) | 0x00), 1.0),
-                            )),
-                    )
-                })
-                .when(!components::glass_ui(), |stage| {
-                    stage.child(
-                        div()
-                            .absolute()
-                            .bottom(px(0.))
-                            .left(px(0.))
-                            .right(px(0.))
-                            .h(px(108.))
-                            .bg(gpui::linear_gradient(
-                                0.,
-                                gpui::linear_color_stop(rgb(stage_bg), 0.0),
-                                gpui::linear_color_stop(rgba((stage_bg << 8) | 0x00), 1.0),
-                            )),
-                    )
-                })
+                .child(
+                    div()
+                        .absolute()
+                        .top(px(0.))
+                        .left(px(0.))
+                        .right(px(0.))
+                        .h(px(96.))
+                        .bg(gpui::linear_gradient(
+                            180.,
+                            gpui::linear_color_stop(rgb(stage_bg), 0.0),
+                            gpui::linear_color_stop(rgba((stage_bg << 8) | 0x00), 1.0),
+                        )),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .bottom(px(0.))
+                        .left(px(0.))
+                        .right(px(0.))
+                        .h(px(108.))
+                        .bg(gpui::linear_gradient(
+                            0.,
+                            gpui::linear_color_stop(rgb(stage_bg), 0.0),
+                            gpui::linear_color_stop(rgba((stage_bg << 8) | 0x00), 1.0),
+                        )),
+                )
                 // Messages scroll under the header, but can't be pressed through it. The header
                 // itself is painted above this, and it's all still a window drag.
                 .child(
@@ -801,14 +813,14 @@ impl Preview {
             .child(main_stage)
             // Right-hand Media Sidebar with completely transparent background
             .when(
-                self.media_sidebar_open && self.shell_view == ShellView::Chat,
+                sidebar_shown,
                 |d| d.child(self.render_media_sidebar(window, cx)),
             )
             // Content runs on under the buttons with glass, so they get a fade to sit on.
             .when(components::glass_ui(), |d| {
-                let sidebar = self.media_sidebar_open && self.shell_view == ShellView::Chat;
-                let (width, soft) = if sidebar { (344., 40.) } else { (300., 96.) };
-                d.child(components::window_buttons_fade(stage_bg, width, soft))
+                let (width, soft) = if sidebar_shown { (344., 40.) } else { (300., 96.) };
+                let colour = if self.call_connected { with_call_glow(stage_bg) } else { stage_bg };
+                d.child(components::window_buttons_fade(colour, width, soft))
             })
             // Global top-right Windows caption controls + Settings + Media Sidebar toggle
             .child(self.render_window_controls(window, cx))
@@ -1123,7 +1135,7 @@ impl Preview {
             .absolute()
             .top(px(16.))
             .left(px(0.))
-            .right(px(0.))
+            .right(px(if self.header_clear_of_buttons { 240. } else { 0. }))
             .bg(gpui::transparent_black())
             .flex()
             .flex_col()
@@ -2743,6 +2755,9 @@ impl Preview {
     /// no border, and `padding: 42px 20px 40px` clearing the 32px top-right Windows control strip.
     #[inline(never)]
     fn render_media_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
+        // A card and the gap below it.
+        const MEDIA_CARD_STEP: f32 = 190.5;
+        const MEDIA_LOAD_MARGIN: f32 = 500.;
         let conv = self.active_conv().clone();
         let total_count = conv.shared_media.len();
 
@@ -2767,6 +2782,7 @@ impl Preview {
         // tabs. Short lists sit at the bottom too.
         let mut media_cards = div().min_h_full().flex().flex_col().justify_end().gap(px(12.));
         let mut shown = 0;
+        let mut top_id = None;
         for (m_idx, item) in conv.shared_media.iter().enumerate().rev() {
             if self.media_tabs.selected == 1 && item.kind == "clip" {
                 continue;
@@ -2775,6 +2791,7 @@ impl Preview {
                 continue;
             }
             shown += 1;
+            top_id.get_or_insert_with(|| item.id.clone());
             let item_title = item.title.clone();
             let item_sender = item.sender.clone();
             let item_id = item.id.clone();
@@ -2807,9 +2824,10 @@ impl Preview {
                             .rounded_b(px(10.75))
                             .bg(gpui::linear_gradient(180.,
                                 gpui::linear_color_stop(rgba(0x00000000), 0.),
-                                gpui::linear_color_stop(rgba(0x000000dd), 1.)))
+                                gpui::linear_color_stop(rgba(0x000000e6), 1.)))
                             .px(px(12.))
-                            .py(px(8.))
+                            .pt(px(30.))
+                            .pb(px(10.))
                             .flex()
                             .items_center()
                             .justify_between()
@@ -2856,16 +2874,42 @@ impl Preview {
             );
         }
 
+        if shown == 0 {
+            let loading = self.sidebar_media.get(&conv.id).is_none_or(|pages| pages.loading);
+            media_cards = media_cards.items_center().justify_center().child(label(if loading {
+                "Loading media…"
+            } else if self.media_tabs.selected == 1 {
+                "No photos here yet"
+            } else if self.media_tabs.selected == 2 {
+                "No clips here yet"
+            } else {
+                "Photos and videos you share show up here"
+            }));
+        }
+
         // A different chat or tab starts at the newest. Something new, or a resize, only follows
         // if you were already there, so it never pulls you away from older media.
         let key = (conv.id.clone(), self.media_tabs.selected, shown, f32::from(window.viewport_size().height) as i32);
         if self.media_scroll_key.as_ref() != Some(&key) {
             let same_list = self.media_scroll_key.as_ref().is_some_and(|last| last.0 == key.0 && last.1 == key.1);
             let from_bottom = f32::from(self.media_scroll.max_offset().height) + f32::from(self.media_scroll.offset().y);
+            let grew_by = self.media_scroll_key.as_ref().map_or(0, |last| shown.saturating_sub(last.2));
             if !same_list || from_bottom < 60. {
                 self.media_scroll.scroll_to_bottom();
+            } else if grew_by > 0 && self.media_top_id != top_id {
+                // Older cards arrived above, so the ones being looked at stay where they are.
+                let mut offset = self.media_scroll.offset();
+                offset.y -= px(grew_by as f32 * MEDIA_CARD_STEP);
+                self.media_scroll.set_offset(offset);
             }
             self.media_scroll_key = Some(key);
+            self.media_top_id = top_id;
+        } else if f32::from(self.media_scroll.offset().y) > -MEDIA_LOAD_MARGIN {
+            self.load_media_page(cx);
+        }
+        // The first page shouldn't wait for the top of a list with nothing in it yet.
+        if !self.sidebar_media.contains_key(&conv.id) {
+            self.load_media_page(cx);
         }
 
         // Transparent Media Sidebar container (no solid bg, no border)
@@ -2892,7 +2936,7 @@ impl Preview {
                             .track_scroll(&self.media_scroll)
                             .pt(px(100.))
                             .px(px(20.))
-                            .pb(px(32.))
+                            .pb(px(20.))
                             .child(media_cards),
                     )
                     .child(div().absolute().top(px(44.)).left(px(20.)).right(px(20.)).child(tabs_row)),

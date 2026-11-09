@@ -147,6 +147,18 @@ pub struct Preferences {
     pub keybinds: [String; 4],
     #[serde(default = "default_interface_volume")]
     pub interface_sound_volume: u8,
+    /// Where the window was, to open there next time.
+    #[serde(default)]
+    pub window: Option<SavedWindow>,
+    #[serde(default = "enabled_by_default")]
+    pub wheel_enabled: bool,
+    #[serde(default = "default_wheel_key")]
+    pub wheel_key: String,
+    /// Open only after the key has been held, rather than at once.
+    #[serde(default)]
+    pub wheel_hold: bool,
+    #[serde(default = "default_wheel_hold_tenths")]
+    pub wheel_hold_tenths: u8,
     /// Settings from the old app are only ever brought over once.
     #[serde(default)]
     pub legacy_imported: bool,
@@ -167,6 +179,23 @@ pub const KEYBIND_ACTIONS: [&str; 4] = ["Toggle mute", "Toggle deafen", "Leave c
 
 fn default_keybinds() -> [String; 4] {
     ["ctrl-shift-m", "ctrl-shift-d", "ctrl-shift-l", "ctrl-shift-b"].map(String::from)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SavedWindow {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub maximized: bool,
+}
+
+fn default_wheel_key() -> String {
+    "alt-g".into()
+}
+
+fn default_wheel_hold_tenths() -> u8 {
+    10
 }
 
 fn default_interface_volume() -> u8 {
@@ -194,6 +223,11 @@ impl Default for Preferences {
             voice_hud_show_names: false,
             keybinds: default_keybinds(),
             interface_sound_volume: default_interface_volume(),
+            window: None,
+            wheel_enabled: true,
+            wheel_key: default_wheel_key(),
+            wheel_hold: false,
+            wheel_hold_tenths: default_wheel_hold_tenths(),
             echo_cancellation: true,
             noise_suppression: false,
             theme: AppTheme::DefaultDark,

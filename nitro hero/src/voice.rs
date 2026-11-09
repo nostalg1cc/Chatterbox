@@ -367,15 +367,19 @@ fn poll(
         let mut lease = Instant::now() - Duration::from_secs(45);
         while !end.load(Ordering::Acquire) {
             if lease.elapsed() >= Duration::from_secs(30) {
-                if let Ok(v) = api.rpc(
+                match api.rpc(
                     "heartbeat_voice_room",
                     json!({"p_session_id":session,"p_sharing_screen":sharing.load(Ordering::Acquire)}),
-                ) && v["status"] == "not_found"
-                {
-                    let _ = tx.try_send(Poll::LeaseLost);
-                    break;
+                ) {
+                    Ok(v) if v["status"] == "not_found" => {
+                        let _ = tx.try_send(Poll::LeaseLost);
+                        break;
+                    }
+                    Ok(_) => lease = Instant::now(),
+                    // The server ends a seat it hasn't heard from in 120 seconds, so a failed
+                    // one is tried again soon rather than in 30.
+                    Err(_) => lease = Instant::now() - Duration::from_secs(24),
                 }
-                lease = Instant::now();
             }
             if let Ok(v) = api.request(
                 "rest/v1/voice_participants",
@@ -426,6 +430,25 @@ fn recovery_delay(attempt: u32) -> Duration {
 fn unhealthy(received: u64, lost: i64, jitter: f64) -> bool {
     let total = received as i64 + lost.max(0);
     total >= 40 && (lost.max(0) as f64 / total as f64 >= 0.08 || jitter >= 0.08)
+}
+/// Adds a line to a small log of how calls went, for working out why one dropped. Only states
+/// and error text: no names, ids or tokens.
+pub fn note(what: &str) {
+    use std::io::Write;
+    const MOST_BYTES: u64 = 256 * 1024;
+    let path = std::env::temp_dir().join("nitro-voice.log");
+    if std::fs::metadata(&path).is_ok_and(|file| file.len() > MOST_BYTES) {
+        let _ = std::fs::remove_file(&path);
+    }
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(file, "{} {what}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"));
+    }
+}
+
+/// Audio was arriving and has stopped. A muted partner still sends packets, but older clients
+/// may not, so a partner reported as muted never counts.
+fn audio_stopped(received_before: u64, received_now: u64, remote_muted: bool) -> bool {
+    received_before > 0 && received_now <= received_before && !remote_muted
 }
 fn connect(api: &Api, topic: &str, session: &str) -> Result<Socket, String> {
     let mut endpoint = reqwest::Url::parse(&api.url).map_err(|_| "Invalid voice endpoint")?;
@@ -580,6 +603,7 @@ pub fn start(config: Start, events: mpsc::Sender<State>) -> Handle {
             let began = Instant::now();
             let result = run(&config, &api, &rx, &mut state, &emit, &mut helper, &mut lease, restarted);
             restarted = true;
+            note(&format!("engine run ended after {}s: {}", began.elapsed().as_secs(), result.as_ref().err().map_or("stopped", String::as_str)));
             if began.elapsed() > Duration::from_secs(60) {
                 retries = 0;
             }
@@ -667,9 +691,11 @@ fn run(
     let session = c.session.clone();
     let conversation = c.conversation.clone();
     std::thread::spawn(move || {
+        // Pressing join replaces whatever seat this account already has, such as one left by
+        // a crash. Rejoining by itself must not, or two devices would keep booting each other.
         let result = join_api.rpc(
             "join_voice_room",
-            json!({"p_conversation_id":conversation,"p_session_id":session,"p_takeover":false}),
+            json!({"p_conversation_id":conversation,"p_session_id":session,"p_takeover":!restarted}),
         );
         // Lease travels with the response. Cancellation drops it even if HTTP finishes late.
         let result = result.map(|value| {
@@ -759,6 +785,7 @@ fn run(
     let mut health_at = Instant::now();
     let mut health_last = None::<(u64, i64)>;
     let mut health_bad = 0;
+    let mut silent_checks = 0;
     let mut membership_misses = 0;
     let mut slow_acks = 0;
     let mut last_rebuild = Instant::now();
@@ -847,6 +874,10 @@ fn run(
                     emit(state);
                 }
                 Control::Token(token) => {
+                    // It's offered often, so that a renewed one is here before the old one ends.
+                    if *api.token.lock().map_err(|_| "Voice authentication unavailable")? == token {
+                        continue;
+                    }
                     helper.send(json!({"command":"token","token":token}))?;
                     *api.token
                         .lock()
@@ -934,6 +965,7 @@ fn run(
             attempt = 0;
             health_last = None;
             health_bad = 0;
+            silent_checks = 0;
             helper.send(
                 json!({"command":"controls","muted":state.muted,"deafened":state.deafened}),
             )?;
@@ -1028,6 +1060,23 @@ fn run(
                         if health_bad >= 2 && !relay_preferred && turn_ready {
                             relay_preferred = true;
                             helper.send(json!({"command":"restart","relay":true}))?;
+                        }
+                        // The connection can still report itself as fine with nothing arriving.
+                        if audio_stopped(before.0, now.0, state.remote_muted) {
+                            silent_checks += 1;
+                        } else if silent_checks > 0 {
+                            silent_checks = 0;
+                            attempt = 0;
+                        }
+                        if silent_checks >= 3 {
+                            silent_checks = 0;
+                            match recovery_step(attempt) {
+                                Recovery::Restart { relay } => {
+                                    helper.send(json!({"command":"restart","relay":relay || relay_preferred}))?;
+                                }
+                                Recovery::Rebuild => return Err(FRESH_ENGINE.into()),
+                            }
+                            attempt += 1;
                         }
                     }
                     health_last = Some(now);
@@ -1439,6 +1488,14 @@ fn accepts(v: &Value, generation: &str, session: &str, partner: Option<&str>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn stopped_audio_needs_audio_to_have_arrived_and_a_partner_who_is_not_muted() {
+        assert!(audio_stopped(500, 500, false));
+        assert!(!audio_stopped(500, 550, false));
+        assert!(!audio_stopped(0, 0, false));
+        assert!(!audio_stopped(500, 500, true));
+    }
+
     #[test]
     fn recovery_tries_every_route_and_keeps_going() {
         assert_eq!(recovery_step(0), Recovery::Restart { relay: false });

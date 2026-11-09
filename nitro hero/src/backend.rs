@@ -712,6 +712,8 @@ pub struct Snapshot {
     pub friend_requests: Vec<FriendRequest>,
     /// The newest pushed notice: id, severity and message.
     pub notice: Option<(String, String, String)>,
+    /// Whether it's snowing for everyone. None if that couldn't be read, so nothing changes.
+    pub snow: Option<bool>,
 }
 
 pub fn load_snapshot(user: &SignedInUser) -> ApiResult<Snapshot> {
@@ -728,6 +730,9 @@ pub fn load_snapshot(user: &SignedInUser) -> ApiResult<Snapshot> {
     .ok()
     .and_then(|rows| rows.as_array().and_then(|rows| rows.first().cloned()))
     .map(|row| (text(&row, "id"), text(&row, "severity"), text(&row, "message")));
+    let snow = rest("GET", "app_flags?select=enabled&name=eq.snow", None, "")
+        .ok()
+        .and_then(|rows| rows.as_array().map(|rows| rows.first().is_some_and(|row| row["enabled"] == true)));
     let conversations = conversations.as_array().cloned().unwrap_or_default();
     let friendships = friendships.as_array().cloned().unwrap_or_default();
 
@@ -856,6 +861,7 @@ pub fn load_snapshot(user: &SignedInUser) -> ApiResult<Snapshot> {
         conversations,
         friend_requests,
         notice,
+        snow,
     })
 }
 
@@ -1523,6 +1529,42 @@ pub fn burst_groups(messages: &[ChatMessage]) -> Vec<(usize, usize)> {
 }
 
 /// The sidebar's media list, derived from loaded messages. Metadata only for now.
+/// One page of a conversation's messages with media, oldest first, for the sidebar.
+pub fn load_media_page(conversation_id: &str, before: Option<&str>, who: &Participants) -> ApiResult<(Vec<ChatMessage>, bool)> {
+    const SIDEBAR_PAGE: usize = 10;
+    let before = before.map_or(String::new(), |before| format!("&created_at=lt.{}", before.replace('+', "%2B")));
+    let rows = rest(
+        "GET",
+        &format!(
+            "messages?select=*&conversation_id=eq.{conversation_id}&media_path=not.is.null&deleted_at=is.null&media_deleted_at=is.null{before}&order=created_at.desc,id.desc&limit={SIDEBAR_PAGE}"
+        ),
+        None,
+        "",
+    )?;
+    let mut rows = rows.as_array().cloned().unwrap_or_default();
+    let has_more = rows.len() == SIDEBAR_PAGE;
+    rows.reverse();
+    Ok((map_rows(&rows, who)?, has_more))
+}
+
+/// The media from the loaded chat and the sidebar's own pages, as one list, newest first.
+pub fn media_items_with(messages: &[ChatMessage], older: &[ChatMessage]) -> Vec<MediaItem> {
+    if older.is_empty() {
+        return media_items(messages);
+    }
+    let mut seen = HashSet::new();
+    // Runs on every refresh, so only messages with media are copied.
+    let mut all: Vec<ChatMessage> = messages
+        .iter()
+        .chain(older)
+        .filter(|message| !matches!(message.attachment, ChatAttachment::None))
+        .filter(|message| seen.insert(message.db_id.clone()))
+        .cloned()
+        .collect();
+    all.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+    media_items(&all)
+}
+
 pub fn media_items(messages: &[ChatMessage]) -> Vec<MediaItem> {
     let mut seen = HashSet::new();
     messages

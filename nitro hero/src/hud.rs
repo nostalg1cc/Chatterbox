@@ -188,11 +188,12 @@ fn widescreen_crop(width: u32, height: u32) -> (u32, u32) {
 }
 
 #[cfg(windows)]
-mod native {
+pub(crate) mod native {
     #[link(name = "user32")]
     unsafe extern "system" {
         pub fn GetWindowLongPtrW(hwnd: isize, index: i32) -> isize;
         pub fn SetWindowLongPtrW(hwnd: isize, index: i32, value: isize) -> isize;
+        pub fn SetLayeredWindowAttributes(hwnd: isize, key: u32, alpha: u8, flags: u32) -> i32;
         pub fn SetWindowPos(
             hwnd: isize,
             after: isize,
@@ -210,6 +211,8 @@ mod native {
     pub const GWL_EXSTYLE: i32 = -20;
     pub const GWL_STYLE: i32 = -16;
     pub const WS_EX_TRANSPARENT: isize = 0x20;
+    pub const WS_EX_LAYERED: isize = 0x8_0000;
+    pub const LWA_ALPHA: u32 = 2;
     pub const WS_EX_TOOLWINDOW: isize = 0x80;
     pub const WS_EX_NOACTIVATE: isize = 0x0800_0000;
     pub const HWND_TOPMOST: isize = -1;
@@ -230,7 +233,7 @@ mod native {
 
 /// Clicks pass through it to whatever's underneath, and it never steals focus.
 #[cfg(windows)]
-fn make_passive(window: &Window) {
+pub(crate) fn make_passive(window: &Window) {
     use native::*;
     let Some(hwnd) = hwnd(window) else { return };
     unsafe {
@@ -245,8 +248,11 @@ fn make_passive(window: &Window) {
         SetWindowLongPtrW(
             hwnd,
             GWL_EXSTYLE,
-            style | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+            style | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
         );
+        // Clicks only pass through to other apps on a layered window, and a layered window
+        // shows nothing until it's been given an opacity.
+        SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
         SetWindowPos(
             hwnd,
             HWND_TOPMOST,
@@ -260,13 +266,13 @@ fn make_passive(window: &Window) {
 }
 
 #[cfg(not(windows))]
-fn make_passive(_: &Window) {}
+pub(crate) fn make_passive(_: &Window) {}
 
 /// Moves and sizes the window, after the current app update has finished. Windows reports a
 /// new size straight away, and GPUI can't take that report during an update: it drops it and
 /// keeps drawing to the old area, which clips whatever no longer fits.
 #[cfg(windows)]
-fn position(window: &Window, bounds: Bounds<gpui::Pixels>, cx: &App) {
+pub(crate) fn position(window: &Window, bounds: Bounds<gpui::Pixels>, cx: &App) {
     use native::*;
     let Some(hwnd) = hwnd(window) else { return };
     let scale = window.scale_factor();
@@ -288,7 +294,7 @@ fn position(window: &Window, bounds: Bounds<gpui::Pixels>, cx: &App) {
 }
 
 #[cfg(not(windows))]
-fn position(window: &mut Window, bounds: Bounds<gpui::Pixels>, _: &App) {
+pub(crate) fn position(window: &mut Window, bounds: Bounds<gpui::Pixels>, _: &App) {
     window.resize(bounds.size);
 }
 

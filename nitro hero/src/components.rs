@@ -2323,6 +2323,62 @@ fn glass_samples() -> [Arc<gpui::Image>; 3] {
         .clone()
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Snowflake {
+    x: f32,
+    y: f32,
+    size: f32,
+    alpha: f32,
+}
+
+/// Enough for a light fall at any window size.
+fn snowflake_count(width: f32, height: f32) -> u32 {
+    ((width * height / 9000.) as u32).clamp(30, 140)
+}
+
+/// Where one flake is. Worked out from the time alone, so there's nothing to store or update.
+fn snowflake(index: u32, seconds: f64, width: f32, height: f32) -> Snowflake {
+    const MARGIN: f64 = 12.;
+    let random = |salt: u32| {
+        let mut hash = index.wrapping_mul(2654435761) ^ salt.wrapping_mul(2246822519);
+        hash ^= hash >> 15;
+        hash = hash.wrapping_mul(3266489917);
+        hash ^= hash >> 13;
+        f64::from(hash) / f64::from(u32::MAX)
+    };
+    // Nearer flakes are bigger, brighter and fall faster.
+    let depth = random(1);
+    let speed = 22. + depth * 46.;
+    let travel = f64::from(height) + MARGIN * 2.;
+    let y = (random(2) * travel + seconds * speed).rem_euclid(travel) - MARGIN;
+    let sway = (6. + random(3) * 16.) * (seconds * (0.25 + random(4) * 0.5) + random(5) * std::f64::consts::TAU).sin();
+    let x = random(6) * f64::from(width) + sway;
+    Snowflake { x: x as f32, y: y as f32, size: 1.6 + depth as f32 * 2.8, alpha: 0.28 + depth as f32 * 0.55 }
+}
+
+/// Snow falling over the whole window. It can't be clicked.
+pub fn snow_overlay(started: Instant) -> impl IntoElement {
+    canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            let (width, height) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+            let seconds = started.elapsed().as_secs_f64();
+            for index in 0..snowflake_count(width, height) {
+                let flake = snowflake(index, seconds, width, height);
+                let origin = bounds.origin + gpui::point(px(flake.x), px(flake.y));
+                window.paint_quad(
+                    gpui::fill(Bounds::new(origin, gpui::size(px(flake.size), px(flake.size))), hsla(0., 0., 1., flake.alpha))
+                        .corner_radii(px(flake.size / 2.)),
+                );
+            }
+        },
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .size_full()
+}
+
 /// What keeps the window buttons readable with content passing under them: the background colour,
 /// solid along the top and gone by `FADE_HEIGHT`, and easing in over `soft` from its left edge.
 pub fn window_buttons_fade(colour: u32, width: f32, soft: f32) -> impl IntoElement {
@@ -2820,5 +2876,30 @@ mod overlay_raster_tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod snow_tests {
+    use super::{snowflake, snowflake_count};
+
+    #[test]
+    fn flakes_fall_inside_the_window_and_keep_moving() {
+        for index in 0..140 {
+            for seconds in [0., 1.5, 90., 86_400., 2_592_000.] {
+                let flake = snowflake(index, seconds, 1200., 800.);
+                assert!((-12. ..=812.).contains(&flake.y), "{flake:?}");
+                assert!((-22. ..=1222.).contains(&flake.x), "{flake:?}");
+                assert!(flake.alpha <= 0.83 && flake.size <= 4.4);
+            }
+            assert_ne!(snowflake(index, 1., 1200., 800.), snowflake(index, 1.5, 1200., 800.));
+        }
+    }
+
+    #[test]
+    fn the_amount_of_snow_is_bounded() {
+        assert_eq!(snowflake_count(100., 100.), 30);
+        assert_eq!(snowflake_count(1200., 800.), 106);
+        assert_eq!(snowflake_count(5000., 3000.), 140);
     }
 }

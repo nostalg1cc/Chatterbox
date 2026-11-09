@@ -13,6 +13,8 @@ mod hud;
 mod links;
 mod state;
 mod themes;
+mod sound_wheel;
+mod startup;
 mod sync;
 mod app_icon;
 mod chat_media;
@@ -246,6 +248,15 @@ pub enum MediaFile {
     Failed,
 }
 
+/// What the media sidebar has fetched for itself, beyond the messages loaded in chat.
+#[derive(Default)]
+pub struct SidebarPages {
+    pub messages: Vec<state::ChatMessage>,
+    pub loading: bool,
+    pub done: bool,
+    pub retry_at: Option<Instant>,
+}
+
 pub enum SoundboardStatus {
     NotLoaded,
     Loading,
@@ -304,7 +315,7 @@ pub struct Preview {
     pub slider_value: [u8; 2],
     /// Slots 0–1 are the playground; 2–5 are soundboard, input, partner and output volume.
     /// 6 is interface volume, 7 is overlay size.
-    pub sliders: [SliderHandle; 22],
+    pub sliders: [SliderHandle; 23],
     pub user: Option<backend::SignedInUser>,
     pub auth_busy: Option<String>,
     pub sync_error: Option<String>,
@@ -328,6 +339,23 @@ pub struct Preview {
     pub voice_state: voice::State,
     pub voice_events: Option<std::sync::mpsc::Receiver<voice::State>>,
     pub voice_token_at: Instant,
+    pub sound_wheel: Option<sound_wheel::SoundWheel>,
+    pub wheel_input: Option<sound_wheel::WheelInput>,
+    pub wheel_overlay: Option<gpui::WindowHandle<sound_wheel::WheelOverlay>>,
+    pub wheel_view_shown: Option<sound_wheel::WheelView>,
+    /// A text box in Nitro has the focus.
+    pub typing_in_nitro: bool,
+    /// The window's small enough for the centred header to run under the window buttons.
+    pub header_clear_of_buttons: bool,
+    drew_first_frame: bool,
+    /// When the wheel's key went down, while it's waiting out the hold.
+    pub wheel_press: Option<Instant>,
+    pub sidebar_media: std::collections::HashMap<String, SidebarPages>,
+    /// A message to go to once it's loaded, and how many pages have been tried.
+    pub message_jump: Option<(String, u32)>,
+    pub media_top_id: Option<String>,
+    /// When the snow started, and what keeps it moving.
+    pub snow: Option<(Instant, gpui::Task<()>)>,
     /// The conversation the current call belongs to, which may not be the open one.
     pub voice_conversation: Option<String>,
     persist_due: std::cell::Cell<Option<Instant>>,
@@ -384,6 +412,8 @@ pub struct Preview {
     /// The one video in chat that's loading or playing.
     pub playing_video: Option<PlayingVideo>,
     pub viewer_focus: gpui::FocusHandle,
+    /// Holds focus when nothing else does. Without any, key presses reach no shortcut at all.
+    pub idle_focus: gpui::FocusHandle,
     pub viewer_was_open: bool,
     pub video_volume: u8,
     pub video_muted: bool,
@@ -512,6 +542,19 @@ impl Preview {
 
     /// Saves shortly after the last change, so dragging a slider doesn't sync a file
     /// on every mouse move.
+    pub fn startup_ready(&self) -> bool {
+        if self.auth_busy.is_some() {
+            return false;
+        }
+        match self.state.auth_status {
+            state::AuthStatus::SignedOut => true,
+            _ => {
+                self.state.conversations.is_empty()
+                    || self.state.conversations.get(self.state.active_partner).is_some_and(|active| active.loaded)
+            }
+        }
+    }
+
     pub fn persist(&self) {
         self.persist_due.set(Some(Instant::now() + Duration::from_millis(400)));
     }
@@ -533,6 +576,7 @@ impl Preview {
             self.state.conversations[idx].unread_count = 0;
             self.chat_replying_to = None;
             self.chat_reply_target = None;
+            self.message_jump = None;
             self.placeholder_dirty = true;
             self.chat_scroll.scroll_to_bottom();
             self.history_settled_at = Instant::now();
@@ -657,6 +701,7 @@ impl Preview {
                     cx.notify();
                     return;
                 }
+                22 => this.state.preferences.wheel_hold_tenths = value.max(1),
                 2 => {
                     this.state.preferences.soundboard_volume = value;
                     audio::set_clip_volume(value);
@@ -775,11 +820,14 @@ impl Preview {
             loop {
                 gpui::Timer::after(Duration::from_millis(50)).await;
                 let alive = view.update(cx, |this, cx| {
-                    if this.window_active && components::take_effect_on_screen() {
+                    // Snow already redraws often enough to move these too.
+                    if components::take_effect_on_screen() && this.window_active && this.snow.is_none() {
                         cx.notify();
                     }
                     this.flush_persist(false);
                     this.pump_voice(cx);
+                    this.pump_wheel(cx);
+                    this.pump_message_jump(cx);
                     this.pump_typing(cx);
                     this.pump_presence(cx);
                     // People leave this app open for days, and both sides of a call need
@@ -822,6 +870,26 @@ impl Preview {
                 let has_text = !input.read(cx).value().trim().is_empty();
                 this.composer_changed(has_text);
                 cx.notify();
+            }
+        })
+        .detach();
+        cx.observe_window_bounds(window, |this, window, _| {
+            let (bounds, maximized) = match window.window_bounds() {
+                WindowBounds::Windowed(bounds) => (bounds, false),
+                WindowBounds::Maximized(bounds) => (bounds, true),
+                // Fullscreen isn't kept: it's for the moment.
+                WindowBounds::Fullscreen(_) => return,
+            };
+            let saved = state::SavedWindow {
+                x: f32::from(bounds.origin.x),
+                y: f32::from(bounds.origin.y),
+                width: f32::from(bounds.size.width),
+                height: f32::from(bounds.size.height),
+                maximized,
+            };
+            if this.state.preferences.window != Some(saved) {
+                this.state.preferences.window = Some(saved);
+                this.persist();
             }
         })
         .detach();
@@ -915,6 +983,18 @@ impl Preview {
             voice_state: Default::default(),
             voice_events: None,
             voice_token_at: Instant::now(),
+            snow: None,
+            sound_wheel: None,
+            wheel_input: None,
+            wheel_overlay: None,
+            wheel_view_shown: None,
+            typing_in_nitro: false,
+            header_clear_of_buttons: false,
+            drew_first_frame: false,
+            wheel_press: None,
+            sidebar_media: Default::default(),
+            message_jump: None,
+            media_top_id: None,
             voice_conversation: None,
             persist_due: Default::default(),
             screen_sink: None,
@@ -965,6 +1045,7 @@ impl Preview {
             media_in_flight: 0,
             playing_video: None,
             viewer_focus: cx.focus_handle(),
+            idle_focus: cx.focus_handle(),
             viewer_was_open: false,
             video_volume: 85,
             video_muted: false,
@@ -2220,6 +2301,14 @@ impl Render for Preview {
                 .child(self.render_window_controls(window, cx))
         };
         let lightbox = self.render_viewers(window, cx);
+        // There are no contexts to ask about until the first frame has been drawn.
+        if self.drew_first_frame {
+            self.typing_in_nitro = window.context_stack().iter().any(|context| context.contains("Input"));
+        }
+        self.drew_first_frame = true;
+        if window.focused(cx).is_none() {
+            window.focus(&self.idle_focus);
+        }
         div()
             .relative()
             .size_full()
@@ -2240,12 +2329,77 @@ impl Render for Preview {
             .font_family("Inter")
             .children(banner)
             .child(div().flex_1().min_h_0().w_full().flex().child(body))
+            .child(div().track_focus(&self.idle_focus))
+            .children(self.snow.as_ref().map(|snow| components::snow_overlay(snow.0)))
     }
 }
+/// Where to open: the last place, unless that's no longer on any screen.
+fn main_window_bounds(cx: &App) -> WindowBounds {
+    let default = Bounds::centered(None, size(px(1240.), px(820.)), cx);
+    let Some(saved) = state::load_state().preferences.window else {
+        return WindowBounds::Windowed(default);
+    };
+    let bounds = Bounds::new(
+        gpui::point(px(saved.x), px(saved.y)),
+        size(px(saved.width.max(MINIMUM_WINDOW.0)), px(saved.height.max(MINIMUM_WINDOW.1))),
+    );
+    let reachable = cx.displays().iter().any(|display| {
+        let shared = display.bounds().intersect(&bounds);
+        f32::from(shared.size.width) >= 120. && f32::from(shared.size.height) >= 60.
+    });
+    match (reachable, saved.maximized) {
+        (false, _) => WindowBounds::Windowed(default),
+        (true, true) => WindowBounds::Maximized(bounds),
+        (true, false) => WindowBounds::Windowed(bounds),
+    }
+}
+
+const MINIMUM_WINDOW: (f32, f32) = (800., 540.);
+
+/// Opens the app's window, shown or not. Closing it ends the app.
+pub fn open_main_window(cx: &mut App, show: bool) -> (gpui::WindowHandle<Root>, Entity<Preview>) {
+    let window_bounds = main_window_bounds(cx);
+    let created: Rc<std::cell::RefCell<Option<Entity<Preview>>>> = Default::default();
+    let slot = created.clone();
+    let window = cx
+        .open_window(
+            WindowOptions {
+                window_bounds: Some(window_bounds),
+                window_min_size: Some(size(px(MINIMUM_WINDOW.0), px(MINIMUM_WINDOW.1))),
+                titlebar: Some(TitlebarOptions {
+                    title: Some("Nitro".into()),
+                    appears_transparent: true,
+                    ..Default::default()
+                }),
+                app_id: Some("io.github.nostalg1cc.dislight".into()),
+                show,
+                ..Default::default()
+            },
+            |window, cx| {
+                let shell = cx.new(|cx| Preview::new(window, cx));
+                *slot.borrow_mut() = Some(shell.clone());
+                cx.new(|cx| Root::new(shell, window, cx))
+            },
+        )
+        .expect("could not open the Nitro window");
+    let window_id = window.window_id();
+    cx.on_window_closed(move |cx| {
+        if !cx.windows().iter().any(|open| open.window_id() == window_id) {
+            cx.quit();
+        }
+    })
+    .detach();
+    let preview = created.borrow_mut().take().expect("the window builds its contents");
+    (window, preview)
+}
+
 fn main() {
     #[cfg(debug_assertions)]
     if std::env::args().any(|arg| arg == "--mcp-bridge") {
         dev_mcp::bridge();
+        return;
+    }
+    if startup::another_copy_is_running() {
         return;
     }
     Application::new().with_assets(Icons).run(|cx: &mut App| {
@@ -2267,36 +2421,6 @@ fn main() {
             hud::check(cx);
             return;
         }
-        let bounds = Bounds::centered(None, size(px(1240.), px(820.)), cx);
-        let preview = cx
-            .open_window(
-                WindowOptions {
-                    window_bounds: Some(WindowBounds::Windowed(bounds)),
-                    window_min_size: Some(size(px(480.), px(320.))),
-                    titlebar: Some(TitlebarOptions {
-                        title: Some("Nitro".into()),
-                        appears_transparent: true,
-                        ..Default::default()
-                    }),
-                    app_id: Some("io.github.nostalg1cc.dislight".into()),
-                    ..Default::default()
-                },
-                |window, cx| {
-                    let shell = cx.new(|cx| Preview::new(window, cx));
-                    cx.new(|cx| Root::new(shell, window, cx))
-                },
-            )
-            .expect("could not open the Nitro Hero preview window");
-        cx.on_window_closed(move |cx| {
-            if !cx
-                .windows()
-                .iter()
-                .any(|window| window.window_id() == preview.window_id())
-            {
-                cx.quit();
-            }
-        })
-        .detach();
-        cx.activate(true);
+        startup::launch(cx);
     });
 }

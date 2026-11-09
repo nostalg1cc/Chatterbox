@@ -22,6 +22,7 @@ pub enum UiSound {
     Reaction,
     VoiceJoin,
     VoiceLeave,
+    VoiceReconnect,
 }
 
 /// The main app attenuates its full-scale WAVs by this much.
@@ -121,6 +122,7 @@ pub fn play(sound: UiSound) {
         UiSound::Reaction => include_bytes!("../assets/sounds/reaction.wav"),
         UiSound::VoiceJoin => include_bytes!("../assets/sounds/voice_connected_join.wav"),
         UiSound::VoiceLeave => include_bytes!("../assets/sounds/voice_disconnect.wav"),
+        UiSound::VoiceReconnect => include_bytes!("../assets/sounds/voice_unstable_reconnect.wav"),
         _ => &[],
     };
     std::thread::spawn(move || {

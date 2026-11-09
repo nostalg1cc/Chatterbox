@@ -277,3 +277,25 @@ Also unreleased:
 ## 0.2.4 (2026-11-07)
 
 Released with glass on by default in all builds. Not measured: glass frame time on weak GPUs, and there is no painted fallback. The Compare section, Glass bench and "Glass on" switch remain, debug or UI gallery only. Still unconfirmed by a real second person: watching a stream. Blue boxes around names are the "Resize" name effect, not a bug.
+
+## Voice stalls and snow (2026-11-09, after 0.2.4)
+
+Calls went silent for a few minutes about once an hour. The call kept using an access token for up to 4 minutes after it expired, because it was only offered a new one every 5 minutes. Heartbeats failed with 401, the server removed the seat after 120 seconds, and the partner's connection was closed. Seen in production logs on 2026-11-08. The token is now offered every 20 seconds, failed heartbeats retry after 6 seconds, and a connection that reports connected with no packets arriving for 9 seconds goes through recovery.
+
+Not explained: 44 joins from 10:20 to 10:24 UTC that day, a fast rebuild loop after one of those drops. Client logs don't exist to say which path looped.
+
+Snow is `app_flags` row `snow`, read with each snapshot. Requires migration `20261109120000_app_flags.sql` and the updated `push-notice` function. Set it with the notice key, which must never be committed:
+
+    curl -X POST https://lapjrxdgcbdseskmyfru.supabase.co/functions/v1/push-notice -H "x-notice-secret: $NOTICE_KEY" -H "content-type: application/json" -d '{"flag":"snow","enabled":true}'
+
+## Sound wheel, sidebar pages, call sounds (2026-11-09, after 0.2.4)
+
+- Sound wheel proof of concept: `src/sound_wheel.rs`, settings under Keybinds. Works only while Nitro has focus. Default key is Alt+G, because a plain letter can't be told apart from typing in the composer.
+- The media sidebar fetches its own pages of 10 rows (`load_media_page`), newest first. Pictures still load only when a card is near the screen, from the disk cache after the first time. Page 2 onward hasn't been exercised: the test chat has 9 media rows.
+- Clicking a sidebar item that isn't loaded in chat pages history back until it is, up to 40 pages.
+- Added partner joined, partner left and reconnecting sounds, as in the old app.
+
+
+## 0.2.5 (2026-11-09)
+
+Released after a release-build check and a 3-minute stress run. Measured on the release build: startup window at 0.4 s, app shown at 2.2 s, about 11% of one core and 0.5% GPU with snow on, 122 MB. Glass on weak GPUs is still unmeasured. Auto-update at startup can only be proven by the first release after this one. A failed install isn't retried for 6 hours, so it can't stop Nitro opening.

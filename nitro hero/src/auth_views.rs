@@ -1452,7 +1452,7 @@ impl Preview {
             );
 
         let update_text: SharedString = match &self.update {
-            crate::UpdateState::Idle => "Native desktop app".into(),
+            crate::UpdateState::Idle => "Updates install automatically when Nitro starts.".into(),
             crate::UpdateState::Checking => "Checking for updates…".into(),
             crate::UpdateState::UpToDate => "You're on the latest version.".into(),
             crate::UpdateState::Available(update) => format!("Nitro {} is available.", update.version).into(),
@@ -1794,7 +1794,7 @@ impl Preview {
                                 StrokeKind::Neutral
                             },
                         )
-                        .w(px(160.))
+                        .w(px(198.))
                         .p(px(12.))
                         .flex()
                         .flex_col()
@@ -1863,7 +1863,7 @@ impl Preview {
                                     .child("Appearance"),
                             )
                             .child(label(
-                                "Choose a surface palette for the stage, floating pills, and transparent sidebar.",
+                                "Choose the colours Nitro uses.",
                             )),
                     )
                     .child(theme_cards)
@@ -2087,7 +2087,7 @@ impl Preview {
                     let recording = self.recording_keybind == Some(index);
                     let bind = self.state.preferences.keybinds[index].clone();
                     rows = rows.child(row(
-                        settings_row(action, "Works while Nitro is focused and you're in a call."),
+                        settings_row(action, "Works during a call, even when Nitro isn't focused."),
                         small_button(
                             ("settings-keybind", index),
                             if recording {
@@ -2104,6 +2104,57 @@ impl Preview {
                         })),
                     ));
                 }
+                let prefs = self.state.preferences.clone();
+                let (wheel_copy, wheel_button) = toggle_row(
+                    "settings-wheel",
+                    "Sound wheel",
+                    "Press its key, move the mouse towards a sound, and let go to play it.",
+                    prefs.wheel_enabled,
+                );
+                let recording_wheel = self.recording_keybind == Some(crate::state::KEYBIND_ACTIONS.len());
+                let wheel_panel = settings_panel()
+                    .child(row(
+                        wheel_copy,
+                        wheel_button.on_click(cx.listener(|this, _, _, cx| {
+                            this.state.preferences.wheel_enabled = !this.state.preferences.wheel_enabled;
+                            this.persist();
+                            cx.notify();
+                        })),
+                    ))
+                    .child(row(
+                        settings_row("Wheel key", "Works anywhere during a call, including over games."),
+                        small_button(
+                            "settings-wheel-key",
+                            if recording_wheel {
+                                "Press a key… (Esc cancels)".to_string()
+                            } else if prefs.wheel_key.is_empty() {
+                                "Not set".to_string()
+                            } else {
+                                prefs.wheel_key.to_uppercase()
+                            },
+                        )
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.recording_keybind = Some(crate::state::KEYBIND_ACTIONS.len());
+                            cx.notify();
+                        })),
+                    ))
+                    .child(row(
+                        settings_row("Opens", "Instantly also stays open after a quick tap, until you click or press the key again."),
+                        small_button("settings-wheel-mode", if prefs.wheel_hold { "After holding" } else { "Instantly" })
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.state.preferences.wheel_hold = !this.state.preferences.wheel_hold;
+                                this.persist();
+                                cx.notify();
+                            })),
+                    ))
+                    .when(prefs.wheel_hold, |panel| {
+                        panel.child(components::slider_field(
+                            "Hold for",
+                            format!("{:.1} seconds", f32::from(prefs.wheel_hold_tenths.max(1)) / 10.),
+                            560.,
+                            self.slider_for(22, prefs.wheel_hold_tenths, 30, 1, 560., cx),
+                        ))
+                    });
                 div()
                     .flex()
                     .flex_col()
@@ -2111,9 +2162,11 @@ impl Preview {
                     .max_w(px(620.))
                     .child(settings_title(
                         "Keybinds",
-                        "Shortcuts work anywhere inside Nitro. Recording a duplicate replaces the old binding.",
+                        "Pick a key that isn't used elsewhere. Using one twice moves it here.",
                     ))
                     .child(rows)
+                    .child(wheel_panel)
+                    .child(label("A key on its own also opens the wheel while you type in other apps, so a combination like Alt+G is safer."))
             }
             SettingsTab::Soundboard => {
                 if matches!(self.soundboard_status, crate::SoundboardStatus::NotLoaded) {
@@ -2393,13 +2446,19 @@ impl Preview {
                 ))
                 .child(
                     settings_panel()
-                        .child(settings_row(format!("Nitro {}", env!("CARGO_PKG_VERSION")), update_text))
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(12.))
+                                .child(settings_row(format!("Nitro {}", env!("CARGO_PKG_VERSION")), update_text))
+                                .children(update_button.map(|button| button.flex_shrink_0())),
+                        )
                         .child(settings_row(
                             "Signed in as",
                             format!("@{}", self.state.profile.username),
                         )),
-                )
-                .when_some(update_button, |column, button| column.child(button)),
+                ),
             _ => div()
                 .flex()
                 .flex_col()
@@ -2485,7 +2544,7 @@ impl Preview {
                                                 .child("Show rich media previews"),
                                         )
                                         .child(label(
-                                            "Render inline WebP galleries and WebM video clips in chat.",
+                                            "Show images and videos inside messages.",
                                         )),
                                 )
                                 .child(

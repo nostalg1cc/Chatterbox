@@ -16,6 +16,7 @@ const corsHeaders = {
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: corsHeaders });
 const SEVERITIES = new Set(["neutral", "warning", "danger"]);
+const FLAGS = new Set(["snow"]);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -26,10 +27,15 @@ Deno.serve(async (req) => {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  const body = await req.json().catch(() => null) as { severity?: unknown; message?: unknown } | null;
+  const body = await req.json().catch(() => null) as
+    { severity?: unknown; message?: unknown; flag?: unknown; enabled?: unknown } | null;
+  const isFlag = body?.flag !== undefined;
+  if (isFlag && (typeof body?.flag !== "string" || !FLAGS.has(body.flag) || typeof body?.enabled !== "boolean")) {
+    return json({ error: "flag must be a known name, and enabled true or false" }, 400);
+  }
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   const severity = typeof body?.severity === "string" && SEVERITIES.has(body.severity) ? body.severity : "neutral";
-  if (!message || message.length > 500) {
+  if (!isFlag && (!message || message.length > 500)) {
     return json({ error: "message is required (1-500 chars)" }, 400);
   }
 
@@ -38,6 +44,14 @@ Deno.serve(async (req) => {
   const key = namedSecrets.default ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) return json({ error: "Server misconfigured" }, 500);
   const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+
+  if (isFlag) {
+    const { data, error } = await admin.from("app_flags")
+      .upsert({ name: body!.flag, enabled: body!.enabled, updated_at: new Date().toISOString() })
+      .select().single();
+    if (error) return json({ error: error.message }, 500);
+    return json({ flag: data });
+  }
 
   const { data, error } = await admin.from("app_notices").insert({ severity, message }).select().single();
   if (error) return json({ error: error.message }, 500);

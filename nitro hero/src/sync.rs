@@ -98,6 +98,8 @@ impl Preview {
         self.state.conversations.clear();
         self.state.friend_requests.clear();
         self.state.active_partner = 0;
+        self.sidebar_media.clear();
+        self.message_jump = None;
         self.soundboard_clips.clear();
         self.voice.control(crate::voice::Control::Stop);
         self.voice_events = None;
@@ -335,6 +337,9 @@ impl Preview {
             active.unread_count = 0;
         }
         self.state.friend_requests = snapshot.friend_requests;
+        if let Some(on) = snapshot.snow {
+            self.set_snow(on, cx);
+        }
         if let Some((id, severity, message)) = snapshot.notice
             && self.state.preferences.dismissed_notice_id.as_deref() != Some(id.as_str())
             && self.last_notice_id.as_deref() != Some(id.as_str())
@@ -433,7 +438,8 @@ impl Preview {
             crate::audio::play(crate::audio::UiSound::Message);
         }
         backend::merge_messages(&mut conversation.messages, incoming);
-        conversation.shared_media = backend::media_items(&conversation.messages);
+        let older = self.sidebar_media.get(conversation_id).map_or(&[][..], |pages| &pages.messages[..]);
+        conversation.shared_media = backend::media_items_with(&conversation.messages, older);
         conversation.loaded = true;
         if let Some(has_more) = has_more {
             conversation.has_more = has_more;
@@ -1129,6 +1135,7 @@ impl Preview {
         if self.state.conversations.is_empty() {
             return;
         }
+        crate::voice::note("join requested");
         // This click wins: whatever call the app thinks it's in ends, and this one starts.
         if self.voice_events.is_some() || self.call_connected {
             self.end_call_state(cx);
@@ -1189,6 +1196,7 @@ impl Preview {
     }
 
     pub fn leave_voice(&mut self, cx: &mut Context<Self>) {
+        crate::voice::note("leave requested (button or shortcut)");
         self.end_call_state(cx);
         crate::audio::play(crate::audio::UiSound::VoiceLeave);
         cx.notify();
@@ -1258,7 +1266,13 @@ impl Preview {
                         bind.clear();
                     }
                 }
-                self.state.preferences.keybinds[index] = pressed;
+                if self.state.preferences.wheel_key == pressed {
+                    self.state.preferences.wheel_key.clear();
+                }
+                match self.state.preferences.keybinds.get_mut(index) {
+                    Some(bind) => *bind = pressed,
+                    None => self.state.preferences.wheel_key = pressed,
+                }
                 self.persist();
             }
             cx.notify();
@@ -1576,7 +1590,11 @@ impl Preview {
             }
         }
         if let Some(state) = latest {
+            if state.status != self.voice_state.status {
+                crate::voice::note(&format!("status {} -> {}", self.voice_state.status, state.status));
+            }
             if state.status == "failed" {
+                crate::voice::note(&format!("call failed: {}", state.error.as_deref().unwrap_or("no reason")));
                 self.sync_error = state.error.clone();
                 ended = true;
             }
@@ -1596,6 +1614,16 @@ impl Preview {
                 self.end_share_preview(cx);
             }
             self.pump_remote_sounds(&state, cx);
+            let me = self.state.profile.id.clone();
+            let someone_else = |voice: &crate::voice::State| voice.participants.iter().any(|person| *person != me);
+            let (was, now) = (self.voice_state.status.as_str(), state.status.as_str());
+            if was == "solo" && now != "solo" && someone_else(&state) {
+                crate::audio::play(crate::audio::UiSound::VoiceJoin);
+            } else if was != "solo" && now == "solo" && someone_else(&self.voice_state) {
+                crate::audio::play(crate::audio::UiSound::VoiceLeave);
+            } else if was == "connected" && now == "reconnecting" {
+                crate::audio::play(crate::audio::UiSound::VoiceReconnect);
+            }
             let became_connected = state.receiving && !self.voice_state.receiving;
             self.voice_state = state;
             if became_connected {
@@ -1604,6 +1632,7 @@ impl Preview {
             cx.notify();
         }
         if ended {
+            crate::voice::note("call ended by the voice worker");
             self.end_screen_view(cx);
             self.end_share_preview(cx);
             self.voice_events = None;
@@ -1615,7 +1644,10 @@ impl Preview {
             cx.notify();
             return;
         }
-        if self.voice_token_at.elapsed() >= Duration::from_secs(300) {
+        // Often enough that a renewed login reaches the call before the old one runs out, which
+        // it does a minute after renewal. Every 5 minutes left the call rejected for up to 4,
+        // long enough for the server to drop both people from it.
+        if self.voice_token_at.elapsed() >= Duration::from_secs(20) {
             self.voice_token_at = std::time::Instant::now();
             let voice = self.voice.clone();
             cx.background_spawn(async move {
@@ -1862,10 +1894,94 @@ impl Preview {
         }
     }
 
+    /// Starts or stops the snow. Moving it redraws the window, so it's kept to 25 frames a second
+    /// and holds still while another window has focus, a game for instance.
+    pub fn set_snow(&mut self, on: bool, cx: &mut Context<Self>) {
+        if on == self.snow.is_some() {
+            return;
+        }
+        self.snow = on.then(|| {
+            let task = cx.spawn(async move |view, cx| {
+                loop {
+                    gpui::Timer::after(Duration::from_millis(40)).await;
+                    let drawn = view.update(cx, |this, cx| {
+                        if this.window_active {
+                            cx.notify();
+                        }
+                    });
+                    if drawn.is_err() {
+                        break;
+                    }
+                }
+            });
+            (std::time::Instant::now(), task)
+        });
+        cx.notify();
+    }
+
+    /// Fetches the next ten messages with media for the sidebar. These are only rows: pictures
+    /// still load when their card is on screen, and once fetched come from the disk cache.
+    pub fn load_media_page(&mut self, cx: &mut Context<Self>) {
+        let Some((conversation_id, who, _)) = self.active_request() else { return };
+        let pages = self.sidebar_media.entry(conversation_id.clone()).or_default();
+        if pages.loading || pages.done || pages.retry_at.is_some_and(|at| at > std::time::Instant::now()) {
+            return;
+        }
+        pages.loading = true;
+        let before = pages.messages.first().map(|message| message.created_at.clone());
+        cx.spawn(async move |view, cx| {
+            let id = conversation_id.clone();
+            let result = cx
+                .background_spawn(async move { backend::load_media_page(&id, before.as_deref(), &who) })
+                .await;
+            let _ = view.update(cx, |this, cx| {
+                let pages = this.sidebar_media.entry(conversation_id.clone()).or_default();
+                pages.loading = false;
+                match result {
+                    Ok((mut older, has_more)) => {
+                        pages.done = !has_more;
+                        older.append(&mut pages.messages);
+                        pages.messages = older;
+                        let older = &pages.messages;
+                        if let Some(conversation) = this.state.conversations.iter_mut().find(|row| row.id == conversation_id) {
+                            conversation.shared_media = backend::media_items_with(&conversation.messages, older);
+                        }
+                    }
+                    Err(_) => pages.retry_at = Some(std::time::Instant::now() + Duration::from_secs(30)),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Carries on towards a sidebar item whose message isn't in the loaded chat yet.
+    pub fn pump_message_jump(&mut self, cx: &mut Context<Self>) {
+        const MOST_PAGES: u32 = 40;
+        let Some((id, pages)) = self.message_jump.clone() else { return };
+        if self.message_tops.borrow().contains_key(&id) {
+            self.message_jump = None;
+            self.scroll_to_message(id, cx);
+            return;
+        }
+        if self.loading_older {
+            return;
+        }
+        if pages >= MOST_PAGES || !self.active_conv().has_more {
+            self.message_jump = None;
+            return;
+        }
+        self.message_jump = Some((id, pages + 1));
+        self.load_older_messages(cx);
+    }
+
     /// Scrolls chat to a message from the media sidebar, and tints it for a moment.
     pub fn scroll_to_message(&mut self, id: String, cx: &mut Context<Self>) {
         const BELOW_HEADER: f32 = 72.;
-        let Some(top) = self.message_tops.borrow().get(&id).copied() else { return };
+        let Some(top) = self.message_tops.borrow().get(&id).copied() else {
+            self.message_jump = Some((id, 0));
+            return;
+        };
         let mut offset = self.chat_scroll.offset();
         offset.y += gpui::px(BELOW_HEADER - top);
         self.chat_scroll.set_offset(offset);

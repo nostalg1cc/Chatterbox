@@ -34,6 +34,13 @@ mod native {
 /// `None` for keys with no stable virtual key, or with no modifier: a bare letter
 /// would stop that letter being typed anywhere on the computer.
 fn parse(keystroke: &str) -> Option<(u32, u32)> {
+    let (modifiers, code) = parse_any(keystroke)?;
+    let function_key = (0x70..=0x87).contains(&code);
+    (modifiers != 0 || function_key).then_some((modifiers, code))
+}
+
+/// The same, allowing a key on its own, for something that only watches the key.
+pub fn parse_any(keystroke: &str) -> Option<(u32, u32)> {
     const CTRL: u32 = 2;
     const ALT: u32 = 1;
     const SHIFT: u32 = 4;
@@ -74,8 +81,7 @@ fn parse(keystroke: &str) -> Option<(u32, u32)> {
         }
         _ => return None,
     };
-    let function_key = (0x70..=0x87).contains(&code);
-    (modifiers != 0 || function_key).then_some((modifiers, code))
+    Some((modifiers, code))
 }
 
 pub struct Hotkeys {

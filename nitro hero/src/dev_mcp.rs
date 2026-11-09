@@ -67,6 +67,8 @@ fn tools() -> Value {
         tool("nitro_voice", "Join or leave the real voice room. Opens the microphone. Only allowed in the chat named by --dev-mcp-write-chat.", json!({"action":{"type":"string","enum":["join","leave"]}}), &["action"]),
         tool("nitro_settings_tab", "Open a settings tab.", json!({"tab":{"type":"string","enum":["account","appearance","chat","voice","keybinds","soundboard","about"]}}), &["tab"]),
         tool("nitro_set_media", "Show or hide the media sidebar.", json!({"open":{"type":"boolean"}}), &["open"]),
+        tool("nitro_sound_wheel", "Show the sound wheel without a call, point it, turn its page or close it. Plays nothing.", json!({"action":{"type":"string","enum":["open","point","page","close"]},"dx":{"type":"number"},"dy":{"type":"number"}}), &["action"]),
+        tool("nitro_set_snow", "Start or stop the snow here only, until the next snapshot reads the real setting.", json!({"on":{"type":"boolean"}}), &["on"]),
         tool("nitro_dropdown", "Open a header dropdown, or close with none.", json!({"name":{"type":"string","enum":["none","switcher","soundboard","microphone","output"]}}), &["name"]),
         tool("nitro_focus_input", "Focus an input.", json!({"field":{"type":"string"}}), &["field"]),
         tool("nitro_set_input", "Replace an input's text. Refused for the password field.", json!({"field":{"type":"string"},"text":{"type":"string"}}), &["field","text"]),
@@ -544,6 +546,20 @@ impl Preview {
             }
             "nitro_set_media" => {
                 self.media_sidebar_open = args["open"].as_bool().ok_or("open is required")?;
+            }
+            "nitro_sound_wheel" => match args["action"].as_str().unwrap_or("") {
+                "open" => {
+                    self.open_wheel(cx);
+                    if let Some(wheel) = self.sound_wheel.as_mut() {
+                        wheel.stay_open = true;
+                    }
+                }
+                "point" => self.wheel_aim_by(args["dx"].as_f64().unwrap_or(0.) as f32, args["dy"].as_f64().unwrap_or(0.) as f32),
+                "page" => self.wheel_turn_page(true),
+                _ => self.sound_wheel = None,
+            },
+            "nitro_set_snow" => {
+                self.set_snow(args["on"].as_bool().ok_or("on is required")?, cx);
             }
             "nitro_dropdown" => {
                 use crate::state::HeaderDropdown::*;
