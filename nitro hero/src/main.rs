@@ -1476,7 +1476,7 @@ impl Preview {
             call_row = call_row
                 .child(components::voice_button(
                     "preview-voice",
-                    "Voice", false,
+                    "Voice",
                     vec![],
                     cx.listener(|this, _, _, cx| {
                         audio::play(audio::UiSound::VoiceJoin);
@@ -1488,7 +1488,7 @@ impl Preview {
                 ))
                 .child(components::voice_button(
                     "preview-voice-join",
-                    "Join", false,
+                    "Join",
                     vec![("N".into(), 0x3d4a58, Default::default())],
                     cx.listener(|this, _, _, cx| {
                         audio::play(audio::UiSound::VoiceJoin);

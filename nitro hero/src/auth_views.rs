@@ -1147,7 +1147,7 @@ impl Preview {
             all_chats = all_chats.child(
                 material_interactive(
                     ("dash-conv", c_idx),
-                    if is_active { 0x2a2a30 } else { MATERIAL_SUBTLE },
+                    if is_active { 0x2a2a30 } else { MATERIAL_DARK },
                     14.,
                     StrokeKind::Neutral,
                 )
@@ -1400,7 +1400,7 @@ impl Preview {
         for (idx, (t_val, t_label)) in tabs.into_iter().enumerate() {
             let active = self.settings_tab == t_val;
             let row = if active {
-                material_surface(MATERIAL_DARK, 14., StrokeKind::Neutral)
+                material_surface(0x34343a, 14., StrokeKind::Neutral)
                     .h(px(components::CONTROL_HEIGHT))
                     .px(px(12.))
                     .flex()

@@ -16,6 +16,12 @@ use std::time::{Duration, Instant};
 /// The shared accent. Every accent role uses this value.
 pub const ACCENT: u32 = 0x0a84ff;
 
+// How dark or light a surface is depends only on what it sits on:
+//   MATERIAL_SUBTLE / MATERIAL_PANEL  directly on the background or content: the darkest.
+//                                     The composer, call module, tabs, pills, menus and cards.
+//   MATERIAL_DARK                     on top of one of those: a step lighter. Buttons and rows.
+//   0x34343a                          selected: the lightest.
+// Colour is only ever for meaning: accent for the main action, green for live, red for danger.
 pub const MATERIAL_DARK: u32 = 0x282828;
 pub const MATERIAL_SUBTLE: u32 = 0x202022;
 pub const MATERIAL_PANEL: u32 = 0x1e1e20;
@@ -158,13 +164,16 @@ impl GlassLook {
     fn for_surface(role: u32, fill: u32, height: f32) -> Self {
         let colour: Hsla = gpui::rgb(role).into();
         if colour.s > 0.3 {
-            Self::tinted(fill)
-        } else if height >= 120. {
-            // Content can now be behind a menu or card, so its own colour holds most of the
-            // body, and what's behind is well diffused. Text on it has to stay readable.
-            Self { tint: Some((fill, 0.42)), ..Self::PANEL }
-        } else {
-            Self::SURFACE
+            return Self::tinted(fill);
+        }
+        let on_the_background = matches!(role, MATERIAL_SUBTLE | MATERIAL_PANEL);
+        match role {
+            // Tall surfaces hold text over whatever's behind them, so they diffuse it more.
+            _ if on_the_background && height >= 120. => Self { tint: Some((fill, 0.42)), ..Self::PANEL },
+            _ if on_the_background => Self::WELL,
+            0x34343a | 0x323238 | 0x303036 | 0x2a2a30 => Self::SLAB,
+            _ if height >= 120. => Self { tint: Some((fill, 0.42)), ..Self::PANEL },
+            _ => Self::SURFACE,
         }
     }
 }
@@ -1852,7 +1861,7 @@ pub fn system_marker(text: impl Into<SharedString>) -> Div {
         .gap(px(12.))
         .child(div().flex_1().h(px(1.)).bg(rgba(0xffffff12)))
         .child(
-            material_surface(MATERIAL_DARK, 999., StrokeKind::Neutral)
+            material_surface(MATERIAL_SUBTLE, 999., StrokeKind::Neutral)
                 .px(px(12.))
                 .py(px(4.))
                 .text_size(px(11.))
@@ -1909,33 +1918,19 @@ pub fn avatar_stack(people: Vec<(SharedString, u32, AvatarImage)>) -> Div {
 pub fn voice_button(
     id: &'static str,
     label: &'static str,
-    matches_module: bool,
     people: Vec<(SharedString, u32, AvatarImage)>,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
     // Someone's already in there, so it's an invitation.
     let joinable = !people.is_empty();
     let ink = if joinable { 0xffffff } else { 0xd4d4d8 };
-    let button = if matches_module && !joinable {
-        div()
-            .id(id)
-            .relative()
-            .rounded(px(CONTROL_HEIGHT / 2.))
-            .group(id)
-            .cursor_pointer()
-            .active(|s| s.opacity(0.88))
-            .child(tab_well(CONTROL_HEIGHT / 2.).absolute().top_0().left_0().size_full())
-            .child(hover_sheen(id, CONTROL_HEIGHT / 2.))
-    } else {
-        material_quiet(
-            id,
-            id,
-            if joinable { MATERIAL_GREEN } else { MATERIAL_DARK },
-            25.01,
-            if joinable { StrokeKind::Colored } else { StrokeKind::Neutral },
-        )
-    };
-    button
+    material_quiet(
+        id,
+        id,
+        if joinable { MATERIAL_GREEN } else { MATERIAL_SUBTLE },
+        25.01,
+        if joinable { StrokeKind::Colored } else { StrokeKind::Neutral },
+    )
         .h(px(CONTROL_HEIGHT))
         .px(px(13.))
         .flex_shrink_0()

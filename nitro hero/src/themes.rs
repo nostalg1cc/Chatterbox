@@ -195,7 +195,7 @@ impl AppTheme {
         };
         Palette {
             canvas: bg, stage: bg, media: bg,
-            surface: material, subtle, panel: material, raised,
+            surface: material, subtle, panel: subtle, raised,
             accent, accent_soft, accent_line,
             text: 0xffffff, muted: 0xd9d9d9, selected: raised, hairline: material,
         }

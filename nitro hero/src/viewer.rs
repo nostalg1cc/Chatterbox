@@ -376,7 +376,7 @@ impl Preview {
                     .when(paused, |viewer| {
                         viewer.child(
                             div().absolute().inset_0().flex().items_center().justify_center().child(
-                                material_surface(MATERIAL_DARK, 32., StrokeKind::Neutral)
+                                material_surface(components::MATERIAL_SUBTLE, 32., StrokeKind::Neutral)
                                     .size(px(64.))
                                     .flex()
                                     .items_center()
@@ -468,7 +468,7 @@ impl Preview {
 }
 
 fn close_button(id: &'static str) -> Stateful<Div> {
-    material_surface(MATERIAL_DARK, 16., StrokeKind::Neutral)
+    material_surface(components::MATERIAL_SUBTLE, 16., StrokeKind::Neutral)
         .id(id)
         .cursor_pointer()
         .size(px(32.))

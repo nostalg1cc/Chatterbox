@@ -290,7 +290,7 @@ impl Preview {
                     .justify_center()
                     .when(!active || loading || paused, |center| {
                         center.child(
-                            material_surface(MATERIAL_DARK, 22., StrokeKind::Neutral)
+                            material_surface(MATERIAL_SUBTLE, 22., StrokeKind::Neutral)
                                 .size(px(44.))
                                 .flex()
                                 .items_center()
@@ -780,7 +780,7 @@ impl Preview {
                             .items_center()
                             .justify_center()
                             .child(
-                                material_surface(MATERIAL_DARK, 14., StrokeKind::Neutral)
+                                material_surface(MATERIAL_SUBTLE, 14., StrokeKind::Neutral)
                                     .px(px(16.))
                                     .py(px(10.))
                                     .text_size(px(14.))
@@ -853,20 +853,12 @@ impl Preview {
         };
 
         // 1. Partner Switcher Pill (3-Layer Glass Pill)
-        // Made of the same surface as the call module, in a call or not.
-        let beside_module = self.state.preferences.call_module;
-        let partner_pill = if beside_module {
-            div()
-                .id("chat-partner-switcher")
-                .group("chat-partner-switcher")
-                .relative()
-                .rounded(px(crate::call_module::HEIGHT / 2.))
-                .cursor_pointer()
-                .child(crate::call_module::module_backing().absolute().top_0().left_0().size_full())
-                .child(components::hover_sheen("chat-partner-switcher", crate::call_module::HEIGHT / 2.))
-        } else {
-            material_interactive("chat-partner-switcher", MATERIAL_DARK, 19., StrokeKind::Neutral)
-        }
+        let partner_pill = material_interactive(
+            "chat-partner-switcher",
+            MATERIAL_SUBTLE,
+            components::CONTROL_HEIGHT / 2.,
+            StrokeKind::Neutral,
+        )
         .h(px(components::CONTROL_HEIGHT))
         .pl(px(7.))
         .pr(px(13.))
@@ -1017,7 +1009,6 @@ impl Preview {
             components::voice_button(
                 "chat-voice-pill",
                 if in_room.is_empty() { "Voice" } else { "Join" },
-                self.state.preferences.call_module,
                 in_room,
                 cx.listener(|this, _, _, cx| this.join_voice(cx)),
             )
@@ -1028,7 +1019,7 @@ impl Preview {
         let soundboard_pill = components::material_quiet(
             "chat-soundboard-pill",
             "chat-soundboard-pill",
-            if sb_open { 0x34343a } else { MATERIAL_DARK },
+            if sb_open { 0x34343a } else { MATERIAL_SUBTLE },
             19.,
             if sb_open {
                 StrokeKind::AccentFocus
@@ -1073,7 +1064,7 @@ impl Preview {
         let sharing = self.voice_state.screen.share != crate::screen_share::Stage::Idle;
         let stream_open = self.open_dropdown == Some(HeaderDropdown::Screen);
         let stream_bg = if !sharing {
-            MATERIAL_DARK
+            MATERIAL_SUBTLE
         } else if self.call_stream_hovered {
             MATERIAL_RED
         } else {
@@ -1128,7 +1119,7 @@ impl Preview {
             "chat-call-control",
             0,
             if self.call_muted { "CallMicOff" } else { "CallMic" },
-            if self.call_muted { MATERIAL_RED } else if mic_open { 0x34343a } else { MATERIAL_DARK },
+            if self.call_muted { MATERIAL_RED } else if mic_open { 0x34343a } else { MATERIAL_SUBTLE },
             if self.call_muted { StrokeKind::Colored } else if mic_open { StrokeKind::AccentFocus } else { StrokeKind::Neutral },
             0xffffff,
             cx.listener(|this, _, _, cx| this.toggle_mute(cx)),
@@ -1149,7 +1140,7 @@ impl Preview {
             "chat-call-control",
             1,
             if self.call_deafened { "CallHeadphoneOff" } else { "CallHeadphones" },
-            if self.call_deafened { MATERIAL_RED } else if out_open { 0x34343a } else { MATERIAL_DARK },
+            if self.call_deafened { MATERIAL_RED } else if out_open { 0x34343a } else { MATERIAL_SUBTLE },
             if self.call_deafened { StrokeKind::Colored } else if out_open { StrokeKind::AccentFocus } else { StrokeKind::Neutral },
             0xffffff,
             cx.listener(|this, _, _, cx| this.toggle_deafen(cx)),
@@ -1225,7 +1216,7 @@ impl Preview {
             dm_list = dm_list.child(
                 material_interactive(
                     ("dm-switch-item", idx),
-                    if selected { 0x323238 } else { MATERIAL_SUBTLE },
+                    if selected { 0x323238 } else { MATERIAL_DARK },
                     11.,
                     StrokeKind::Neutral,
                 )
@@ -1629,7 +1620,7 @@ impl Preview {
             dev_list = dev_list.child(
                 material_interactive(
                     ("mic-dev-item", idx),
-                    if selected { 0x323238 } else { MATERIAL_SUBTLE },
+                    if selected { 0x323238 } else { MATERIAL_DARK },
                     10.,
                     if selected {
                         StrokeKind::AccentFocus
@@ -1721,7 +1712,7 @@ impl Preview {
         for (index, source) in self.voice_state.screen.sources.iter().enumerate() {
             let chosen = source.clone();
             list = list.child(
-                material_interactive(("screen-source", index), MATERIAL_SUBTLE, 10., StrokeKind::Neutral)
+                material_interactive(("screen-source", index), MATERIAL_DARK, 10., StrokeKind::Neutral)
                     .px(px(9.))
                     .py(px(7.))
                     .on_click(cx.listener(move |this, _, _, cx| {
@@ -1875,7 +1866,7 @@ impl Preview {
             dev_list = dev_list.child(
                 material_interactive(
                     ("out-dev-item", idx),
-                    if selected { 0x323238 } else { MATERIAL_SUBTLE },
+                    if selected { 0x323238 } else { MATERIAL_DARK },
                     10.,
                     if selected {
                         StrokeKind::AccentFocus
@@ -2202,7 +2193,7 @@ impl Preview {
         let edit_text = msg.text.clone();
         let copy_text = if msg.deleted { String::new() } else { msg.text.clone() };
         let highlighted = self.highlighted_message.as_ref().is_some_and(|id| burst.iter().any(|member| member.db_id == *id));
-        let action_bar = material_surface(MATERIAL_DARK, 15., StrokeKind::Neutral)
+        let action_bar = material_surface(MATERIAL_SUBTLE, 15., StrokeKind::Neutral)
             .relative()
             .h(px(30.))
             .p(px(2.))
@@ -2249,7 +2240,7 @@ impl Preview {
                 )
             })
             .when(picker_open, |bar| {
-                let mut picker = material_surface(MATERIAL_DARK, 15., StrokeKind::Neutral)
+                let mut picker = material_surface(MATERIAL_SUBTLE, 15., StrokeKind::Neutral)
                     .absolute()
                     .top(px(34.))
                     .right(px(0.))
@@ -2292,7 +2283,7 @@ impl Preview {
                 .flex_col()
                 .gap(px(4.))
                 .child(
-                    material_surface(MATERIAL_DARK, 12., StrokeKind::AccentFocus)
+                    material_surface(MATERIAL_SUBTLE, 12., StrokeKind::AccentFocus)
                         .px(px(10.))
                         .py(px(4.))
                         .on_key_down(cx.listener(|this, event: &gpui::KeyDownEvent, _, cx| {
@@ -2577,7 +2568,7 @@ impl Preview {
             });
             let uploading = self.media_busy.is_some();
             Some(
-                material_surface(MATERIAL_DARK, 14., StrokeKind::Neutral)
+                material_surface(MATERIAL_SUBTLE, 14., StrokeKind::Neutral)
                     .block_mouse_except_scroll()
                     .p(px(6.))
                     .flex()
@@ -2643,7 +2634,7 @@ impl Preview {
             None
         };
 
-        let composer_pill = material_surface(MATERIAL_DARK, components::CONTROL_HEIGHT / 2., StrokeKind::Neutral)
+        let composer_pill = material_surface(MATERIAL_SUBTLE, components::CONTROL_HEIGHT / 2., StrokeKind::Neutral)
             .block_mouse_except_scroll()
             .on_drop(cx.listener(|this, paths: &gpui::ExternalPaths, _, cx| this.attach_dropped(paths.paths(), cx)))
             .flex_1()
@@ -2787,7 +2778,7 @@ impl Preview {
                                 row.child(
                                     material_interactive(
                                         "scroll-to-latest",
-                                        MATERIAL_DARK,
+                                        MATERIAL_SUBTLE,
                                         components::CONTROL_HEIGHT / 2.,
                                         StrokeKind::Neutral,
                                     )

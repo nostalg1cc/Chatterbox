@@ -309,3 +309,8 @@ Released after a release-build check and a 3-minute stress run. Measured on the 
 ## 0.2.7 (2026-11-09)
 
 The call module shipped on by default; Settings, Appearance, Call module restores the old buttons. Heights live in `components::CONTROL_HEIGHT` (44) and `INNER_HEIGHT` (36). Module motion uses `components::Tween`, stepped per frame. `gpui`'s `with_easing` panics on values past 1, so overshoot has to be applied inside the animation closure.
+
+
+## Surface rule (2026-11-09, after 0.2.7)
+
+How dark a surface is depends only on what it sits on. Directly on the background or content (`MATERIAL_SUBTLE`, `MATERIAL_PANEL`): darkest, for the composer, call module, tabs, pills, menus and cards. On top of those (`MATERIAL_DARK`): a step lighter, for buttons and rows. Selected (`0x34343a`): lightest. Colour only carries meaning. The glass look is chosen from this role in `GlassLook::for_surface`, so both designs follow it.
