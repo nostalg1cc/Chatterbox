@@ -65,6 +65,7 @@ fn call_glow() -> Div {
 
 /// Narrower than this, the sidebar would squeeze the chat too far.
 const SIDEBAR_NEEDS: f32 = 940.;
+const SIDEBAR_NEEDS_IN_CALL: f32 = 1020.;
 
 /// The background as it looks under the top of `call_glow`.
 fn with_call_glow(background: u32) -> u32 {
@@ -688,7 +689,10 @@ impl Preview {
 
         let stage_bg = self.state.preferences.theme.stage_bg();
         let window_width = f32::from(window.viewport_size().width);
-        let sidebar_shown = self.media_sidebar_open && self.shell_view == ShellView::Chat && window_width >= SIDEBAR_NEEDS;
+        // The module needs more of the width than the separate buttons did.
+        let sidebar_needs = if self.call_connected && self.state.preferences.call_module { SIDEBAR_NEEDS_IN_CALL } else { SIDEBAR_NEEDS };
+        let sidebar_shown = self.media_sidebar_open && self.shell_view == ShellView::Chat && window_width >= sidebar_needs;
+        self.call_module_compact = !sidebar_shown && window_width < 1000.;
         self.header_clear_of_buttons = !sidebar_shown && window_width < 1180.;
         let active_call = self.call_connected;
 
@@ -700,7 +704,7 @@ impl Preview {
                 .relative()
                 .child(self.render_settings_view(window, cx))
                 .when(active_call, |d| d.child(call_glow()))
-                .child(self.render_floating_header(cx)),
+                .child(self.render_floating_header(window, cx)),
             ShellView::Friends => div()
                 .flex_1()
                 .min_w_0()
@@ -708,7 +712,7 @@ impl Preview {
                 .relative()
                 .child(self.render_dashboard_view(window, cx))
                 .when(active_call, |d| d.child(call_glow()))
-                .child(self.render_floating_header(cx)),
+                .child(self.render_floating_header(window, cx)),
             ShellView::Chat => div()
                 .flex_1()
                 .min_w_0()
@@ -737,7 +741,7 @@ impl Preview {
                         .bottom(px(0.))
                         .left(px(0.))
                         .right(px(0.))
-                        .h(px(108.))
+                        .h(px(84.))
                         .bg(gpui::linear_gradient(
                             0.,
                             gpui::linear_color_stop(rgb(stage_bg), 0.0),
@@ -760,7 +764,7 @@ impl Preview {
                 )
                 .when(active_call, |d| d.child(call_glow()))
                 .when_some(self.render_screen_panel(cx), |d, panel| d.child(panel))
-                .child(self.render_floating_header(cx))
+                .child(self.render_floating_header(window, cx))
                 .child(self.render_composer_dock(window, cx))
                 // Shows that a dragged file can be dropped. It takes no presses of its own.
                 .when(cx.has_active_drag(), |stage| {
@@ -824,7 +828,7 @@ impl Preview {
     }
 
     #[inline(never)]
-    fn render_floating_header(&mut self, cx: &mut Context<Self>) -> Div {
+    fn render_floating_header(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         if !self.call_connected
             && matches!(
                 self.open_dropdown,
@@ -849,14 +853,22 @@ impl Preview {
         };
 
         // 1. Partner Switcher Pill (3-Layer Glass Pill)
-        let partner_pill = material_interactive(
-            "chat-partner-switcher",
-            MATERIAL_DARK,
-            19.,
-            StrokeKind::Neutral,
-        )
-        .h(px(40.))
-        .pl(px(4.))
+        // Made of the same surface as the call module, in a call or not.
+        let beside_module = self.state.preferences.call_module;
+        let partner_pill = if beside_module {
+            div()
+                .id("chat-partner-switcher")
+                .group("chat-partner-switcher")
+                .relative()
+                .rounded(px(crate::call_module::HEIGHT / 2.))
+                .cursor_pointer()
+                .child(crate::call_module::module_backing().absolute().top_0().left_0().size_full())
+                .child(components::hover_sheen("chat-partner-switcher", crate::call_module::HEIGHT / 2.))
+        } else {
+            material_interactive("chat-partner-switcher", MATERIAL_DARK, 19., StrokeKind::Neutral)
+        }
+        .h(px(components::CONTROL_HEIGHT))
+        .pl(px(7.))
         .pr(px(13.))
         .flex()
         .items_center()
@@ -944,6 +956,38 @@ impl Preview {
                 .voice_conversation
                 .as_ref()
                 .is_none_or(|id| *id == conv.id);
+        // Looking at another chat mid-call: this call's menus don't belong here.
+        if !call_here && matches!(
+            self.open_dropdown,
+            Some(HeaderDropdown::Screen | HeaderDropdown::Soundboard | HeaderDropdown::Microphone | HeaderDropdown::Output)
+        ) {
+            self.open_dropdown = None;
+        }
+        let use_module = call_here && self.state.preferences.call_module;
+        let now = std::time::Instant::now();
+        self.module_step = now.duration_since(self.module_spring_at).as_secs_f32().min(1. / 30.);
+        self.module_spring_at = now;
+        if self.module_was_shown && !use_module {
+            self.module_exit_progress = Some(0.);
+            self.module_panel = Default::default();
+            self.module_open = Default::default();
+        }
+        self.module_was_shown = use_module;
+        if !self.state.preferences.call_module {
+            self.module_exit_progress = None;
+        }
+        let exit_progress = self.module_exit_progress;
+        self.module_exit_progress = exit_progress
+            .map(|progress| progress + self.module_step / crate::call_module::EXIT.as_secs_f32())
+            .filter(|progress| *progress < 1.);
+        let leaving = exit_progress.is_some();
+        if leaving {
+            window.request_animation_frame();
+        }
+        let mut module_details = None;
+        if !call_here {
+            self.voice_joinable = !in_room.is_empty();
+        }
         let voice_pill = if call_here {
             // Membership reads lag joining by a moment, so this device always shows you.
             let mut people = in_room;
@@ -957,6 +1001,7 @@ impl Preview {
                 .as_deref()
                 .and_then(crate::backend::seconds_since)
                 .unwrap_or_else(|| self.call_started.elapsed().as_secs());
+            module_details = Some((people.clone(), seconds));
             components::call_pill(
                 "chat-voice-pill",
                 people,
@@ -972,6 +1017,7 @@ impl Preview {
             components::voice_button(
                 "chat-voice-pill",
                 if in_room.is_empty() { "Voice" } else { "Join" },
+                self.state.preferences.call_module,
                 in_room,
                 cx.listener(|this, _, _, cx| this.join_voice(cx)),
             )
@@ -991,7 +1037,7 @@ impl Preview {
             },
         )
         .w(px(58.))
-        .h(px(40.))
+        .h(px(components::CONTROL_HEIGHT))
         .px(px(11.))
         .flex()
         .items_center()
@@ -1045,7 +1091,7 @@ impl Preview {
                 StrokeKind::Neutral
             },
         )
-        .size(px(38.))
+        .size(px(components::CONTROL_HEIGHT))
         .flex()
         .items_center()
         .justify_center()
@@ -1120,12 +1166,17 @@ impl Preview {
 
         let open_popover = match self.open_dropdown {
             Some(HeaderDropdown::Switcher) => Some(self.render_switcher_dropdown(cx)),
+            // The module opens these inside itself.
+            Some(_) if use_module => None,
             Some(HeaderDropdown::Soundboard) => Some(self.render_soundboard_dropdown(cx)),
             Some(HeaderDropdown::Microphone) => Some(self.render_microphone_dropdown(cx)),
             Some(HeaderDropdown::Output) => Some(self.render_output_dropdown(cx)),
             Some(HeaderDropdown::Screen) => Some(self.render_screen_dropdown(cx)),
             None => None,
         };
+        // Beside the module, what's left to open is the chat switcher, which belongs under its pill.
+        let (anchored_popover, open_popover) = if use_module { (open_popover, None) } else { (None, open_popover) };
+        let module = module_details.filter(|_| use_module).map(|(people, seconds)| self.render_call_module(people, seconds, window, cx));
 
         // Transparent header container (`bg(gpui::transparent_black())`)
         div()
@@ -1144,9 +1195,14 @@ impl Preview {
                     .flex()
                     .items_center()
                     .gap(px(8.))
-                    .child(partner_pill)
-                    .child(voice_pill)
-                    .when(call_here, |row| {
+                    .when(use_module, |row| row.items_start())
+                    .child(div().relative().child(partner_pill).when_some(anchored_popover, |slot, popover| {
+                        slot.child(div().absolute().top(px(components::CONTROL_HEIGHT + 8.)).left_0().child(popover))
+                    }))
+                    .children(module)
+                    .when_some(exit_progress, |row, progress| row.child(self.render_module_exit(progress)))
+                    .when(!use_module && !leaving, |row| row.child(voice_pill))
+                    .when(call_here && !use_module, |row| {
                         row.child(soundboard_pill)
                             .child(stream_pill)
                             .child(mic_pill)
@@ -1271,7 +1327,7 @@ impl Preview {
                     11.,
                     StrokeKind::Neutral,
                 )
-                .h(px(34.))
+                .h(px(components::INNER_HEIGHT))
                 .px(px(10.))
                 .flex()
                 .items_center()
@@ -1769,7 +1825,7 @@ impl Preview {
             .child(
                 material_interactive(button_id, button_color, 14., StrokeKind::Colored)
                     .flex_shrink_0()
-                    .h(px(30.))
+                    .h(px(components::INNER_HEIGHT))
                     .px(px(12.))
                     .flex()
                     .items_center()
@@ -1917,7 +1973,7 @@ impl Preview {
         let mut stream = div()
             .w_full()
             .pt(px(88.))
-            .pb(px(158.))
+            .pb(px(84. + if self.chat_replying_to.is_some() { 56. } else { 0. } + if self.pending_media.is_some() || self.media_busy.is_some() { 76. } else { 0. }))
             .px(px(28.))
             .flex()
             .flex_col()
@@ -2446,10 +2502,14 @@ impl Preview {
     #[inline(never)]
     fn render_composer_dock(
         &mut self,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
         // Commands appear only once the message starts with a slash, narrowed as you type.
+        if self.latest_button.step(if self.history_scrolled_up { 1. } else { 0. }, self.module_step) {
+            window.request_animation_frame();
+        }
+        let latest_amount = self.latest_button.value;
         let typed = self.chat_input.read(cx).value().to_string();
         let typed_command = typed.split_whitespace().next().unwrap_or_default().to_string();
         let typing_command = typed.starts_with('/') && !typed.contains(' ');
@@ -2583,13 +2643,13 @@ impl Preview {
             None
         };
 
-        let composer_pill = material_surface(MATERIAL_DARK, 23., StrokeKind::Neutral)
+        let composer_pill = material_surface(MATERIAL_DARK, components::CONTROL_HEIGHT / 2., StrokeKind::Neutral)
             .block_mouse_except_scroll()
             .on_drop(cx.listener(|this, paths: &gpui::ExternalPaths, _, cx| this.attach_dropped(paths.paths(), cx)))
             .flex_1()
-            .h(px(46.))
-            .pl(px(8.))
-            .pr(px(6.))
+            .h(px(components::CONTROL_HEIGHT))
+            .pl(px(4.))
+            .pr(px(4.))
             .flex()
             .items_center()
             .gap(px(8.))
@@ -2597,7 +2657,7 @@ impl Preview {
                 div()
                     .id("composer-attach-btn")
                     .cursor_pointer()
-                    .size(px(32.))
+                    .size(px(components::INNER_HEIGHT))
                     .rounded_full()
                     .flex()
                     .items_center()
@@ -2613,8 +2673,8 @@ impl Preview {
                     .child(Input::new(&self.chat_input).appearance(false)),
             )
             .child(
-                material_interactive("composer-send-btn", ACCENT, 17., StrokeKind::Colored)
-                    .h(px(34.))
+                material_interactive("composer-send-btn", ACCENT, components::INNER_HEIGHT / 2., StrokeKind::Colored)
+                    .h(px(components::INNER_HEIGHT))
                     .px(px(14.))
                     .flex()
                     .items_center()
@@ -2723,15 +2783,18 @@ impl Preview {
                             .items_center()
                             .gap(px(8.))
                             .child(composer_pill)
-                            .when(self.history_scrolled_up, |row| {
+                            .when(latest_amount > 0.01, |row| {
                                 row.child(
                                     material_interactive(
                                         "scroll-to-latest",
                                         MATERIAL_DARK,
-                                        23.,
+                                        components::CONTROL_HEIGHT / 2.,
                                         StrokeKind::Neutral,
                                     )
-                                    .size(px(46.))
+                                    // Grows out of the composer's side, and shrinks back into it.
+                                    .size(px(components::CONTROL_HEIGHT * latest_amount))
+                                    .opacity(latest_amount.clamp(0., 1.))
+                                    .when(latest_amount < 1., |button| button.overflow_hidden())
                                     .flex_shrink_0()
                                     .flex()
                                     .items_center()

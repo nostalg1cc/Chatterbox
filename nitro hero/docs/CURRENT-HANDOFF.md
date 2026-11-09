@@ -299,3 +299,13 @@ Snow is `app_flags` row `snow`, read with each snapshot. Requires migration `202
 ## 0.2.5 (2026-11-09)
 
 Released after a release-build check and a 3-minute stress run. Measured on the release build: startup window at 0.4 s, app shown at 2.2 s, about 11% of one core and 0.5% GPU with snow on, 122 MB. Glass on weak GPUs is still unmeasured. Auto-update at startup can only be proven by the first release after this one. A failed install isn't retried for 6 hours, so it can't stop Nitro opening.
+
+
+## Call module (2026-11-09, not released)
+
+`src/call_module.rs`: every call control in one bar built from the tab pieces (`components::tab_well`, `tab_slab`, `call_tile`), in glass and solid. Sounds (favourites first, 8 a page), audio settings and the screen picker open inside it. Revert with Settings, Appearance, Call module, which restores the old header buttons.
+
+
+## 0.2.7 (2026-11-09)
+
+The call module shipped on by default; Settings, Appearance, Call module restores the old buttons. Heights live in `components::CONTROL_HEIGHT` (44) and `INNER_HEIGHT` (36). Module motion uses `components::Tween`, stepped per frame. `gpui`'s `with_easing` panics on values past 1, so overshoot has to be applied inside the animation closure.

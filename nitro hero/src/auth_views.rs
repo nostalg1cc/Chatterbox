@@ -131,7 +131,7 @@ fn settings_row(title: impl Into<SharedString>, description: impl Into<SharedStr
 
 fn small_button(id: impl Into<gpui::ElementId>, text: impl Into<SharedString>) -> Stateful<Div> {
     material_interactive(id, MATERIAL_DARK, 14., StrokeKind::Neutral)
-        .h(px(32.))
+        .h(px(components::INNER_HEIGHT))
         .px(px(12.))
         .flex_shrink_0()
         .flex()
@@ -158,7 +158,7 @@ fn toggle_row(
             14.,
             if enabled { StrokeKind::Colored } else { StrokeKind::Neutral },
         )
-        .h(px(30.))
+        .h(px(components::INNER_HEIGHT))
         .px(px(12.))
         .flex_shrink_0()
         .flex()
@@ -237,7 +237,7 @@ impl Preview {
                                 StrokeKind::Neutral,
                             )
                             .flex_1()
-                            .h(px(38.))
+                            .h(px(components::CONTROL_HEIGHT))
                             .flex()
                             .items_center()
                             .justify_center()
@@ -253,14 +253,14 @@ impl Preview {
                 ),
             AuthTab::Login => {
                 let email_field = material_surface(MATERIAL_DARK, 12., StrokeKind::Neutral)
-                    .h(px(40.))
+                    .h(px(components::CONTROL_HEIGHT))
                     .px(px(4.))
                     .flex()
                     .items_center()
                     .child(Input::new(&self.auth_email_input).appearance(false));
 
                 let pass_field = material_surface(MATERIAL_DARK, 12., StrokeKind::Neutral)
-                    .h(px(40.))
+                    .h(px(components::CONTROL_HEIGHT))
                     .px(px(4.))
                     .flex()
                     .items_center()
@@ -315,7 +315,7 @@ impl Preview {
                     .child(
                         material_interactive("auth-login-submit", ACCENT, 19., StrokeKind::Colored)
                             .w_full()
-                            .h(px(38.))
+                            .h(px(components::CONTROL_HEIGHT))
                             .mt(px(4.))
                             .flex()
                             .items_center()
@@ -382,7 +382,7 @@ impl Preview {
                             )
                             .child(
                                 material_surface(MATERIAL_DARK, 12., StrokeKind::Neutral)
-                                    .h(px(38.))
+                                    .h(px(components::CONTROL_HEIGHT))
                                     .px(px(4.))
                                     .flex()
                                     .items_center()
@@ -405,7 +405,7 @@ impl Preview {
                             )
                             .child(
                                 material_surface(MATERIAL_DARK, 12., StrokeKind::Neutral)
-                                    .h(px(38.))
+                                    .h(px(components::CONTROL_HEIGHT))
                                     .px(px(4.))
                                     .flex()
                                     .items_center()
@@ -428,7 +428,7 @@ impl Preview {
                             )
                             .child(
                                 material_surface(MATERIAL_DARK, 12., StrokeKind::Neutral)
-                                    .h(px(38.))
+                                    .h(px(components::CONTROL_HEIGHT))
                                     .px(px(4.))
                                     .flex()
                                     .items_center()
@@ -449,7 +449,7 @@ impl Preview {
                             )
                             .child(
                                 material_surface(MATERIAL_DARK, 12., StrokeKind::Neutral)
-                                    .h(px(38.))
+                                    .h(px(components::CONTROL_HEIGHT))
                                     .px(px(4.))
                                     .flex()
                                     .items_center()
@@ -468,7 +468,7 @@ impl Preview {
                             StrokeKind::Colored,
                         )
                         .w_full()
-                        .h(px(38.))
+                        .h(px(components::CONTROL_HEIGHT))
                         .mt(px(4.))
                         .flex()
                         .items_center()
@@ -664,7 +664,7 @@ impl Preview {
                                 StrokeKind::Neutral
                             },
                         )
-                        .h(px(40.))
+                        .h(px(components::CONTROL_HEIGHT))
                         .px(px(14.))
                         .flex()
                         .items_center()
@@ -1032,7 +1032,7 @@ impl Preview {
                                     15.,
                                     StrokeKind::Colored,
                                 )
-                                .h(px(30.))
+                                .h(px(components::INNER_HEIGHT))
                                 .px(px(12.))
                                 .flex()
                                 .items_center()
@@ -1247,7 +1247,7 @@ impl Preview {
                                     17.,
                                     StrokeKind::Neutral,
                                 )
-                                .h(px(34.))
+                                .h(px(components::INNER_HEIGHT))
                                 .px(px(14.))
                                 .flex()
                                 .items_center()
@@ -1282,7 +1282,7 @@ impl Preview {
                                     .child(
                                         material_surface(MATERIAL_DARK, 12., StrokeKind::Neutral)
                                             .flex_1()
-                                            .h(px(40.))
+                                            .h(px(components::CONTROL_HEIGHT))
                                             .px(px(8.))
                                             .flex()
                                             .items_center()
@@ -1298,7 +1298,7 @@ impl Preview {
                                             12.,
                                             StrokeKind::Colored,
                                         )
-                                        .h(px(40.))
+                                        .h(px(components::CONTROL_HEIGHT))
                                         .px(px(16.))
                                         .flex()
                                         .items_center()
@@ -1401,13 +1401,13 @@ impl Preview {
             let active = self.settings_tab == t_val;
             let row = if active {
                 material_surface(MATERIAL_DARK, 14., StrokeKind::Neutral)
-                    .h(px(40.))
+                    .h(px(components::CONTROL_HEIGHT))
                     .px(px(12.))
                     .flex()
                     .items_center()
             } else {
                 div()
-                    .h(px(40.))
+                    .h(px(components::CONTROL_HEIGHT))
                     .px(px(12.))
                     .rounded(px(14.))
                     .flex()
@@ -1437,7 +1437,7 @@ impl Preview {
                     14.,
                     StrokeKind::Colored,
                 )
-                .h(px(38.))
+                .h(px(components::CONTROL_HEIGHT))
                 .px(px(12.))
                 .flex()
                 .items_center()
@@ -1469,7 +1469,7 @@ impl Preview {
                 let update = update.clone();
                 Some(
                     material_interactive("about-install-update", ACCENT, 16., StrokeKind::Colored)
-                        .h(px(34.))
+                        .h(px(components::INNER_HEIGHT))
                         .px(px(14.))
                         .flex()
                         .items_center()
@@ -1485,7 +1485,7 @@ impl Preview {
             }
             _ => Some(
                 material_interactive("about-check-update", MATERIAL_DARK, 16., StrokeKind::Neutral)
-                    .h(px(34.))
+                    .h(px(components::INNER_HEIGHT))
                     .px(px(14.))
                     .flex()
                     .items_center()
@@ -1573,7 +1573,7 @@ impl Preview {
                         10.,
                         chip_stroke(my_effect.is_none()),
                     )
-                    .h(px(34.))
+                    .h(px(components::INNER_HEIGHT))
                     .px(px(12.))
                     .flex()
                     .items_center()
@@ -1591,7 +1591,7 @@ impl Preview {
                             10.,
                             chip_stroke(active),
                         )
-                        .h(px(34.))
+                        .h(px(components::INNER_HEIGHT))
                         .px(px(12.))
                         .flex()
                         .items_center()
@@ -1617,7 +1617,7 @@ impl Preview {
                             10.,
                             chip_stroke(active),
                         )
-                        .h(px(34.))
+                        .h(px(components::INNER_HEIGHT))
                         .px(px(12.))
                         .flex()
                         .items_center()
@@ -1645,7 +1645,7 @@ impl Preview {
                                 StrokeKind::Neutral
                             },
                         )
-                        .h(px(34.))
+                        .h(px(components::INNER_HEIGHT))
                         .px(px(10.))
                         .flex()
                         .items_center()
@@ -1763,7 +1763,7 @@ impl Preview {
                                         10.,
                                         StrokeKind::Neutral,
                                     )
-                                    .h(px(34.))
+                                    .h(px(components::INNER_HEIGHT))
                                     .px(px(12.))
                                     .flex()
                                     .items_center()
@@ -1785,6 +1785,12 @@ impl Preview {
                     "Glass",
                     "See-through glass buttons and panels. Turn off for solid ones.",
                     self.state.preferences.glass_ui,
+                );
+                let (module_copy, module_button) = toggle_row(
+                    "settings-call-module",
+                    "Call module",
+                    "All call controls in one bar. Turn off for separate buttons.",
+                    self.state.preferences.call_module,
                 );
                 let mut theme_cards = div().flex().flex_wrap().gap(px(12.));
                 for (idx, theme_opt) in AppTheme::ALL.into_iter().enumerate() {
@@ -1877,6 +1883,14 @@ impl Preview {
                         glass_button.on_click(cx.listener(|this, _, _, cx| {
                             this.set_glass(!this.state.preferences.glass_ui, cx);
                         })),
+                    )).child(row(
+                        module_copy,
+                        module_button.on_click(cx.listener(|this, _, _, cx| {
+                            this.state.preferences.call_module = !this.state.preferences.call_module;
+                            this.open_dropdown = None;
+                            this.persist();
+                            cx.notify();
+                        })),
                     )))
                     .child(theme_cards)
             }
@@ -1896,7 +1910,7 @@ impl Preview {
                                 StrokeKind::Neutral
                             },
                         )
-                        .h(px(34.))
+                        .h(px(components::INNER_HEIGHT))
                         .px(px(12.))
                         .flex()
                         .items_center()
@@ -1929,7 +1943,7 @@ impl Preview {
                                 StrokeKind::Neutral
                             },
                         )
-                        .h(px(34.))
+                        .h(px(components::INNER_HEIGHT))
                         .px(px(12.))
                         .flex()
                         .items_center()
@@ -2047,7 +2061,7 @@ impl Preview {
                                     12.,
                                     StrokeKind::Neutral,
                                 )
-                                .h(px(32.))
+                                .h(px(components::INNER_HEIGHT))
                                 .px(px(12.))
                                 .flex()
                                 .items_center()
@@ -2227,7 +2241,7 @@ impl Preview {
                         16.,
                         if primary { StrokeKind::Colored } else { StrokeKind::Neutral },
                     )
-                    .h(px(34.))
+                    .h(px(components::INNER_HEIGHT))
                     .px(px(14.))
                     .flex()
                     .items_center()

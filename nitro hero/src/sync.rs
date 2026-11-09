@@ -1313,6 +1313,10 @@ impl Preview {
 
     /// Keeps the desktop overlay matching the call.
     pub fn sync_overlay(&mut self, cx: &mut Context<Self>) {
+        // Creating a window stalls everything for a moment, so not while the module springs out.
+        if self.hud.is_none() && self.call_connected && self.call_started.elapsed() < Duration::from_millis(700) {
+            return;
+        }
         let prefs = &self.state.preferences;
         let scale = prefs.voice_hud_scale as f32 / 100.;
         let show_names = prefs.voice_hud_show_names;

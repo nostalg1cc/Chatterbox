@@ -13,6 +13,7 @@ mod hud;
 mod links;
 mod state;
 mod themes;
+mod call_module;
 mod sound_wheel;
 mod startup;
 mod sync;
@@ -339,6 +340,20 @@ pub struct Preview {
     pub voice_state: voice::State,
     pub voice_events: Option<std::sync::mpsc::Receiver<voice::State>>,
     pub voice_token_at: Instant,
+    pub call_module_compact: bool,
+    pub module_panel_kind: Option<state::HeaderDropdown>,
+    pub module_panel: components::Tween,
+    pub latest_button: components::Tween,
+    pub module_panel_natural: Rc<Cell<f32>>,
+    pub module_spring_at: Instant,
+    /// How far the module has shrunk away, while it's doing so.
+    pub module_exit_progress: Option<f32>,
+    pub module_open: components::Tween,
+    /// This frame's slice of time for the module's motion. Capped, so a busy moment pauses it.
+    pub module_step: f32,
+    pub module_was_shown: bool,
+    /// Someone's in the room, so the button out of a call says Join.
+    pub voice_joinable: bool,
     pub sound_wheel: Option<sound_wheel::SoundWheel>,
     pub wheel_input: Option<sound_wheel::WheelInput>,
     pub wheel_overlay: Option<gpui::WindowHandle<sound_wheel::WheelOverlay>>,
@@ -985,6 +1000,17 @@ impl Preview {
             voice_events: None,
             voice_token_at: Instant::now(),
             snow: None,
+            call_module_compact: false,
+            module_panel_kind: None,
+            module_panel: Default::default(),
+            latest_button: Default::default(),
+            module_panel_natural: Default::default(),
+            module_spring_at: Instant::now(),
+            module_exit_progress: None,
+            module_open: Default::default(),
+            module_step: 0.,
+            module_was_shown: false,
+            voice_joinable: false,
             sound_wheel: None,
             wheel_input: None,
             wheel_overlay: None,
@@ -1450,7 +1476,7 @@ impl Preview {
             call_row = call_row
                 .child(components::voice_button(
                     "preview-voice",
-                    "Voice",
+                    "Voice", false,
                     vec![],
                     cx.listener(|this, _, _, cx| {
                         audio::play(audio::UiSound::VoiceJoin);
@@ -1462,7 +1488,7 @@ impl Preview {
                 ))
                 .child(components::voice_button(
                     "preview-voice-join",
-                    "Join",
+                    "Join", false,
                     vec![("N".into(), 0x3d4a58, Default::default())],
                     cx.listener(|this, _, _, cx| {
                         audio::play(audio::UiSound::VoiceJoin);

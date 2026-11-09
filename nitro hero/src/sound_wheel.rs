@@ -375,7 +375,8 @@ impl Preview {
         if let Some(input) = &self.wheel_input {
             input.set_open(self.sound_wheel.is_some());
         }
-        if self.wheel_overlay.is_none() {
+        // Creating a window stalls everything for a moment, so not while the module springs out.
+        if self.wheel_overlay.is_none() && (held_open || self.call_started.elapsed() >= Duration::from_millis(700)) {
             self.wheel_overlay = open_overlay(cx);
         }
         let view = self.wheel_view();

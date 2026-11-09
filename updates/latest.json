@@ -1,11 +1,11 @@
 {
-  "version": "0.2.6",
-  "notes": "You can now switch between glass and solid buttons and panels: Settings, Appearance, Glass.",
-  "pub_date": "2026-11-09T02:51:29.000Z",
+  "version": "0.2.7",
+  "notes": "Calls have a new look: every control now lives in one call module, in glass or solid. Your sounds are all in one list with favourites first, and you can star them right there. The Voice button morphs into Leave and back, and panels spring open and closed. Buttons, tabs and the message box are now all the same height, Join is green when someone's waiting, and the newest message sits right above the message box. Prefer the old buttons? Settings, Appearance, Call module.",
+  "pub_date": "2026-11-09T07:58:08.000Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.6/Nitro_0.2.6_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMEdPVE1Fb3FXZGR4dlpzK0hDdEM4NzcydWhYOFlMVnhZS3lMNlFmQ3hIdVE5cEtEazdmYzQzR0ZVNUxSUjlvcG9hK05nbDA4WjFWNWpIRkNHS0pyS0FJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTkyNjg5CWZpbGU6Tml0cm9fMC4yLjZfeDY0LXNldHVwLmV4ZQpMZ2JZcXpDTWwwa2l0VksxNkdjMWlNWmZpa2xLc3I3UWJtYytWREcvYzhBcGZDOE01TTRPaGd1aGdMb2FiSHR3YlVSaFo4Z1JrdzB1cWJ2QktqSjVBQT09Cg=="
+      "url": "https://github.com/nostalg1cc/Chatterbox/releases/download/v0.2.7/Nitro_0.2.7_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUb0EwaWVTSTErMEMrR3Z6ZThPZFpHa0NNeVI4TElyd0FRNXdqM0E4REdJSjkzdkMydmRNemNPdjBPRXBaWm83aEJJTHFMVUQwQ0k0cDJUOUlrT2QyOG1qcDFpNVRHVndNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MjExMDg4CWZpbGU6Tml0cm9fMC4yLjdfeDY0LXNldHVwLmV4ZQpGZ3pTSXdXT2VEbzdjdFVWSG5zcVVWbURpWDgzZ0EzVHBFcDE4cDhPeWRRKzJTdjcxODMyeVN3SkViU3RROENYTm0wb3JmTkN1ZnYzRU9qd2h5bGJCQT09Cg=="
     }
   }
 }

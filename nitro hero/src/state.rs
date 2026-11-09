@@ -149,6 +149,9 @@ pub struct Preferences {
     pub interface_sound_volume: u8,
     #[serde(default = "enabled_by_default")]
     pub glass_ui: bool,
+    /// All call controls in one module, rather than the separate header buttons.
+    #[serde(default = "enabled_by_default")]
+    pub call_module: bool,
     /// Where the window was, to open there next time.
     #[serde(default)]
     pub window: Option<SavedWindow>,
@@ -226,6 +229,7 @@ impl Default for Preferences {
             keybinds: default_keybinds(),
             interface_sound_volume: default_interface_volume(),
             glass_ui: true,
+            call_module: true,
             window: None,
             wheel_enabled: true,
             wheel_key: default_wheel_key(),

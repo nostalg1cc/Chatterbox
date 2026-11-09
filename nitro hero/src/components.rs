@@ -20,6 +20,10 @@ pub const MATERIAL_DARK: u32 = 0x282828;
 pub const MATERIAL_SUBTLE: u32 = 0x202022;
 pub const MATERIAL_PANEL: u32 = 0x1e1e20;
 pub const MATERIAL_GREEN: u32 = 0x00b339;
+/// The one height for standalone controls: tabs, buttons, pills, fields and the composer.
+pub const CONTROL_HEIGHT: f32 = 44.;
+/// The one height for anything sitting inside a control, or a small button beside text.
+pub const INNER_HEIGHT: f32 = 36.;
 pub const MATERIAL_RED: u32 = 0xff3333;
 
 const TEXT: u32 = 0xf2f2f3;
@@ -135,9 +139,9 @@ impl GlassLook {
     /// Carved in: darker, with a quiet rim. What a sliding piece sits in.
     pub const WELL: Self = Self { tint: Some((0x000000, 0.24)), highlight: 1.5, blur: 1.4, lift: 0.7, rim: 0.9, ring: 1. };
     /// A bright slab raised above a well: a strong rim and a real shadow.
-    pub const SLAB: Self = Self { tint: Some((0xffffff, 0.15)), highlight: 5., blur: 0.6, lift: 2.5, rim: 1.1, ring: 0.8 };
+    pub const SLAB: Self = Self { tint: Some((0xffffff, 0.15)), highlight: 5., blur: 0.6, lift: 0.9, rim: 1.1, ring: 0.3 };
     /// A slider's handle.
-    pub const KNOB: Self = Self { tint: Some((0xffffff, 0.14)), highlight: 4., blur: 0.5, lift: 1.6, rim: 1.1, ring: 0.8 };
+    pub const KNOB: Self = Self { tint: Some((0xffffff, 0.14)), highlight: 4., blur: 0.5, lift: 0.9, rim: 1.1, ring: 0.3 };
     /// A large panel or menu: darker and more diffused, as text has to read on it.
     pub const PANEL: Self = Self { tint: Some((0xffffff, 0.05)), highlight: 2., blur: 2.4, lift: 1.3, rim: 1., ring: 1. };
     /// An ordinary button or pill. The standard settings suit a busy backdrop. Interface surfaces
@@ -272,7 +276,7 @@ pub fn material_surface(fill_hex: u32, radius: f32, stroke: StrokeKind) -> Div {
 }
 
 /// The soft press every button makes, like the main app's interface click.
-fn press_sound(event: &gpui::MouseDownEvent, _: &mut Window, _: &mut App) {
+pub fn press_sound(event: &gpui::MouseDownEvent, _: &mut Window, _: &mut App) {
     if event.button == MouseButton::Left {
         crate::audio::play(crate::audio::UiSound::Click);
     }
@@ -696,6 +700,40 @@ fn tabs_spring(seconds: f32) -> f32 {
     1. - (-21. * seconds).exp() * (16. * seconds).cos()
 }
 
+/// The tabs' spring, for something moving from 0 to 1 over the same time.
+pub fn tabs_curve(progress: f32) -> f32 {
+    tabs_spring(progress * TABS_TRANSITION.as_secs_f32())
+}
+
+/// A value moving with the tabs' spring, stepped frame by frame so that a busy moment pauses
+/// it instead of skipping ahead.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Tween {
+    from: f32,
+    to: f32,
+    time: f32,
+    pub value: f32,
+}
+
+impl Tween {
+    /// Moves one frame towards `target`. True while it's still moving.
+    pub fn step(&mut self, target: f32, seconds: f32) -> bool {
+        if (target - self.to).abs() > 0.01 {
+            (self.from, self.to, self.time) = (self.value, target, 0.);
+        }
+        if self.value == target {
+            return false;
+        }
+        self.time += seconds;
+        if self.time >= TABS_TRANSITION.as_secs_f32() {
+            self.value = target;
+            return false;
+        }
+        self.value = (self.from + (self.to - self.from) * tabs_spring(self.time)).max(0.);
+        true
+    }
+}
+
 /// Mixes two text colours, for a label brightening as the indicator reaches it.
 fn mix_colour(from: gpui::Hsla, to: gpui::Hsla, amount: f32) -> gpui::Hsla {
     let amount = amount.clamp(0., 1.);
@@ -807,9 +845,9 @@ fn tabs_with(
     let lift = 0.; // Elasticity is horizontal; the tab hit targets never change height.
     let width = item_width * labels.len() as f32 + 8.;
     let mut bar = div().relative()
-        .child(if glass { glass_look(20. + lift / 2., GlassLook::WELL) } else { material_surface(MATERIAL_SUBTLE, 20. + lift / 2., StrokeKind::Neutral) }
+        .child(if glass { glass_look(CONTROL_HEIGHT / 2. + lift / 2., GlassLook::WELL) } else { material_surface(MATERIAL_SUBTLE, CONTROL_HEIGHT / 2. + lift / 2., StrokeKind::Neutral) }
             .absolute().left(px(stretch.min(0.))).top(px(-lift / 2.))
-            .w(px(width + stretch.abs())).h(px(40. + lift)))
+            .w(px(width + stretch.abs())).h(px(CONTROL_HEIGHT + lift)))
         .w(px(item_width * labels.len() as f32 + 8.))
         .flex_shrink_0()
         .flex()
@@ -817,16 +855,16 @@ fn tabs_with(
         .p(px(4.))
         .child(
             if glass {
-                glass_look(16. + lift / 2., GlassLook::SLAB)
+                glass_look(INNER_HEIGHT / 2. + lift / 2., GlassLook::SLAB)
             } else {
-                material_surface(0x34343a, 16. + lift / 2., StrokeKind::Neutral)
+                material_surface(0x34343a, INNER_HEIGHT / 2. + lift / 2., StrokeKind::Neutral)
             }
                 .absolute()
                 // Pressed, it squeezes in slightly, under the finger.
                 .top(px(if held { 5. } else { 4. - lift / 2. }))
                 .left(px(4. + left_edge * item_width + stretch.min(0.) + if held { 1.5 } else { 0. }))
                 .w(px((right_edge - left_edge) * item_width + stretch.abs() - if held { 3. } else { 0. }))
-                .h(px(if held { 30. } else { 32. + lift })),
+                .h(px(if held { INNER_HEIGHT - 2. } else { INNER_HEIGHT + lift })),
         );
     let count = labels.len();
     for (index, name) in labels.into_iter().enumerate() {
@@ -836,7 +874,7 @@ fn tabs_with(
                 .cursor_pointer()
                 .w(px(item_width))
                 .flex_shrink_0()
-                .h(px(32.))
+                .h(px(INNER_HEIGHT))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -1327,7 +1365,7 @@ pub fn button_group_segment(
         .id(id)
         .relative()
         .cursor_pointer()
-        .h(px(37.5))
+        .h(px(CONTROL_HEIGHT - 2.5))
         .flex()
         .items_center()
         .justify_center()
@@ -1343,12 +1381,14 @@ pub fn button_group_segment(
     if index + 1 == count {
         segment = segment.rounded_r(px(18.75));
     }
-    if index > 0 {
+    // No separator colour means no separators.
+    if index > 0 && separator != 0 {
         segment = segment.child(
             div()
                 .absolute()
                 .left_0()
-                .top(px(9.5))
+                .top(relative(0.5))
+                .mt(px(-9.))
                 .w(px(1.))
                 .h(px(18.))
                 .bg(rgb(separator)),
@@ -1376,7 +1416,7 @@ pub fn split_toggle(
     // The chevron matches the soundboard pill's: 12px, with 11px clear of the edge.
     material_quiet((name, index), format!("{name}-{index}"), fill, 25.01, stroke)
         .w(px(65.))
-        .h(px(40.))
+        .h(px(CONTROL_HEIGHT))
         .flex()
         .items_center()
         .justify_center()
@@ -1869,11 +1909,34 @@ pub fn avatar_stack(people: Vec<(SharedString, u32, AvatarImage)>) -> Div {
 pub fn voice_button(
     id: &'static str,
     label: &'static str,
+    matches_module: bool,
     people: Vec<(SharedString, u32, AvatarImage)>,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
-    material_quiet(id, id, MATERIAL_DARK, 25.01, StrokeKind::Neutral)
-        .h(px(40.))
+    // Someone's already in there, so it's an invitation.
+    let joinable = !people.is_empty();
+    let ink = if joinable { 0xffffff } else { 0xd4d4d8 };
+    let button = if matches_module && !joinable {
+        div()
+            .id(id)
+            .relative()
+            .rounded(px(CONTROL_HEIGHT / 2.))
+            .group(id)
+            .cursor_pointer()
+            .active(|s| s.opacity(0.88))
+            .child(tab_well(CONTROL_HEIGHT / 2.).absolute().top_0().left_0().size_full())
+            .child(hover_sheen(id, CONTROL_HEIGHT / 2.))
+    } else {
+        material_quiet(
+            id,
+            id,
+            if joinable { MATERIAL_GREEN } else { MATERIAL_DARK },
+            25.01,
+            if joinable { StrokeKind::Colored } else { StrokeKind::Neutral },
+        )
+    };
+    button
+        .h(px(CONTROL_HEIGHT))
         .px(px(13.))
         .flex_shrink_0()
         .flex()
@@ -1883,7 +1946,7 @@ pub fn voice_button(
         .on_click(on_click)
         .map(|button| {
             if people.is_empty() {
-                button.child(svg().path("CallPhone").size(px(18.)).text_color(rgb(0xd4d4d8)))
+                button.child(svg().path("CallPhone").size(px(18.)).text_color(rgb(ink)))
             } else {
                 button.child(avatar_stack(people))
             }
@@ -1892,7 +1955,7 @@ pub fn voice_button(
             div()
                 .text_size(px(14.))
                 .font_weight(gpui::FontWeight::MEDIUM)
-                .text_color(rgb(0xd4d4d8))
+                .text_color(rgb(ink))
                 .child(label),
         )
 }
@@ -1916,7 +1979,7 @@ pub fn call_pill(
     .id(id)
     .cursor_pointer()
     .w(px(136.))
-    .h(px(40.))
+    .h(px(CONTROL_HEIGHT))
     .flex_shrink_0()
     .flex()
     .items_center()
@@ -2377,6 +2440,62 @@ pub fn snow_overlay(started: Instant) -> impl IntoElement {
     .top_0()
     .left_0()
     .size_full()
+}
+
+/// The bar behind the tabs, for anything else built from them.
+pub fn tab_well(radius: f32) -> Div {
+    if glass_ui() { glass_look(radius, GlassLook::WELL) } else { material_surface(MATERIAL_SUBTLE, radius, StrokeKind::Neutral) }
+}
+
+/// A hover highlight for something with its own surface, which would cover a plain background.
+/// Goes after the surface and before the contents, on an element in the same group.
+pub fn hover_sheen(group: &'static str, radius: f32) -> Div {
+    div().absolute().top_0().left_0().size_full().rounded(px(radius)).group_hover(group, |s| s.bg(rgba(0xffffff1c)))
+}
+
+/// The raised piece that marks the selected tab.
+pub fn tab_slab(radius: f32) -> Div {
+    if glass_ui() { glass_look(radius, GlassLook::SLAB) } else { material_surface(0x34343a, radius, StrokeKind::Neutral) }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CallTile {
+    Idle,
+    Selected,
+    Alarm,
+    Live,
+}
+
+/// Runs past the end a little and settles back, for things that should feel springy.
+pub fn back_out(t: f32) -> f32 {
+    const OVERSHOOT: f32 = 1.9;
+    let t = t - 1.;
+    t * t * ((OVERSHOOT + 1.) * t + OVERSHOOT) + 1.
+}
+
+/// One segment of a call module button group, lit the way a selected tab is.
+pub fn call_segment(id: &'static str, index: usize, count: usize, icon: &'static str, width: f32, state: CallTile) -> Stateful<Div> {
+    const RADIUS: f32 = 14.;
+    let backing = match state {
+        CallTile::Idle => None,
+        CallTile::Selected => Some(tab_slab(RADIUS)),
+        CallTile::Alarm => Some(material_surface(MATERIAL_RED, RADIUS, StrokeKind::Colored)),
+        CallTile::Live => Some(material_surface(ACCENT, RADIUS, StrokeKind::Colored)),
+    };
+    let size = if width < 36. { 12. } else { 18. };
+    button_group_segment(id, index, count, 0)
+        .h(px(INNER_HEIGHT - 2.5))
+        .w(px(width))
+        .flex_shrink_0()
+        // Pops into place whenever it lights up or changes colour.
+        .children(backing.map(|backing| {
+            backing.absolute().inset(px(2.)).with_animation(
+                (id, state as usize),
+                Animation::new(Duration::from_millis(260)),
+                |backing, delta| backing.inset(px(2. + (1. - back_out(delta)) * 8.)),
+            )
+        }))
+        .child(svg().relative().path(icon).size(px(size)).text_color(rgb(if state == CallTile::Idle { 0xd4d4d8 } else { 0xffffff })))
 }
 
 /// What keeps the window buttons readable with content passing under them: the background colour,
@@ -2894,6 +3013,22 @@ mod snow_tests {
             }
             assert_ne!(snowflake(index, 1., 1200., 800.), snowflake(index, 1.5, 1200., 800.));
         }
+    }
+
+    #[test]
+    fn tweens_reach_their_target_and_can_turn_around() {
+        use super::Tween;
+        let mut tween = Tween::default();
+        for _ in 0..4 {
+            assert!(tween.step(1., 1. / 60.));
+        }
+        assert!(tween.value > 0. && tween.value < 1.2);
+        let turned_at = tween.value;
+        assert!(tween.step(0., 1. / 60.));
+        assert!(tween.value < turned_at + 0.2);
+        while tween.step(0., 1. / 60.) {}
+        assert_eq!(tween.value, 0.);
+        assert!(!tween.step(0., 1. / 60.));
     }
 
     #[test]
